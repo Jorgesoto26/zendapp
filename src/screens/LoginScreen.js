@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { getData, getDbConnection } from '../database/db';
+import { getInvoice } from '../services/services';
 
 export default function LoginScreen({ }) {
   const navigation = useNavigation();
@@ -38,7 +39,7 @@ export default function LoginScreen({ }) {
       });
 
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
+        .from('users')
         .select('*')
         .eq('login', email)
         .eq('password', password);
@@ -62,7 +63,13 @@ export default function LoginScreen({ }) {
 
       // If everything is successful, show success message
       console.log("Usuario encontrado:", profileData[0]);
+      const invoice = await getInvoice();
+      console.log('invoice', invoice);
+
+
+
       navigation.navigate('Main', { user: profileData[0] });
+
       //Alert.alert('Éxito', 'Usuario encontrado correctamente');
     } catch (error) {
       console.log("Error del inicio:", error);

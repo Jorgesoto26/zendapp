@@ -1,5 +1,15 @@
 import { supabase } from "../lib/supabase";
 
+export const getInvoice = async () => {
+    const { data, error } = await supabase
+      .from('invoice')
+      .select('*')
+      .gt('amount', 0); // .gt significa "greater than"
+
+      console.log('data invoice', data[0]);
+    return data;
+  };
+
 export const registerMovement = async ({ cajaId, tipo, descripcion, monto }) => {
     try {
         const { data, error } = await supabase
@@ -82,7 +92,7 @@ export const openBox = async ({ usuarioId, montoInicial }) => {
   };
   
 
-export const createClientInvoice = async ({ name, email, monto }) => {
+/* export const createClientInvoice = async ({ name, email, monto }) => {
   try {
     // Paso 1: Crear cliente
     const { data: cliente, error: errorCliente } = await supabase
@@ -107,6 +117,10 @@ export const createClientInvoice = async ({ name, email, monto }) => {
   } catch (error) {
     console.error('Error:', error.message);
   }
+}; */
+
+export const createClientInvoice = async () => {
+  
 };
 
 
