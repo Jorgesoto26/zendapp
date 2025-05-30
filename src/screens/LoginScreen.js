@@ -1,136 +1,327 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Modal,
+  Pressable,
+  ActivityIndicator,
+  Image,
+  ScrollView
+} from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { getData, getDbConnection } from '../database/db';
-import { getInvoice } from '../services/services';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
-export default function LoginScreen({ }) {
+export default function LoginScreen() {
   const navigation = useNavigation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('gogicolombia@gmail.com');
+  const [password, setPassword] = useState('Admin1234!');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const LoadData = async () => {
       try {
-        console.log('Intentando conectar con la BD local...');
         const db = await getDbConnection();
-        console.log('Conexión exitosa.');
-  
-        const parametrizacion = await getData(
-          db,
-          `select * from parametrizacion `,
-        );
-        console.log('parametrizacion', parametrizacion);
+        await getData(db, `select * from parametrizacion`);
       } catch (error) {
         console.error('Error al cargar datos de parametrización:', error);
       }
     };
     LoadData();
   }, []);
-  
 
   const handleLogin = async () => {
+    setLoading(true);
     try {
-      // Check if user exists in perfiles table
-      console.log("Intentando login con:", {
-        email: email,
-        password: password
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('login', email)
-        .eq('password', password);
-
-      console.log("Respuesta completa:", {
-        data: profileData,
-        error: profileError
-      });
-
-      if (profileError) {
-        console.log('Error de perfil:', profileError);
-        Alert.alert('Error', 'Error al verificar el perfil del usuario');
+      if (error) {
+        Alert.alert('Error', error.message || 'Usuario o contraseña incorrectos');
         return;
       }
 
-      if (!profileData || profileData.length === 0) {
-        console.log('No se encontraron coincidencias');
-        Alert.alert('Error', 'Usuario no encontrado en la base de datos');
-        return;
-      }
-
-      // If everything is successful, show success message
-      console.log("Usuario encontrado:", profileData[0]);
-      const invoice = await getInvoice();
-      console.log('invoice', invoice);
-
-
-
-      navigation.navigate('Main', { user: profileData[0] });
-
-      //Alert.alert('Éxito', 'Usuario encontrado correctamente');
+      navigation.navigate('Main', { user: data.user });
     } catch (error) {
-      console.log("Error del inicio:", error);
       Alert.alert('Error', 'Ocurrió un error durante el inicio de sesión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    setLoading(true);
+    try {
+      if (!regEmail || !regPassword) {
+        Alert.alert('Error', 'Por favor completa todos los campos');
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({
+        email: regEmail,
+        password: regPassword,
+      });
+
+      if (error) throw error;
+
+      Alert.alert('¡Registro exitoso!', 'Inicia sesion con tus datos');
+      setModalVisible(false);
+      setRegEmail('');
+      setRegPassword('');
+    } catch (error) {
+      Alert.alert('Error', error.message || 'Ocurrió un error durante el registro');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* <Image
+        source={require('../assets/logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      /> */}
+
       <Text style={styles.title}>Bienvenido a Zenda</Text>
+      
+      <Text style={styles.label}>Correo electrónico</Text>
       <TextInput
-        placeholder="Correo electrónico"
+        placeholder="tucorreo@ejemplo.com"
         value={email}
         onChangeText={setEmail}
         style={styles.input}
         keyboardType="email-address"
         autoCapitalize="none"
+        placeholderTextColor="#888"
       />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
-      <TouchableOpacity onPress={handleLogin} style={styles.button}>
-        <Text style={styles.buttonText}>Iniciar sesión</Text>
+
+      <Text style={styles.label}>Contraseña</Text>
+      <View style={styles.passwordContainer}>
+        <TextInput
+          placeholder="Ingresa tu contraseña"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+          style={styles.inputPassword}
+          placeholderTextColor="#888"
+        />
+        <TouchableOpacity 
+          onPress={() => setShowPassword(!showPassword)}
+          style={styles.iconButton}
+        >
+          <Icon
+            name={showPassword ? 'eye' : 'eye-slash'}
+            size={20}
+            color="#888"
+          />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity 
+        onPress={handleLogin} 
+        style={styles.button}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Iniciar sesión</Text>
+        )}
       </TouchableOpacity>
-    </View>
+
+      <TouchableOpacity 
+        onPress={() => setModalVisible(true)} 
+        style={styles.registerButton}
+      >
+        <Text style={styles.registerButtonText}>¿No tienes cuenta? Regístrate</Text>
+      </TouchableOpacity>
+
+      {/* Modal de Registro */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Crear nueva cuenta</Text>
+            
+            <Text style={styles.label}>Correo electrónico</Text>
+            <TextInput
+              placeholder="tucorreo@ejemplo.com"
+              value={regEmail}
+              onChangeText={setRegEmail}
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#888"
+            />
+
+            <Text style={styles.label}>Contraseña</Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                placeholder="Crea una contraseña"
+                value={regPassword}
+                onChangeText={setRegPassword}
+                secureTextEntry={!showRegPassword}
+                style={styles.inputPassword}
+                placeholderTextColor="#888"
+              />
+              <TouchableOpacity 
+                onPress={() => setShowRegPassword(!showRegPassword)}
+                style={styles.iconButton}
+              >
+                <Icon
+                  name={showRegPassword ? 'eye' : 'eye-slash'}
+                  size={20}
+                  color="#888"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.buttonGroup}>
+              <Pressable
+                style={[styles.button, styles.cancelButton]}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.buttonText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={styles.button}
+                onPress={handleRegister}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Registrarse</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
+    padding: 25,
+    backgroundColor: '#f8f9fa',
+  },
+  logo: {
+    width: 150,
+    height: 150,
+    alignSelf: 'center',
+    marginBottom: 30,
   },
   title: {
-    fontSize: 26,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     marginBottom: 30,
     textAlign: 'center',
-    color: '#333',
+    color: '#2c3e50',
+  },
+  label: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    marginBottom: 8,
+    marginLeft: 5,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 15,
+    borderColor: '#ddd',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    color: '#2c3e50',
+    backgroundColor: '#fff',
+    fontSize: 16,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    marginBottom: 20,
+    backgroundColor: '#fff',
+  },
+  inputPassword: {
+    flex: 1,
+    padding: 15,
+    color: '#2c3e50',
+    fontSize: 16,
+  },
+  iconButton: {
+    padding: 10,
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: '#3498db',
+    padding: 16,
+    borderRadius: 10,
     alignItems: 'center',
+    marginBottom: 15,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  registerButton: {
+    padding: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  registerButtonText: {
+    color: '#3498db',
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 25,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 25,
+    color: '#2c3e50',
+    textAlign: 'center',
+  },
+  buttonGroup: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  cancelButton: {
+    backgroundColor: '#e74c3c',
+    marginRight: 10,
+    flex: 1,
   },
 });
