@@ -1,96 +1,153 @@
+import { updateData, insertOrReplaceData} from "../database/db";
 import { supabase } from "../lib/supabase";
 
-export const getInvoice = async () => {
-    const { data, error } = await supabase
-      .from('invoice')
-      .select('*')
-      .gt('amount', 0); // .gt significa "greater than"
+export const AuthService = async (db, email, password) => {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-      console.log('data invoice', data[0]);
-    return data;
-  };
+    if (error) {
+      return { success: false, message: error.message || 'Usuario o contraseña incorrectos' };
+    }
+
+    const { access_token } = data.session;
+    const userId = data.user.id;
+
+    await Promise.all([
+      updateData(db, 'parametrizacion', { id: 2, valor: access_token }),
+      updateData(db, 'parametrizacion', { id: 5, valor: userId })
+    ]);
+
+    const response = await fetch(
+      'https://gwpwntdwogxzmtegaaom.supabase.co/functions/v1/get-user-profile',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`
+        },
+        body: JSON.stringify({ id: userId })
+      }
+    );
+
+    if (!response.ok) {
+      const errorResult = await response.json();
+      return { success: false, message: errorResult.error || 'Error al obtener el perfil' };
+    }
+
+    const result = await response.json();
+    const { profile, concepts, caja, movimientos } = result;
+
+    await Promise.all([
+      updateData(db, 'parametrizacion', { id: 6, valor: profile.rol }),
+      updateData(db, 'parametrizacion', { id: 7, valor: profile.nombre }),
+      updateData(db, 'parametrizacion', { id: 8, valor: profile.superior_id })
+    ]);
+
+    await Promise.all([
+      insertOrReplaceData(db, 'concepts', concepts),
+      insertOrReplaceData(db, 'cajas', [caja]),
+      insertOrReplaceData(db, 'movimientos', movimientos)
+    ]);
+
+    return { success: true, user: data.user };
+
+  } catch (error) {
+    console.error('Error en login:', error);
+    return { success: false, message: error.message || 'Error desconocido' };
+  }
+};
+
+export const getInvoice = async () => {
+  const { data, error } = await supabase
+    .from('invoice')
+    .select('*')
+    .gt('amount', 0); // .gt significa "greater than"
+
+  console.log('data invoice', data[0]);
+  return data;
+};
 
 export const registerMovement = async ({ cajaId, tipo, descripcion, monto }) => {
-    try {
-        const { data, error } = await supabase
-        .from('cash_movements')
-        .insert([
-          {
-            caja_id: cajaId,
-            tipo, // 'ingreso' o 'egreso'
-            descripcion,
-            monto,
-          }
-        ]);
-    
-      if (error) {
-        console.error('Error al registrar movimiento:', error.message);
-        throw error;
-      }
-    
-      return data;
-    } catch (error) {
-        console.error("Error inesperado:", error);
-        return null;
+  try {
+    const { data, error } = await supabase
+      .from('cash_movements')
+      .insert([
+        {
+          caja_id: cajaId,
+          tipo, // 'ingreso' o 'egreso'
+          descripcion,
+          monto,
+        }
+      ]);
+
+    if (error) {
+      console.error('Error al registrar movimiento:', error.message);
+      throw error;
     }
+
+    return data;
+  } catch (error) {
+    console.error("Error inesperado:", error);
+    return null;
+  }
 }
 
 
 export const openBox = async ({ usuarioId, montoInicial }) => {
-    const { data, error } = await supabase
-      .from('cajas')
-      .insert([
-        {
-          usuario_id: usuarioId,
-          monto_inicial: montoInicial,
-          estado: 'abierta',
-        }
-      ])
-      .select()
-      .single(); // para devolver solo un objeto, no un array
-  
-    if (error) {
-      console.error('Error al abrir caja:', error.message);
-      throw error;
-    }
-  
-    return data; // contiene el registro recién creado, incluido el ID de la caja
-  };
+  const { data, error } = await supabase
+    .from('cajas')
+    .insert([
+      {
+        usuario_id: usuarioId,
+        monto_inicial: montoInicial,
+        estado: 'abierta',
+      }
+    ])
+    .select()
+    .single(); // para devolver solo un objeto, no un array
 
-  export const closeBox = async (cajaId) => {
-    // 1. Sumar todos los movimientos para calcular el monto final
-    const { data: movimientos, error: movimientosError } = await supabase
-      .from('cash_movements')
-      .select('monto')
-      .eq('caja_id', cajaId);
-  
-    if (movimientosError) {
-      console.error('Error al obtener movimientos:', movimientosError.message);
-      throw movimientosError;
-    }
-  
-    const montoFinal = movimientos.reduce((total, mov) => total + mov.monto, 0);
-  
-    // 2. Actualizar caja
-    const { data, error } = await supabase
-      .from('cajas')
-      .update({
-        estado: 'cerrada',
-        fecha_cierre: new Date().toISOString(),
-        monto_final: montoFinal,
-      })
-      .eq('id', cajaId)
-      .select()
-      .single();
-  
-    if (error) {
-      console.error('Error al cerrar caja:', error.message);
-      throw error;
-    }
-  
-    return data;
-  };
-  
+  if (error) {
+    console.error('Error al abrir caja:', error.message);
+    throw error;
+  }
+
+  return data; // contiene el registro recién creado, incluido el ID de la caja
+};
+
+export const closeBox = async (cajaId) => {
+  // 1. Sumar todos los movimientos para calcular el monto final
+  const { data: movimientos, error: movimientosError } = await supabase
+    .from('cash_movements')
+    .select('monto')
+    .eq('caja_id', cajaId);
+
+  if (movimientosError) {
+    console.error('Error al obtener movimientos:', movimientosError.message);
+    throw movimientosError;
+  }
+
+  const montoFinal = movimientos.reduce((total, mov) => total + mov.monto, 0);
+
+  // 2. Actualizar caja
+  const { data, error } = await supabase
+    .from('cajas')
+    .update({
+      estado: 'cerrada',
+      fecha_cierre: new Date().toISOString(),
+      monto_final: montoFinal,
+    })
+    .eq('id', cajaId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error al cerrar caja:', error.message);
+    throw error;
+  }
+
+  return data;
+};
+
 
 /* export const createClientInvoice = async ({ name, email, monto }) => {
   try {
@@ -120,7 +177,7 @@ export const openBox = async ({ usuarioId, montoInicial }) => {
 }; */
 
 export const createClientInvoice = async () => {
-  
+
 };
 
 

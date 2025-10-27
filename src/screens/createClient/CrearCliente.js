@@ -14,34 +14,83 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { supabase } from '../../lib/supabase';
+import { getData } from '../../database/db';
+import { getDbConnection } from '../../database/db';
+import CustomPicker from './CustomPicker';
 
 const CrearCliente = (props) => {
     const navigation = useNavigation();
+    let db;
     const [formData, setFormData] = useState({
         nombre: '',
         apellido: '',
         alias: '',
         direccion: '',
         telefono: '',
-        genero: '', // Ahora será 'masculino' o 'femenino'
+        genero: '',
         documento: '',
         valor: '',
         plazo: '',
         interes: '',
     });
+    const [formDataLabels, setFormDataLabels] = useState({
+        plazo: '',
+        interes: '',
+    });
     const [isFormValid, setIsFormValid] = useState(false);
+    const [conceptos, setConceptos] = useState([]);
+    const [conceptosInteres, setConceptosInteres] = useState([]);
+    const [conceptosPlazo, setConceptosPlazo] = useState([]);
+    const [showPlazoModal, setShowPlazoModal] = useState(false);
+    const [showInteresModal, setShowInteresModal] = useState(false);
 
     useEffect(() => {
         const isValid = Object.values(formData).every(value => {
             return value.trim() !== '';
         });
         setIsFormValid(isValid);
+        LoadData();
     }, [formData]);
+
+    const LoadData = async () => {
+        try {
+            db = await getDbConnection();
+
+            const conceptosData = await getData(
+                db,
+                "select * from concepts",
+            );
+
+            console.log('conceptos', conceptosData);
+            
+            // Filtrar conceptos por tipo
+            const interes = conceptosData.filter(concepto => concepto.tipo === 'interes');
+            const plazo = conceptosData.filter(concepto => concepto.tipo === 'plazo');
+            
+            setConceptos(conceptosData);
+            setConceptosInteres(interes);
+            setConceptosPlazo(plazo);
+
+        } catch (error) {
+            console.error('Error al cargar datos de parametrización:', error);
+        }
+    };
 
     const handleChange = (name, value) => {
         setFormData({
             ...formData,
             [name]: value,
+        });
+    };
+
+    const handlePickerSelect = (name, value, label) => {
+        setFormData({
+            ...formData,
+            [name]: value,
+        });
+        setFormDataLabels({
+            ...formDataLabels,
+            [name]: label,
         });
     };
 
@@ -53,33 +102,60 @@ const CrearCliente = (props) => {
     };
 
     const handleSubmit = async () => {
+        const parametrizacion = await getData(
+            db,
+            "select valor from parametrizacion",
+        );
+
+        console.log('parametrizacion', parametrizacion);
+
         if (isFormValid) {
-            // Primero obtenemos los valores del formulario
-            const { nombre, apellido, alias, telefono, direccion, documento, valor, plazo, interes } = formData;
+            const {
+                nombre,
+                apellido,
+                alias,
+                telefono,
+                direccion,
+                documento,
+                valor,
+                plazo,
+                interes
+            } = formData;
 
-            // Llamamos al procedimiento almacenado desde Supabase
-            const { data, error } = await supabase.rpc('crear_venta_completa', {
-                p_nombre: nombre,
-                p_apellido: apellido,
-                p_alias: alias,
-                p_email: '', // Agregar correo si lo tienes en el formulario
-                p_telefono: telefono,
-                p_direccion: direccion,
-                p_documento: documento,
-                p_amount: parseFloat(valor), // Asegúrate de convertirlo a número
-                p_usuario_id: 1, // Pasa el id del usuario si está disponible
-                p_caja_id: 1, // Pasa el id de la caja si lo tienes en el formulario
-                p_fecha: new Date().toISOString() // Fecha actual
-            });
+            try {
+                const response = await fetch('https://gwpwntdwogxzmtegaaom.supabase.co/functions/v1/create_sale', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${parametrizacion[1].valor}`
+                    },
+                    body: JSON.stringify({
+                        nombre,
+                        apellido,
+                        alias,
+                        email: '',
+                        telefono,
+                        direccion,
+                        documento,
+                        monto: parseFloat(valor),
+                        vendedor_id: parametrizacion[4].valor, 
+                        caja_id: 'fb752968-9a6a-46cb-bcd6-83c3d4f82e1c',
+                        plazo_id: parseInt(plazo),
+                        interes_id: parseInt(interes)
+                    })
+                });
 
-            if (error) {
-                console.error('Error al crear la venta:', error);
-                // Aquí puedes mostrar un mensaje de error al usuario
-            } else {
-                console.log('Factura creada con ID:', data);
-                Alert.alert('Factura Creada', data)
-                // Redirige o actualiza la UI según sea necesario
-                //navigation.goBack(); 
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error desconocido');
+                }
+
+                console.log('Venta creada, ID factura:', result.id_factura);
+                Alert.alert('Éxito', `Factura creada con ID: ${result.id_factura}`);
+            } catch (err) {
+                console.error('Error al crear la venta:', err);
+                Alert.alert('Error', err.message || 'Hubo un problema al crear la venta');
             }
         }
     };
@@ -102,6 +178,7 @@ const CrearCliente = (props) => {
             >
                 <ScrollView style={styles.scrollView}>
                     <View style={styles.formContainer}>
+                        {/* Información Personal */}
                         <View style={styles.card}>
                             <Text style={styles.sectionTitle}>Información Personal</Text>
 
@@ -184,6 +261,7 @@ const CrearCliente = (props) => {
                             </View>
                         </View>
 
+                        {/* Información de Contacto */}
                         <View style={styles.card}>
                             <Text style={styles.sectionTitle}>Información de Contacto</Text>
 
@@ -223,6 +301,7 @@ const CrearCliente = (props) => {
                             </View>
                         </View>
 
+                        {/* Información de la Venta */}
                         <View style={styles.card}>
                             <Text style={styles.sectionTitle}>Información de la Venta</Text>
 
@@ -240,26 +319,34 @@ const CrearCliente = (props) => {
 
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Plazo</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={formData.plazo}
-                                    onChangeText={(text) => handleChange('plazo', text)}
-                                    placeholder="Ingrese el plazo"
-                                    keyboardType="numeric"
-                                    placeholderTextColor="#999"
-                                />
+                                <TouchableOpacity
+                                    style={styles.pickerButton}
+                                    onPress={() => setShowPlazoModal(true)}
+                                >
+                                    <Text style={[
+                                        styles.pickerButtonText,
+                                        !formDataLabels.plazo && styles.pickerButtonPlaceholder
+                                    ]}>
+                                        {formDataLabels.plazo || 'Seleccione un plazo'}
+                                    </Text>
+                                    <Icon name="chevron-down" size={16} color="#666" />
+                                </TouchableOpacity>
                             </View>
 
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Interés</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={formData.interes}
-                                    onChangeText={(text) => handleChange('interes', text)}
-                                    placeholder="Ingrese el interés"
-                                    keyboardType="numeric"
-                                    placeholderTextColor="#999"
-                                />
+                                <TouchableOpacity
+                                    style={styles.pickerButton}
+                                    onPress={() => setShowInteresModal(true)}
+                                >
+                                    <Text style={[
+                                        styles.pickerButtonText,
+                                        !formDataLabels.interes && styles.pickerButtonPlaceholder
+                                    ]}>
+                                        {formDataLabels.interes || 'Seleccione un interés'}
+                                    </Text>
+                                    <Icon name="chevron-down" size={16} color="#666" />
+                                </TouchableOpacity>
                             </View>
                         </View>
 
@@ -273,6 +360,25 @@ const CrearCliente = (props) => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            {/* Modales de Picker */}
+            <CustomPicker
+                data={conceptosPlazo}
+                selectedValue={formData.plazo}
+                onSelect={(value, label) => handlePickerSelect('plazo', value, label)}
+                placeholder="Seleccionar Plazo"
+                visible={showPlazoModal}
+                onClose={() => setShowPlazoModal(false)}
+            />
+
+            <CustomPicker
+                data={conceptosInteres}
+                selectedValue={formData.interes}
+                onSelect={(value, label) => handlePickerSelect('interes', value, label)}
+                placeholder="Seleccionar Interés"
+                visible={showInteresModal}
+                onClose={() => setShowInteresModal(false)}
+            />
         </SafeAreaView>
     );
 };
@@ -342,6 +448,66 @@ const styles = StyleSheet.create({
         borderColor: '#e0e0e0',
         fontSize: 16,
         color: '#333',
+    },
+    pickerButton: {
+        backgroundColor: '#f9f9f9',
+        padding: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    pickerButtonText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    pickerButtonPlaceholder: {
+        color: '#999',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: '70%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+    },
+    modalItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f0f0f0',
+    },
+    modalItemSelected: {
+        backgroundColor: '#e3f2fd',
+    },
+    modalItemText: {
+        fontSize: 16,
+        color: '#333',
+    },
+    modalItemTextSelected: {
+        color: '#2196F3',
+        fontWeight: '500',
     },
     generoContainer: {
         flexDirection: 'row',

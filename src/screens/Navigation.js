@@ -31,10 +31,10 @@ const routeComponents = {
 
 const menuOptions = {
   seller: [
+    { title: 'Pagos', route: 'Payments', icon: 'money' }, 
     { title: 'Crear Cliente', route: 'CreateClient', icon: 'user-plus' },
     { title: 'Movimientos', route: 'Movements', icon: 'exchange' },
     { title: 'Caja', route: 'Caja', icon: 'shopping-cart' },
-    { title: 'Pagos', route: 'Payments', icon: 'money' },
   ],
   admin: [
     { title: 'Abrir Caja', route: 'AbrirCaja', icon: 'unlock' },
