@@ -235,6 +235,44 @@ export async function upsertData(db, table, data) {
   }
 }
 
+export async function insertTables(db, table, data) {
+  /* console.log("insertTables ", data); */
+  const campos = Object.keys(data[0])
+  const strcampos = campos.toString()
+  let scriptInsert = `INSERT INTO ${table} (${strcampos})`;
+  let scriptValues = ' VALUES ';
+  for (let index = 0; index < data.length; index++) {
+    const element = data[index];
+    const _item = Object.values(element)
+    scriptValues += "("
+    //
+    for (let index_value = 0; index_value < _item.length; index_value++) {
+
+      if (typeof _item[index_value] === 'object') {
+        //console.log("ingreso al objeto",_item[index_value])
+        scriptValues += `'${JSON.stringify(_item[index_value])}'`;
+      } else {
+        scriptValues += "'" + _item[index_value] + "'";
+      }
+
+      if (index_value != _item.length - 1) {
+        scriptValues += ',';
+      }
+    }
+
+    scriptValues += ")"
+    if (index != data.length - 1) {
+      scriptValues += ',';
+    }
+  }
+  if (table == 'detallesCaja') {
+    //console.log("scriptInsert + scriptValues----------",scriptInsert + scriptValues)
+
+  }
+  //notifyDbChange();
+  return db.executeSql(scriptInsert + scriptValues);
+}
+
 
 export async function updateData(db, table, data) {
   //console.log('updateData fue llamada con:', { table, data });
@@ -250,7 +288,7 @@ export async function updateData(db, table, data) {
         scriptUpdate += ',';
       }
     }
-    scriptUpdate += ` WHERE id= ${id}`;
+    scriptUpdate += ` WHERE id='${id}'`;
     //console.log('scriptUpdate', scriptUpdate); // <-- Este debería verse
 
     return db.executeSql(scriptUpdate);
@@ -334,3 +372,14 @@ export async function setParametro(db, name, value) {
     }
   }
 };
+
+/* const dbEventEmitter = new EventEmitter();
+
+export function addDbChangeListener(callback) {
+  dbEventEmitter.on('db-change', callback);
+  return () => dbEventEmitter.off('db-change', callback);
+}
+
+function notifyDbChange() {
+  dbEventEmitter.emit('db-change');
+} */

@@ -1,4 +1,4 @@
-import { updateData, insertOrReplaceData} from "../database/db";
+import { updateData, insertOrReplaceData, getDbConnection, getData, insertTables } from "../database/db";
 import { supabase } from "../lib/supabase";
 
 export const AuthService = async (db, email, password) => {
@@ -49,6 +49,11 @@ export const AuthService = async (db, email, password) => {
       insertOrReplaceData(db, 'movimientos', movimientos)
     ]);
 
+    const invoices = await getInvoice(userId, access_token);
+
+    console.log('Invoiceee', invoices);
+
+
     return { success: true, user: data.user };
 
   } catch (error) {
@@ -57,15 +62,157 @@ export const AuthService = async (db, email, password) => {
   }
 };
 
-export const getInvoice = async () => {
-  const { data, error } = await supabase
-    .from('invoice')
-    .select('*')
-    .gt('amount', 0); // .gt significa "greater than"
+export const getInvoice = async (userId, access_token) => {
+  console.log('argumentos', userId, access_token);
 
-  console.log('data invoice', data[0]);
-  return data;
+  const response = await fetch(
+    'https://gwpwntdwogxzmtegaaom.supabase.co/functions/v1/RequestInvoce',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${access_token}`
+      },
+      body: JSON.stringify({ vendedorId: userId })
+    }
+  );
+
+  console.log('Estado:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Error al obtener facturas: ${response.status} - ${errorText}`);
+  }
+
+  // 👇 Aquí realmente lees los datos del cuerpo
+  const result = await response.json();
+
+  console.log('📦 Datos recibidos:', result);
+
+  // result.data contiene las facturas enviadas desde tu función Edge
+  const saveSuccess = await saveInvoice(result.data);
+  return saveSuccess;
 };
+
+
+const saveInvoice = async (invoices) => {
+  const db = await getDbConnection();
+
+  // 🔹 Obtener facturas ya tramitadas
+  const facturasTramitadas = await getData(db, `
+    SELECT pago_factura_venta_id, nopago_factura_venta_id 
+    FROM detallescaja
+  `);
+
+  const facturasIds = facturasTramitadas
+    .flatMap(f => [f.pago_factura_venta_id, f.nopago_factura_venta_id])
+    .filter(id => id !== null)
+    .map(id => String(id));
+
+  console.log("Facturas procesadas anteriormente:", facturasIds);
+
+  let tableContent = [];
+  let date = '2000-01-01';
+
+  // 🔹 Recorremos las facturas recibidas
+  invoices.forEach(element => {
+    let status = 'pendiente';
+    if (facturasIds.includes(String(element.id))) {
+      status = 'actualizado';
+    }
+
+    if (date < element.fecha) {
+      date = element.fecha;
+    }
+
+    // 🔸 Adaptar a la estructura local
+    let infoInvoice = {
+      id: element.id,
+      apellidoUno: element.apellidoCliente || null,
+      apellidoDos: null,
+      celular: element.telefonocliente || null,
+      cuotasPagas: element.cuotasPagas || 0,
+      cuotasVencidas: element.cuotasVencidas || 0,
+      detalles: element.detalles ? [element.detalles] : [],
+      direccion: element.direccion || null,
+      barrio: null,
+      estado: element.estado || "pendiente",
+      estadoUsuario: element.estadoUsuario || null,
+      facturaWriteDate: element.facturaWriteDate || null,
+      latitud: element.latitud || null,
+      longitud: element.longitud || null,
+      nombreUno: element.nombreCliente || null,
+      renovado: "false",
+      nombreUsuario: element.nombreUsuario || null,
+      pagos: element.pagos ? JSON.parse(element.pagos) : [],
+      partnerId: element.partnerId || null,
+      paymentTermId: element.paymentTermId || null,
+      saldo: element.saldo || 0,
+      saldoVencido: element.saldoVencido || 0,
+      usuarioId: element.usuarioId || null,
+      valorCuota: element.valorCuota || 0,
+      valorInicial: element.valorInicial || 0,
+      estadoMovil: status,
+      fecha_vencimiento: element.fecha_vencimiento || null,
+      fecha: element.fecha || null,
+      alias: element.aliasCliente || null,
+      documento: element.documentoCliente || null,
+      num_cuotas: element.num_cuotas || null,
+      ultimo_pago: element.pagos?.length ? element.pagos[element.pagos.length - 1]?.payment_date : null,
+      consecutivoTramitado: 0 // 🔹 Se llenará luego
+    };
+
+    tableContent.push(infoInvoice);
+  });
+
+  try {
+    // 🔹 Obtener facturas existentes en la base local
+    const existingFacturas = await getData(db, `SELECT id FROM facturas`);
+    const existingFacturasMap = new Map(existingFacturas.map(f => [f.id, true]));
+
+    let facturasToInsert = [];
+    let facturasToUpdate = [];
+
+    // 🔸 Dividir en insert y update
+    for (const invoice of tableContent) {
+      if (existingFacturasMap.has(invoice.id)) {
+        facturasToUpdate.push(invoice);
+      } else {
+        facturasToInsert.push(invoice);
+      }
+    }
+
+    // 🔹 Insertar nuevas
+    if (facturasToInsert.length > 0) {
+      await insertTables(db, "facturas", facturasToInsert);
+      console.log(`✅ Se insertaron ${facturasToInsert.length} facturas nuevas.`);
+    }
+
+    // 🔹 Actualizar existentes
+    if (facturasToUpdate.length > 0) {
+      for (const factura of facturasToUpdate) {
+        await updateData(db, "facturas", factura);
+      }
+      console.log(`♻️ Se actualizaron ${facturasToUpdate.length} facturas existentes.`);
+    }
+
+    // 🔹 Actualizar consecutivos
+    const secuenciaTramitado = await getData(db, `SELECT * FROM consecutivoTramitado`);
+    const maxSecuenciaPago = Math.max(...tableContent.map(item => item.consecutivoTramitado));
+    const valorTramitado = secuenciaTramitado[0]?.valor ?? 0;
+    const secuencia = valorTramitado > maxSecuenciaPago ? valorTramitado : maxSecuenciaPago;
+
+    await updateData(db, 'consecutivoTramitado', { valor: secuencia, id: 1 });
+    await updateData(db, 'writeDate', { valor: date, id: "1" });
+
+    return true;
+
+  } catch (error) {
+    console.error("❌ Error en saveInvoice:", error);
+    return false;
+  }
+};
+
 
 export const registerMovement = async ({ cajaId, tipo, descripcion, monto }) => {
   try {
