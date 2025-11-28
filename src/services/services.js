@@ -8,6 +8,8 @@ export const AuthService = async (db, email, password) => {
     if (error) {
       return { success: false, message: error.message || 'Usuario o contraseña incorrectos' };
     }
+    console.log('Hay Session,', data);
+    
 
     const { access_token } = data.session;
     const userId = data.user.id;

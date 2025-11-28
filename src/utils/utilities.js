@@ -7,7 +7,6 @@ import { getDbConnection, getData } from '../database/db'
 exports.versionGesper = 'Comercial';
 import NetInfo from "@react-native-community/netinfo";
 import _BackgroundTimer from "react-native-background-timer";
-import { SyncWithOdoo } from './sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
@@ -248,49 +247,7 @@ export const _getDates = async () => {
     }
 };
 
-export const StartSync = async () => {
-    console.log("ingreso al StartSync")
-    /*  const db = await getDbConnection();
-     const facturasProveedor = await getData(db,`select * from facturas where id<0 and tipo="in_invoice"`);
-     const facturasClientes = await getData(db,`select * from facturas where id<0 and tipo="out_invoice"`);
-     const gastos = await getData(db,`select * from movimientos where id<0 and tipo='gasto'`);
-     const ingreso = await getData(db,`select * from movimientos where id<0 and tipo='ingreso'`);
-     const retiros = await getData(db,`select * from movimientos where id<0 and tipo='retiro'`);
-     const pagos = await getData(db,`select * from pagos where id<0`);
-     const usersProveedor = await getData(db,`select * from users where tipo='proveedor' and id<0`);
-     const usersCliente = await getData(db,`select * from users where tipo='cliente' and id<0`);
-     const products = await getData(db,`select * from productos where id<0`);
-     const sincronizar = await AsyncStorage.getItem("sincronizar"); */
-    const validation = await EvaluationDataSend()
-    _BackgroundTimer.runBackgroundTimer(async () => {
-        const isConecxion = await validConexion()
-        if (isConecxion && validation) {
-            await AsyncStorage.setItem('sincronizar', 'true')
-            SyncWithOdoo(false, async (flag) => {
-                if (flag) {
-                    await AsyncStorage.setItem('sincronizar', 'false')
-                } else {
-                    await AsyncStorage.setItem('sincronizar', 'false')
-                }
 
-
-            })
-            /*  if(facturasProveedor.length>0||facturasClientes.length>0||gastos.length>0||ingreso.length>0||
-               retiros.length>0||pagos.length>0||usersProveedor.length>0||usersCliente.length>0||products.length>0){
-                   
-             }else{
-               console.log("ingreso al StartSync  paso por el else",)
-               return
-             }  */
-
-        } else {
-            return
-        }
-
-
-    }, 100000);
-
-}
 
 export const EvaluationDataSend = async () => {
     const db = await getDbConnection();

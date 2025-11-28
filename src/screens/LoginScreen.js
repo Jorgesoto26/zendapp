@@ -10,13 +10,17 @@ import {
   Pressable,
   ActivityIndicator,
   Image,
-  ScrollView
+  ScrollView,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { getData, getDbConnection, insertOrReplaceData, updateData } from '../database/db';
 import { AuthService } from '../services/services';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+
 
 export default function LoginScreen() {
   let db
@@ -31,19 +35,60 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-
     const LoadData = async () => {
       try {
         db = await getDbConnection();
         const datosParams = await getData(db, `select * from parametrizacion`);
         console.log('Datos de parametrización cargados....:', datosParams);
 
+        // ✅ Solicitar permisos después de cargar los datos
+        await requestLocationPermissions();
       } catch (error) {
         console.error('Error al cargar datos de parametrización:', error);
       }
     };
     LoadData();
   }, []);
+
+  const requestLocationPermissions = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Permisos de ubicación',
+            message: 'Esta aplicación necesita acceso a tu ubicación para registrar visitas o pagos.',
+            buttonNeutral: 'Preguntar después',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'Aceptar',
+          }
+        );
+
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('✅ Permiso de ubicación concedido');
+        } else {
+          Alert.alert(
+            'Permiso requerido',
+            'Debes habilitar el acceso a la ubicación para continuar usando la aplicación.'
+          );
+        }
+      } else if (Platform.OS === 'ios') {
+        const result = await request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
+        if (result === RESULTS.GRANTED) {
+          console.log('✅ Permiso de ubicación concedido en iOS');
+        } else {
+          Alert.alert(
+            'Permiso requerido',
+            'Por favor activa el acceso a tu ubicación en Configuración > Privacidad.'
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error solicitando permisos de ubicación:', error);
+    }
+  };
+
+
 
   const handleLogin = async () => {
     setLoading(true);
