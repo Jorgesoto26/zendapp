@@ -8,8 +8,8 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import LoginScreen from './LoginScreen';
 import Payments from './payments/Payments';
 import CrearCliente from './createClient/CrearCliente';
-/* import CreateClient from './clients/CreateClient';
 import Movements from './movements/Movements';
+/* import CreateClient from './clients/CreateClient';
 import Caja from './caja/Caja';
 import AbrirCaja from './caja/AbrirCaja';
 import NuevoCliente from './clients/NuevoCliente';
@@ -22,8 +22,9 @@ const Tab = createBottomTabNavigator();
 const routeComponents = {
   CreateClient: CrearCliente,
   Payments: Payments,
-  /* AbrirCaja: AbrirCaja,
   Movements: Movements,
+  /* AbrirCaja: AbrirCaja,
+  
   Caja: Caja,
   NuevoCliente: NuevoCliente,
   Facturas: Facturas, */
