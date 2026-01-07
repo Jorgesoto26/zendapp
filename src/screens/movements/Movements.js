@@ -68,7 +68,7 @@ const Movements = (props) => {
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Movimiento</Text>
+                        <Text style={styles.label}>Movimiento:</Text>
                         <TouchableOpacity
                             style={styles.pickerButton}
                             onPress={() => setShowMovement(true)}
@@ -82,6 +82,26 @@ const Movements = (props) => {
                             <Icon name="chevron-down" size={16} color="#666" />
                         </TouchableOpacity>
                     </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Descripcion:</Text>
+                        <TextInput
+                        style={styles.input}
+                        placeholder='Ingrese la descripcion del movimiento...'
+                        placeholderTextColor="#999"
+                        />
+                    </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={styles.label}>Valor:</Text>
+                        <TextInput
+                        style={styles.input}
+                        placeholder='Ingrese el valor del movimiento...'
+                        placeholderTextColor="#999"
+                        />
+                    </View>
+                    <TouchableOpacity style={{marginTop:"15%", justifyContent:"space-between", flexDirection:"row", width:"50%", alignSelf:"center"}}>
+                        <Icon name="camera" size={60} color='#007bff' />
+                        <Icon name="save" size={60} color='#007bff' />
+                    </TouchableOpacity>
                 </ScrollView>
 
             </KeyboardAvoidingView>
@@ -148,6 +168,7 @@ const styles = StyleSheet.create({
     },
     inputGroup: {
         marginBottom: 16,
+        marginTop: "5%"
     },
     label: {
         fontSize: 14,
