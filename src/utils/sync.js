@@ -54,6 +54,26 @@ export const SyncWithSupabase = async (toas = true, callLoading = () => { }) => 
       return callLoading(false);
     }
 
+    // Validar si la cuenta del usuario est inhabilitada
+    const { data: authData } = await supabase.auth.getSession();
+    if (authData?.session?.user) {
+      const { data: profCheck } = await supabase
+        .from('profiles')
+        .select('activo')
+        .eq('id', authData.session.user.id)
+        .maybeSingle();
+
+      if (profCheck && profCheck.activo === false) {
+        console.warn('SyncWithSupabase: Usuario inhabilitado. No puede sincronizar.');
+        toas && Toast.show({
+          text1: 'Cuenta inhabilitada',
+          text2: 'Tu cuenta ha sido inhabilitada por el administrador',
+          type: 'error'
+        });
+        return callLoading(false);
+      }
+    }
+
     globalSyncCollection = [];
     idCounter = -1;
     idMapping.clear();

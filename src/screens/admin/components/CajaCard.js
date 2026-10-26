@@ -9,6 +9,25 @@ const formatMoney = (val) => {
   return '$' + num.toLocaleString('es-CO');
 };
 
+const formatFechaApertura = (dateStr) => {
+  if (!dateStr) return 'Sin fecha registrada';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'Fecha invlida';
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+  } catch {
+    return dateStr;
+  }
+};
+
 export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
   const isOpen = caja.estado === 'abierta';
   const isAdmin = caja.rol_usuario === 'admin';
@@ -27,7 +46,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
             <View style={[styles.avatarBadge, isAdmin ? styles.avatarAdmin : styles.avatarVendedor]}>
               <Icon name={isAdmin ? 'shield' : 'user'} size={14} color={isAdmin ? '#5856D6' : apple.colors.blue} />
             </View>
-            <View style={{ marginLeft: 8 }}>
+            <View style={{ marginLeft: 8, flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={styles.userName} numberOfLines={1}>
                   {caja.nombre_usuario} {isMyCaja ? '(Mi Caja)' : ''}
@@ -45,6 +64,14 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
             {isOpen ? 'ABIERTA' : 'CERRADA'}
           </Text>
         </View>
+      </View>
+
+      {/* Fecha de creacion / apertura (Requisito 10) */}
+      <View style={styles.fechaRow}>
+        <Icon name="calendar-check-o" size={11} color={apple.colors.secondaryLabel} style={{ marginRight: 5 }} />
+        <Text style={styles.fechaText}>
+          Apertura: <Text style={styles.fechaBold}>{formatFechaApertura(caja.fecha_apertura)}</Text>
+        </Text>
       </View>
 
       {/* Barra de progreso de visitas */}
@@ -137,6 +164,7 @@ const styles = StyleSheet.create({
   },
   titleCol: {
     flex: 1,
+    marginRight: 8,
   },
   avatarBadge: {
     width: 32,
@@ -184,6 +212,24 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  fechaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: apple.colors.fill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: apple.radius.s,
+    alignSelf: 'flex-start',
+  },
+  fechaText: {
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+  },
+  fechaBold: {
+    fontWeight: '600',
+    color: apple.colors.label,
   },
   progressContainer: {
     marginTop: 10,

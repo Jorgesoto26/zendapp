@@ -127,6 +127,14 @@ export default function MovementsScreen() {
     if (!monto || monto <= 0) return appAlert('Error', 'Monto inválido');
     if (!formDesc.trim()) return appAlert('Error', 'Descripción requerida');
     if (!caja) return appAlert('Error', 'Debes tener una caja abierta');
+    // Validar limite de gasto / retiro (Requisito 1)
+    const maxGasto = parseFloat(profile?.dinero_max_gasto) || 0;
+    if (formTipo === 'retiro' && maxGasto > 0 && monto > maxGasto) {
+      return appAlert(
+        'Límite de gasto excedido',
+        `El monto ($${monto.toLocaleString('es-CO')}) excede tu límite máximo permitido por gasto ($${maxGasto.toLocaleString('es-CO')}).`
+      );
+    }
     setSaving(true);
     try {
       const loc = await getCurrentLocationOrNull();

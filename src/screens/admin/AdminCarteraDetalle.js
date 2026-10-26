@@ -10,13 +10,19 @@ import {
   SafeAreaView,
   ActivityIndicator,
   RefreshControl,
-  Alert,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
-import { getCarteraDetail, castigarCartera } from '../../services/adminService';
+import {
+  getCarteraDetail,
+  castigarCartera,
+  getSubordinates,
+  trasladarCartera,
+} from '../../services/adminService';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -27,6 +33,7 @@ export default function AdminCarteraDetalle() {
   const route = useRoute();
   const navigation = useNavigation();
   const { user } = route.params || {};
+  const currentUserId = user?.usuario_id || user?.id;
 
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -34,11 +41,22 @@ export default function AdminCarteraDetalle() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Estados para Modal de Castigo de Cartera (Requisito 5)
+  const [castigoModalVisible, setCastigoModalVisible] = useState(false);
+  const [selectedCastigoInvoice, setSelectedCastigoInvoice] = useState(null);
+  const [castigando, setCastigando] = useState(false);
+
+  // Estados para Modal de Traslado de Cartera (Requisito 6)
+  const [trasladoModalVisible, setTrasladoModalVisible] = useState(false);
+  const [destinatarios, setDestinatarios] = useState([]);
+  const [selectedDestinoId, setSelectedDestinoId] = useState(null);
+  const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
+  const [trasladando, setTrasladando] = useState(false);
+
   const loadData = useCallback(async () => {
-    if (!user?.usuario_id && !user?.id) return;
-    const userId = user.usuario_id || user.id;
+    if (!currentUserId) return;
     try {
-      const data = await getCarteraDetail(userId);
+      const data = await getCarteraDetail(currentUserId);
       setItems(data);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudo cargar el detalle');
@@ -46,7 +64,7 @@ export default function AdminCarteraDetalle() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [currentUserId]);
 
   useEffect(() => {
     loadData();
@@ -73,27 +91,70 @@ export default function AdminCarteraDetalle() {
     loadData();
   };
 
-  const handleCastigar = (invoice) => {
-    Alert.alert(
-      'Castigar Cartera',
-      `¿Estás seguro de castigar el crédito de ${invoice.nombre_cliente}? Se bloquearán futuros créditos y saldrá de la ruta de cobro.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Castigar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await castigarCartera(invoice.invoice_id);
-              appAlert('Éxito', 'Crédito castigado');
-              loadData();
-            } catch (err) {
-              appAlert('Error', err.message);
-            }
-          },
-        },
-      ]
-    );
+  // Requisito 5: Modal personalizado de confirmacion al castigar cartera
+  const openCastigarModal = (invoice) => {
+    setSelectedCastigoInvoice(invoice);
+    setCastigoModalVisible(true);
+  };
+
+  const confirmCastigar = async () => {
+    if (!selectedCastigoInvoice) return;
+    setCastigando(true);
+    try {
+      await castigarCartera(selectedCastigoInvoice.invoice_id);
+      setCastigoModalVisible(false);
+      setSelectedCastigoInvoice(null);
+      appAlert('xito', 'El crdito fue castigado correctamente.');
+      loadData();
+    } catch (err) {
+      appAlert('Error', err.message || 'No se pudo castigar la cartera');
+    } finally {
+      setCastigando(false);
+    }
+  };
+
+  // Requisito 6: Abrir modal y cargar vendedores activos autorizados
+  const handleOpenTraslado = async () => {
+    setTrasladoModalVisible(true);
+    setLoadingDestinatarios(true);
+    setSelectedDestinoId(null);
+    try {
+      const subs = await getSubordinates();
+      // Filtrar vendedores activos dentro de la misma jerarquia distintos al vendedor origen
+      const validos = (subs || []).filter(
+        (s) => s.id !== currentUserId && s.activo !== false && s.rol !== 'superadmin'
+      );
+      setDestinatarios(validos);
+      if (validos.length > 0) {
+        setSelectedDestinoId(validos[0].id);
+      }
+    } catch (err) {
+      appAlert('Error', err.message || 'No se pudo cargar la lista de vendedores destino');
+    } finally {
+      setLoadingDestinatarios(false);
+    }
+  };
+
+  const confirmTraslado = async () => {
+    if (!selectedDestinoId) {
+      appAlert('Atencin', 'Por favor selecciona el vendedor de destino');
+      return;
+    }
+    setTrasladando(true);
+    try {
+      const res = await trasladarCartera(currentUserId, selectedDestinoId);
+      setTrasladoModalVisible(false);
+      const totalClientes = res?.clientes_trasladados ?? items.length;
+      appAlert(
+        'Traslado exitoso',
+        `Se han trasladado ${totalClientes} clientes al nuevo vendedor correctamente.`
+      );
+      loadData();
+    } catch (err) {
+      appAlert('Error al trasladar', err.message || 'No se pudo completar el traslado');
+    } finally {
+      setTrasladando(false);
+    }
   };
 
   const handleOpenCredit = (invoice) => {
@@ -116,6 +177,16 @@ export default function AdminCarteraDetalle() {
             {items.length} clientes activos
           </Text>
         </View>
+
+        {/* Boton Trasladar Cartera (Requisito 6) */}
+        <TouchableOpacity
+          style={styles.btnTrasladarHeader}
+          onPress={handleOpenTraslado}
+          activeOpacity={0.8}
+        >
+          <Icon name="exchange" size={13} color="#fff" style={{ marginRight: 6 }} />
+          <Text style={styles.btnTrasladarHeaderText}>Trasladar cartera</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Buscador */}
@@ -136,7 +207,7 @@ export default function AdminCarteraDetalle() {
         )}
       </View>
 
-      {/* Lista de Créditos */}
+      {/* Lista de Crditos */}
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={apple.colors.blue} />
@@ -159,7 +230,7 @@ export default function AdminCarteraDetalle() {
                       {item.nombre_cliente} {item.apellido_cliente || ''}
                     </Text>
                     <Text style={styles.clientDoc}>
-                      Doc: {item.documento || 'S/D'} · Tel: {item.telefono || 'S/T'}
+                      Doc: {item.documento || 'S/D'}  Tel: {item.telefono || 'S/T'}
                     </Text>
                   </View>
                   <View style={styles.saldoWrap}>
@@ -194,7 +265,7 @@ export default function AdminCarteraDetalle() {
                   {hasVencido ? (
                     <TouchableOpacity
                       style={styles.btnCastigar}
-                      onPress={() => handleCastigar(item)}
+                      onPress={() => openCastigarModal(item)}
                     >
                       <Icon name="ban" size={12} color={apple.colors.danger} />
                       <Text style={styles.btnCastigarText}>Castigar Cartera</Text>
@@ -218,12 +289,149 @@ export default function AdminCarteraDetalle() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="inbox" size={48} color={apple.colors.tertiaryLabel} />
-              <Text style={styles.emptyTitle}>Sin créditos</Text>
-              <Text style={styles.emptySubtitle}>Este vendedor no tiene créditos con saldo pendiente</Text>
+              <Text style={styles.emptyTitle}>Sin crditos</Text>
+              <Text style={styles.emptySubtitle}>Este vendedor no tiene crditos con saldo pendiente</Text>
             </View>
           }
         />
       )}
+
+      {/* MODAL CASTIGAR CARTERA (Requisito 5) */}
+      <Modal
+        visible={castigoModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !castigando && setCastigoModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrapDanger}>
+              <Icon name="ban" size={24} color={apple.colors.danger} />
+            </View>
+            <Text style={styles.modalTitle}>Castigar Cartera</Text>
+            <Text style={styles.modalDesc}>
+              Estás seguro de castigar el crédito de{' '}
+              <Text style={{ fontWeight: '700', color: apple.colors.label }}>
+                {selectedCastigoInvoice?.nombre_cliente} {selectedCastigoInvoice?.apellido_cliente || ''}
+              </Text>
+              Esta acción bloqueará futuros créditos a este cliente y saldrá de la ruta de cobro activa.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => setCastigoModalVisible(false)}
+                disabled={castigando}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnDanger]}
+                onPress={confirmCastigar}
+                disabled={castigando}
+              >
+                {castigando ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalBtnDangerText}>Castigar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL TRASLADAR CARTERA (Requisito 6) */}
+      <Modal
+        visible={trasladoModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !trasladando && setTrasladoModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.trasladoCard}>
+            <View style={styles.modalIconWrapPrimary}>
+              <Icon name="exchange" size={24} color={apple.colors.blue} />
+            </View>
+            <Text style={styles.modalTitle}>Trasladar Cartera</Text>
+            <Text style={styles.modalDesc}>
+              Trasladar cartera permite asignar los clientes de este vendedor a otro vendedor para que contine gestionando su cartera.
+            </Text>
+
+            {/* Vendedor Origen */}
+            <Text style={styles.fieldLabel}>Vendedor de origen:</Text>
+            <View style={styles.readOnlyField}>
+              <Icon name="user" size={14} color={apple.colors.secondaryLabel} style={{ marginRight: 8 }} />
+              <Text style={styles.readOnlyText}>
+                {user?.nombre} {user?.apellido || ''} (Seleccionado)
+              </Text>
+            </View>
+
+            {/* Vendedor Destino */}
+            <Text style={styles.fieldLabel}>Vendedor de destino:</Text>
+            {loadingDestinatarios ? (
+              <ActivityIndicator size="small" color={apple.colors.blue} style={{ marginVertical: 12 }} />
+            ) : destinatarios.length === 0 ? (
+              <View style={styles.emptyDestinoBox}>
+                <Text style={styles.emptyDestinoText}>
+                  No hay otros vendedores activos disponibles en tu jerarqua.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.destinosList} showsVerticalScrollIndicator={false}>
+                {destinatarios.map((v) => {
+                  const isSelected = selectedDestinoId === v.id;
+                  return (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[styles.destinoItem, isSelected && styles.destinoItemSelected]}
+                      onPress={() => setSelectedDestinoId(v.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.destinoName, isSelected && styles.destinoNameSelected]}>
+                          {v.nombre} {v.apellido || ''}
+                        </Text>
+                        <Text style={styles.destinoRole}>{v.rol?.toUpperCase()}  ACTIVO</Text>
+                      </View>
+                      <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
+                        {isSelected && <View style={styles.radioDot} />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => setTrasladoModalVisible(false)}
+                disabled={trasladando}
+              >
+                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalBtn,
+                  styles.modalBtnPrimary,
+                  (!selectedDestinoId || destinatarios.length === 0) && { opacity: 0.5 },
+                ]}
+                onPress={confirmTraslado}
+                disabled={trasladando || !selectedDestinoId || destinatarios.length === 0}
+              >
+                {trasladando ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalBtnPrimaryText}>Confirmar traslado</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -239,61 +447,73 @@ const styles = StyleSheet.create({
     paddingHorizontal: apple.spacing.l,
     paddingTop: apple.spacing.m,
     paddingBottom: apple.spacing.s,
+    backgroundColor: apple.colors.bg,
   },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingRight: 10,
+    paddingVertical: apple.spacing.xs,
+    paddingRight: apple.spacing.s,
   },
   backText: {
-    fontSize: 16,
+    ...apple.typography.body,
     color: apple.colors.blue,
     marginLeft: 4,
-    fontWeight: '500',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    ...apple.typography.headline,
     color: apple.colors.label,
   },
   headerSubtitle: {
-    fontSize: 12,
+    ...apple.typography.caption1,
     color: apple.colors.secondaryLabel,
+  },
+  btnTrasladarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: apple.colors.blue,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: apple.radius.m,
+  },
+  btnTrasladarHeaderText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
     marginHorizontal: apple.spacing.l,
     marginVertical: apple.spacing.s,
-    paddingHorizontal: 12,
-    height: 40,
-    ...apple.shadow.subtle,
-    borderWidth: 0.5,
+    paddingHorizontal: apple.spacing.m,
+    borderRadius: apple.radius.m,
+    height: 38,
+    borderWidth: 1,
     borderColor: apple.colors.separator,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: apple.spacing.s,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    ...apple.typography.body,
+    paddingVertical: 0,
     color: apple.colors.label,
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.s,
-    paddingBottom: apple.spacing.xl,
+    padding: apple.spacing.l,
+    paddingBottom: apple.spacing.xl * 2,
   },
   card: {
     backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
+    borderRadius: apple.radius.l,
     padding: apple.spacing.m,
     marginBottom: apple.spacing.m,
-    ...apple.shadow.card,
-    ...apple.border.card,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+    ...apple.shadow.small,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -301,12 +521,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   clientName: {
-    fontSize: 15,
-    fontWeight: '700',
+    ...apple.typography.headline,
     color: apple.colors.label,
   },
   clientDoc: {
-    fontSize: 12,
+    ...apple.typography.caption1,
     color: apple.colors.secondaryLabel,
     marginTop: 2,
   },
@@ -314,57 +533,56 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   saldoVal: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...apple.typography.headline,
     color: apple.colors.blue,
   },
   saldoLabel: {
-    fontSize: 10,
-    color: apple.colors.tertiaryLabel,
+    ...apple.typography.caption2,
+    color: apple.colors.secondaryLabel,
   },
   divider: {
-    height: 0.5,
+    height: 1,
     backgroundColor: apple.colors.separator,
-    marginVertical: 10,
+    marginVertical: apple.spacing.m,
   },
   detailGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
-    padding: 8,
   },
   gridCol: {
     flex: 1,
   },
   gridLabel: {
-    fontSize: 10,
+    ...apple.typography.caption2,
     color: apple.colors.secondaryLabel,
     marginBottom: 2,
   },
   gridVal: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...apple.typography.subheadline,
+    fontWeight: '600',
     color: apple.colors.label,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: apple.spacing.m,
+    paddingTop: apple.spacing.s,
+    borderTopWidth: 1,
+    borderColor: apple.colors.separator,
   },
   btnCastigar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#FFEBEA',
+    borderRadius: apple.radius.s,
+    backgroundColor: '#FFE5E5',
   },
   btnCastigarText: {
-    fontSize: 11,
-    fontWeight: '700',
+    ...apple.typography.caption1,
     color: apple.colors.danger,
+    fontWeight: '600',
     marginLeft: 4,
   },
   btnVer: {
@@ -374,9 +592,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   btnVerText: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...apple.typography.subheadline,
     color: apple.colors.blue,
+    fontWeight: '500',
   },
   centerContainer: {
     flex: 1,
@@ -386,17 +604,196 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: apple.spacing.xl * 2,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...apple.typography.headline,
     color: apple.colors.secondaryLabel,
-    marginTop: 14,
+    marginTop: apple.spacing.m,
   },
   emptySubtitle: {
-    fontSize: 13,
+    ...apple.typography.subheadline,
     color: apple.colors.tertiaryLabel,
-    marginTop: 4,
+    textAlign: 'center',
+    marginTop: apple.spacing.xs,
+    paddingHorizontal: apple.spacing.xl,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: apple.spacing.l,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: apple.colors.card,
+    borderRadius: apple.radius.xl,
+    padding: apple.spacing.l,
+    alignItems: 'center',
+    ...apple.shadow.large,
+  },
+  trasladoCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: apple.colors.card,
+    borderRadius: apple.radius.xl,
+    padding: apple.spacing.l,
+    maxHeight: '85%',
+    ...apple.shadow.large,
+  },
+  modalIconWrapDanger: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFE5E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: apple.spacing.m,
+  },
+  modalIconWrapPrimary: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#EBF3FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: apple.spacing.m,
+    alignSelf: 'center',
+  },
+  modalTitle: {
+    ...apple.typography.title3,
+    fontWeight: '700',
+    color: apple.colors.label,
+    textAlign: 'center',
+    marginBottom: apple.spacing.s,
+  },
+  modalDesc: {
+    ...apple.typography.subheadline,
+    color: apple.colors.secondaryLabel,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: apple.spacing.l,
+  },
+  fieldLabel: {
+    ...apple.typography.caption1,
+    fontWeight: '600',
+    color: apple.colors.secondaryLabel,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  readOnlyField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: apple.colors.fill,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: apple.radius.m,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+    marginBottom: apple.spacing.m,
+  },
+  readOnlyText: {
+    ...apple.typography.body,
+    color: apple.colors.label,
+    fontWeight: '600',
+  },
+  destinosList: {
+    maxHeight: 180,
+    marginBottom: apple.spacing.m,
+  },
+  destinoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: apple.colors.fill,
+    borderRadius: apple.radius.m,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+  },
+  destinoItemSelected: {
+    borderColor: apple.colors.blue,
+    backgroundColor: '#F0F6FF',
+  },
+  destinoName: {
+    ...apple.typography.body,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  destinoNameSelected: {
+    color: apple.colors.blue,
+  },
+  destinoRole: {
+    ...apple.typography.caption2,
+    color: apple.colors.secondaryLabel,
+    marginTop: 2,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: apple.colors.tertiaryLabel,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioCircleSelected: {
+    borderColor: apple.colors.blue,
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: apple.colors.blue,
+  },
+  emptyDestinoBox: {
+    padding: 16,
+    backgroundColor: apple.colors.fill,
+    borderRadius: apple.radius.m,
+    marginBottom: apple.spacing.m,
+  },
+  emptyDestinoText: {
+    ...apple.typography.subheadline,
+    color: apple.colors.secondaryLabel,
+    textAlign: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    marginTop: apple.spacing.s,
+  },
+  modalBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: apple.radius.m,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBtnCancel: {
+    backgroundColor: apple.colors.fill,
+  },
+  modalBtnCancelText: {
+    ...apple.typography.body,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  modalBtnDanger: {
+    backgroundColor: apple.colors.danger,
+  },
+  modalBtnDangerText: {
+    ...apple.typography.body,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  modalBtnPrimary: {
+    backgroundColor: apple.colors.blue,
+  },
+  modalBtnPrimaryText: {
+    ...apple.typography.body,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

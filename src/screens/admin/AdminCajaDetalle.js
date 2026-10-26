@@ -284,7 +284,7 @@ export default function AdminCajaDetalle() {
                   <Text style={styles.movDesc} numberOfLines={2}>
                     {item.descripcion || item.tipo?.toUpperCase()}
                   </Text>
-                  <Text style={styles.movTime}>{formatDate(item.created_at)}</Text>
+                  <Text style={styles.movTime}>{formatDate(item.fecha || item.created_at)}</Text>
                 </View>
                 <Text style={[styles.movAmount, { color: isPositive ? apple.colors.success : apple.colors.danger }]}>
                   {isPositive ? '+' : '-'}{formatMoney(item.monto)}

@@ -59,6 +59,7 @@ export const updateAdminUser = async (userId, userData) => {
     max_cuotas,
     permite_borrar_venta,
     permite_modificar_pagos,
+    password,
   } = userData;
 
   const { data, error } = await supabase.rpc('admin_update_user', {
@@ -71,6 +72,7 @@ export const updateAdminUser = async (userId, userData) => {
     p_max_cuotas: max_cuotas !== undefined ? parseInt(max_cuotas, 10) : null,
     p_permite_borrar_venta: permite_borrar_venta !== undefined ? !!permite_borrar_venta : null,
     p_permite_modificar_pagos: permite_modificar_pagos !== undefined ? !!permite_modificar_pagos : null,
+    p_password: password && password.trim().length >= 6 ? password.trim() : null,
   });
 
   if (error) throw new Error(error.message || 'Error al actualizar usuario');
@@ -172,7 +174,7 @@ export const getCajaMovements = async (cajaId) => {
     .from('cash_movements')
     .select('*')
     .eq('caja_id', cajaId)
-    .order('created_at', { ascending: false });
+    .order('fecha', { ascending: false });
 
   if (error) throw new Error(error.message || 'Error al obtener movimientos de caja');
   return data || [];
@@ -216,4 +218,16 @@ export const createAdminCajaMovement = async ({ cajaId, tipo, descripcion, monto
     .eq('id', cajaId);
 
   return movData;
+};
+
+/**
+ * Traslada la cartera completa de un vendedor a otro de forma atomica
+ */
+export const trasladarCartera = async (vendedorOrigenId, vendedorDestinoId) => {
+  const { data, error } = await supabase.rpc('admin_trasladar_cartera', {
+    p_vendedor_origen: vendedorOrigenId,
+    p_vendedor_destino: vendedorDestinoId,
+  });
+  if (error) throw new Error(error.message || 'Error al trasladar la cartera');
+  return data;
 };

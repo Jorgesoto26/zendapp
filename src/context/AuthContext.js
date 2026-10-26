@@ -34,6 +34,13 @@ export function AuthProvider({ children }) {
     const { data } = await supabase.auth.getSession();
     if (data?.session?.user) {
       const { profile: p } = await fetchUserData(data.session.user.id, data.session.access_token);
+      if (p && p.activo === false) {
+        await supabase.auth.signOut();
+        setSession(null);
+        setProfile(null);
+        appAlert('Cuenta inhabilitada', 'Tu cuenta ha sido inhabilitada por el administrador.');
+        return;
+      }
       setProfile(p);
     }
   }, [fetchUserData]);
@@ -53,6 +60,22 @@ export function AuthProvider({ children }) {
 
       try {
         const { profile: p, caja: c } = await fetchUserData(sess.user.id, sess.access_token);
+
+        // Bloqueo inmediato de usuarios inhabilitados
+        if (p && p.activo === false) {
+          await supabase.auth.signOut();
+          if (mounted) {
+            setSession(null);
+            setProfile(null);
+            setLoading(false);
+            appAlert(
+              'Cuenta inhabilitada',
+              'Tu cuenta ha sido inhabilitada por el administrador. Se ha cerrado la sesin.'
+            );
+          }
+          return;
+        }
+
         const isAdmin = p?.rol === 'admin' || p?.rol === 'superadmin';
 
         let tieneCaja = c && c.id && c.estado === 'abierta';

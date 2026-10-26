@@ -332,6 +332,26 @@ const CrearCliente = () => {
       return;
     }
 
+    // Validacion de limite maximo de venta por usuario (Requisito 1)
+    const maxVenta = parseFloat(profile?.dinero_max_venta) || 0;
+    if (maxVenta > 0 && montoNum > maxVenta) {
+      appAlert(
+        'Límite de venta excedido',
+        `El monto ($${montoNum.toLocaleString('es-CO')}) excede tu límite máximo permitido por venta ($${maxVenta.toLocaleString('es-CO')}).`
+      );
+      return;
+    }
+
+    // Validacion de limite maximo de cuotas por usuario (Requisito 1)
+    const maxCuotas = parseInt(profile?.max_cuotas, 10) || 0;
+    if (maxCuotas > 0 && quoteSummary && quoteSummary.numCuotas > maxCuotas) {
+      appAlert(
+        'Límite de cuotas excedido',
+        `La cantidad de cuotas (${quoteSummary.numCuotas}) supera el máximo permitido para tu usuario (${maxCuotas} cuotas).`
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       // 1. Obtener caja abierta

@@ -37,6 +37,15 @@ export const AuthService = async (db, email, password) => {
     const result = await response.json();
     let { profile, concepts, caja, movimientos } = result;
 
+    // Regla: Bloqueo de usuarios inhabilitados (activo = false)
+    if (profile && profile.activo === false) {
+      await supabase.auth.signOut();
+      return {
+        success: false,
+        message: 'Tu cuenta ha sido inhabilitada por el administrador. Contacta a tu administrador para ms informacin.',
+      };
+    }
+
     const isAdmin = profile?.rol === 'admin' || profile?.rol === 'superadmin';
     let tieneCajaAbierta = caja && caja.id && caja.estado === 'abierta';
 

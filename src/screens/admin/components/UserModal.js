@@ -15,6 +15,7 @@ import {
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
 import { formatMoneyInput, parseMoneyToNumeric, cleanMoneyValue } from '../../../utils/utilities';
+import { appAlert } from '../../../components/AppAlert';
 
 export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
   const isEditing = !!editingUser;
@@ -61,8 +62,22 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
   }, [editingUser, visible]);
 
   const handleSave = async () => {
-    if (!nombre.trim()) return;
-    if (!isEditing && (!email.trim() || !password.trim())) return;
+    if (!nombre.trim()) {
+      appAlert('Dato requerido', 'El nombre es obligatorio');
+      return;
+    }
+    if (!isEditing && (!email.trim() || !password.trim())) {
+      appAlert('Datos requeridos', 'El correo y la contrasea son obligatorios para crear un usuario');
+      return;
+    }
+    if (!isEditing && password.trim().length < 6) {
+      appAlert('Contrasea corta', 'La contrasea debe tener al menos 6 caracteres');
+      return;
+    }
+    if (isEditing && password.trim().length > 0 && password.trim().length < 6) {
+      appAlert('Contrasea corta', 'La nueva contrasea debe tener al menos 6 caracteres');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -158,10 +173,10 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
               />
             </View>
 
-            {!isEditing && (
+            {!isEditing ? (
               <>
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Correo Electrónico *</Text>
+                  <Text style={styles.label}>Correo Electrnico *</Text>
                   <TextInput
                     style={styles.input}
                     value={email}
@@ -174,17 +189,29 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Contraseña *</Text>
+                  <Text style={styles.label}>Contrasea *</Text>
                   <TextInput
                     style={styles.input}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mnimo 6 caracteres"
                     placeholderTextColor={apple.colors.tertiaryLabel}
                   />
                 </View>
               </>
+            ) : (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Nueva Contrasea (opcional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  placeholder="Dejar vaco para conservar la actual (mn. 6)"
+                  placeholderTextColor={apple.colors.tertiaryLabel}
+                />
+              </View>
             )}
 
             {/* Límites Financieros */}
