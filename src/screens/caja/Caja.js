@@ -8,6 +8,7 @@ import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric } from '../
 import { apple } from '../../theme/appleTheme';
 import { AppleButton } from '../../components/AppleButton';
 import { appAlert } from '../../components/AppAlert';
+import { eventBus, EVENTS } from '../../utils/eventBus';
 import { clearOnlyPendingSync, clearAllLocalData } from '../../utils/clearLocal';
 
 export default function CajaScreen() {
@@ -36,6 +37,19 @@ export default function CajaScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  useEffect(() => {
+    const unsub1 = eventBus.on(EVENTS.CLIENT_CREATED, () => load());
+    const unsub2 = eventBus.on(EVENTS.PAYMENT_REGISTERED, () => load());
+    const unsub3 = eventBus.on(EVENTS.MOVEMENT_CHANGED, () => load());
+    const unsub4 = eventBus.on(EVENTS.SYNC_COMPLETED, () => load());
+    return () => {
+      unsub1();
+      unsub2();
+      unsub3();
+      unsub4();
+    };
+  }, [load]);
   const navigation = useNavigation();
   useFocusEffect(
     React.useCallback(() => {

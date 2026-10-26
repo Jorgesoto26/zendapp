@@ -5,11 +5,38 @@ import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { appAlert } from '../components/AppAlert';
 import { saveCajaLocal, saveMovimientoLocal } from '../services/cajaService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { eventBus, EVENTS } from './eventBus';
 
 let globalSyncCollection = [];
 let idCounter = -1;
 let idMapping = new Map();
-let isSyncing = false;
+
+const SYNC_LOCK_KEY = '@zendapp_is_syncing';
+const SYNC_TIMEOUT_MS = 60000; // 60 segundos timeout de seguridad para evitar bloqueos por crash inesperado
+
+export const isSyncingActive = async () => {
+  try {
+    const val = await AsyncStorage.getItem(SYNC_LOCK_KEY);
+    if (!val) return false;
+    const data = JSON.parse(val);
+    if (!data?.active) return false;
+    if (Date.now() - (data.timestamp || 0) > SYNC_TIMEOUT_MS) {
+      console.log('isSyncingActive: bloqueo previo expirado tras 60s, liberando lock.');
+      await AsyncStorage.removeItem(SYNC_LOCK_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const resetSyncLock = async () => {
+  try {
+    await AsyncStorage.removeItem(SYNC_LOCK_KEY);
+  } catch {}
+};
 
 export const SyncWithSupabase = async (toas = true, callLoading = () => { }) => {
   if (isSyncing) {
@@ -51,7 +78,18 @@ export const SyncWithSupabase = async (toas = true, callLoading = () => { }) => 
     globalSyncCollection = [];
     idCounter = -1;
     idMapping.clear();
-    isSyncing = false;
+    // Limpiar lock en AsyncStorage
+    try {
+      await AsyncStorage.setItem(
+        SYNC_LOCK_KEY,
+        JSON.stringify({ active: false, timestamp: Date.now() })
+      );
+      await AsyncStorage.removeItem(SYNC_LOCK_KEY);
+    } catch (errUnlock) {
+      console.log('Error liberando lock de sync en AsyncStorage:', errUnlock);
+    }
+    // Requisito 4: Notificar finalización de sincronización
+    eventBus.emit(EVENTS.SYNC_COMPLETED);
   }
 };
 
@@ -101,17 +139,30 @@ const SendVentas = async (toas) => {
         if (rpcError) throw rpcError;
 
         const remoteInvoiceId = result.id_factura;
-        console.log(`Venta offline sincronizada con éxito. Factura remota: ${remoteInvoiceId}`);
+        console.log("Venta offline sincronizada con exito. Factura remota:", remoteInvoiceId);
 
-        // Marcar como sincronizada
+        // Marcar venta_pendiente como sincronizada
         await db.executeSql(`UPDATE ventas_pendientes SET estado = 'sincronizado' WHERE id = ?`, [item.id]);
 
-        // Actualizar factura local con el id real de Supabase
-        await db.executeSql(`UPDATE facturas SET id = ?, estadoMovil = 'pendiente' WHERE id = ?`, [String(remoteInvoiceId), String(item.temp_id)]);
+        // Requisito 6: Actualizar factura local preservando su estado comercial tramitado ('actualizado')
+        await db.executeSql(`UPDATE facturas SET id = ? WHERE id = ?`, [String(remoteInvoiceId), String(item.temp_id)]);
 
         // Si se realizaron pagos o detalles locales para esa factura mientras estaba offline:
         await db.executeSql(`UPDATE pagos SET idFactura = ? WHERE idFactura = ?`, [String(remoteInvoiceId), String(item.temp_id)]);
         await db.executeSql(`UPDATE detallesCaja SET facturaId = ? WHERE facturaId = ?`, [String(remoteInvoiceId), String(item.temp_id)]);
+
+        // Requisito 11 (Causa Raiz de ID negativo residual):
+        // Actualizar el movimiento de venta local (temp_id - 1) para reemplazar el id negativo con el id remoto/sincronizado
+        const localSaleMovId = Number(item.temp_id) - 1;
+        const newMovId = result && result.id_movimiento ? String(result.id_movimiento) : `sync_sale_${remoteInvoiceId}`;
+        try {
+          await db.executeSql(
+            `UPDATE movimientos SET id = ?, estadoMovil = 'sincronizado', idFactura = ? WHERE id = ? OR id = ?`,
+            [newMovId, String(remoteInvoiceId), localSaleMovId, String(localSaleMovId)]
+          );
+        } catch (errMovSync) {
+          console.log('Error actualizando id de movimiento venta tras sync:', errMovSync);
+        }
       } catch (saleErr) {
         console.log(`Error enviando venta pendiente ${item.id}:`, saleErr);
         await db.executeSql(`UPDATE ventas_pendientes SET estado = 'pendiente' WHERE id = ?`, [item.id]);
@@ -406,6 +457,15 @@ const processResponseAndUpdateTables = async (response) => {
           [item.idv, item.idv, facturaId || '']
         );
       } catch {}
+
+      // Requisito 5 & 11: Marcar movimiento local de este pago como sincronizado
+      try {
+        await db.executeSql(
+          `UPDATE movimientos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ? OR (idFactura = ? AND tipo = 'pago')`,
+          [item.idv, item.idv, facturaId || '']
+        );
+      } catch {}
+
       // guardar id remoto para referencia si existe columna sync_id
       try { await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ? OR id = '' || ?`, [item.idn, item.idv, item.idv]); } catch {}
     } else if (mapping.type === 'movimiento') {

@@ -242,10 +242,13 @@ export async function getPendingSyncCount() {
   const db = await getDbConnection();
   let count = 0;
 
+  // Requisito 11: Solo contar registros que verdaderamente estan pendientes y NO sincronizados
   try {
     const movs = await getData(
       db,
-      `SELECT COUNT(*) as c FROM movimientos WHERE id < 0 OR estadoMovil = 'actualizado' OR estadoMovil = 'enviando'`
+      `SELECT COUNT(*) as c FROM movimientos
+       WHERE (((id < 0 OR id LIKE '-%' OR id LIKE 'temp-%') AND estadoMovil != 'sincronizado')
+          OR estadoMovil IN ('actualizado', 'enviando'))`
     );
     count += Number(movs?.[0]?.c || 0);
   } catch {}
@@ -253,7 +256,7 @@ export async function getPendingSyncCount() {
   try {
     const ventas = await getData(
       db,
-      `SELECT COUNT(*) as c FROM ventas_pendientes WHERE estado = 'pendiente' OR estado = 'enviando'`
+      `SELECT COUNT(*) as c FROM ventas_pendientes WHERE estado IN ('pendiente', 'enviando')`
     );
     count += Number(ventas?.[0]?.c || 0);
   } catch {}
@@ -261,7 +264,9 @@ export async function getPendingSyncCount() {
   try {
     const pagos = await getData(
       db,
-      `SELECT COUNT(*) as c FROM pagos WHERE id < 0 OR estadoMovil = 'actualizado' OR estadoMovil = 'enviando'`
+      `SELECT COUNT(*) as c FROM pagos
+       WHERE (((id < 0 OR id LIKE '-%' OR id LIKE 'temp-%') AND estadoMovil != 'sincronizado')
+          OR estadoMovil IN ('actualizado', 'enviando'))`
     );
     count += Number(pagos?.[0]?.c || 0);
   } catch {}

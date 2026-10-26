@@ -6,6 +6,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import Toast from 'react-native-toast-message';
 import ItemPayments from './components/itemPayments';
 import { getData, getDbConnection } from '../../database/db';
+import { eventBus, EVENTS } from '../../utils/eventBus';
 import { FormatMoneyDecimales } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
@@ -190,7 +191,25 @@ export default function Payments() {
       setStats(await calculateStats(n));
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }, []);
-  useEffect(() => { loadClients(); }, [loadClients]);
+  useEffect(() => {
+    loadClients();
+    const unsubClient = eventBus.on(EVENTS.CLIENT_CREATED, () => loadClients());
+    const unsubPay = eventBus.on(EVENTS.PAYMENT_REGISTERED, () => loadClients());
+    const unsubMov = eventBus.on(EVENTS.MOVEMENT_CHANGED, () => loadClients());
+    const unsubSync = eventBus.on(EVENTS.SYNC_COMPLETED, () => loadClients());
+    return () => {
+      unsubClient();
+      unsubPay();
+      unsubMov();
+      unsubSync();
+    };
+  }, [loadClients]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadClients();
+    }, [loadClients])
+  );
 
   const handleSyncAndRefresh = async () => {
     if (refreshing) return;

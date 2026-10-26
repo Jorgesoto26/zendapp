@@ -609,3 +609,18 @@ const requestPermissions = async () => {
         }
     }
 };
+
+export const getAndIncrementConsecutivo = async (db) => {
+  let next = 1;
+  try {
+    const { getData } = require('../database/db');
+    const r = await getData(db, 'SELECT valor FROM consecutivoTramitado WHERE id = 1');
+    if (r && r.length > 0) {
+      next = parseInt(r[0].valor || 0, 10) + 1;
+    }
+    await db.executeSql('INSERT OR REPLACE INTO consecutivoTramitado (id, valor) VALUES (1, ?)', [next]);
+  } catch {
+    next = 1;
+  }
+  return next;
+};

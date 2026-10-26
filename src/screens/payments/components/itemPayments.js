@@ -10,6 +10,8 @@ import { IdInsertion, getDateOdooMilisec, getDate, Capitalize, FormatMoneyDecima
 import { getCajaActual } from '../../../services/cajaService';
 import { apple } from '../../../theme/appleTheme';
 import { appAlert } from '../../../components/AppAlert';
+import { eventBus, EVENTS } from '../../../utils/eventBus';
+import { SyncWithSupabase } from '../../../utils/sync';
 
 const getStatusColor = (tipo) => ({ pago: apple.colors.success, 'no pago': apple.colors.danger, parcial: apple.colors.warning, pendiente: apple.colors.separator }[ (tipo||'').toLowerCase().trim()] || apple.colors.separator);
 const getStatusBg = (tipo) => ({ pago: '#E8F5E9', 'no pago': '#FFEBEE', parcial: '#FFF8E1', pendiente: apple.colors.fill }[ (tipo||'').toLowerCase().trim()] || apple.colors.fill);
@@ -145,6 +147,58 @@ const ItemPayments = memo(({
       await updateFacturaWithConsecutivo(db, id, { estadoMovil: 'actualizado', saldo: ns, cuotasPagas: ncp, saldoVencido: nsv }, c);
       await Promise.all([insertTables(db, 'pagos', [pago]), insertTables(db, 'detallesCaja', [detalle])]);
 
+      // Requisito 5: Guardar movimiento local para que se refleje inmediatamente en Movimientos y Caja
+      const nowIso = new Date().toISOString();
+      const clienteDesc = name || nombreUno || 'Cliente';
+      const descMov = tipo === 'nopago'
+        ? `No pago: ${clienteDesc}`
+        : `Pago: ${clienteDesc} (${FormatMoneyDecimales(valorPago)})`;
+
+      try {
+        await db.executeSql(
+          `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre)
+           VALUES (?, ?, ?, ?, ?, 'actualizado', ?, ?, ?, ?)`,
+          [
+            pago.id,
+            descMov,
+            tipo === 'nopago' ? 0 : valorPago,
+            pago.horaDispositivo || nowIso,
+            tipo === 'nopago' ? 'nopago' : 'pago',
+            pago.idCaja,
+            nowIso,
+            String(id),
+            clienteDesc,
+          ]
+        );
+      } catch (errMov) {
+        console.log('Error insertando movimiento local:', errMov);
+      }
+
+      // Actualizar saldo_final de la caja localmente
+      if (valorPago > 0 && pago.idCaja) {
+        try {
+          await db.executeSql(
+            `UPDATE cajas SET saldo_final = COALESCE(saldo_final, 0) + ? WHERE id = ?`,
+            [valorPago, pago.idCaja]
+          );
+        } catch (errCaja) {
+          console.log('Error actualizando saldo_final de caja local:', errCaja);
+        }
+      }
+
+      // Requisito 4: Notificar a todas las vistas mediante EventBus
+      eventBus.emit(EVENTS.PAYMENT_REGISTERED, {
+        idFactura: id,
+        tipo,
+        valorPago,
+        pagoId: pago.id,
+      });
+
+      // Disparar sincronizacion en background si hay red
+      try {
+        SyncWithSupabase(false, () => {});
+      } catch {}
+
       setTipoTramitado(tipo === 'nopago' ? 'NO PAGO' : tipo === 'parcial' ? 'PARCIAL' : 'PAGO');
       setValorPagado(tipo === 'nopago' ? 0 : valorPago);
       setPendienteSync(true);
@@ -194,15 +248,17 @@ const ItemPayments = memo(({
             </View>
             <TouchableOpacity
               onPress={() => {
-                if (latitud != null && longitud != null) {
+                if (latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0) {
                   const url = Platform.select({ ios: `http://maps.apple.com/?q=${latitud},${longitud}`, android: `geo:${latitud},${longitud}?q=${latitud},${longitud}` });
                   Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitud},${longitud}`));
+                } else {
+                  appAlert('Sin ubicación', 'Este cliente no tiene coordenadas GPS registradas.');
                 }
               }}
-              style={[styles.gpsPillTop, !(latitud != null && longitud != null) && { opacity: 0.5, borderColor: apple.colors.tertiaryLabel }]}
+              style={[styles.gpsPillTop, !(latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0) && { opacity: 0.5, borderColor: apple.colors.tertiaryLabel }]}
               activeOpacity={0.7}
             >
-              <Icon name="map-marker" size={13} color={latitud != null && longitud != null ? '#000' : apple.colors.tertiaryLabel} />
+              <Icon name="map-marker" size={13} color={latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0 ? apple.colors.blue : apple.colors.tertiaryLabel} />
             </TouchableOpacity>
           </View>
 

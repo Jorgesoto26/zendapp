@@ -126,7 +126,40 @@ export async function listMovimientos({ cajaId, limit = 50, offset = 0, search =
         const serverIds = new Set(serverMovements.map(m => String(m.id)));
         const filteredPending = localPending.filter(p => !serverIds.has(String(p.id)));
 
-        return [...filteredPending, ...serverMovements];
+        // Asegurar estadoMovil en los movimientos del servidor
+        const markedServerMovements = serverMovements.map(sm => ({
+          ...sm,
+          estadoMovil: 'sincronizado',
+        }));
+
+        const all = [...filteredPending, ...markedServerMovements];
+
+        // Resolver nombres de clientes para descripciones con UUID
+        try {
+          const facturas = await getData(db, `SELECT id, nombreUno, apellidoUno, alias FROM facturas`);
+          const mapFacturas = new Map();
+          if (facturas) {
+            for (const f of facturas) {
+              mapFacturas.set(String(f.id), f);
+            }
+          }
+          return all.map(m => {
+            let clienteNombre = m.cliente_nombre || null;
+            if (!clienteNombre && m.descripcion) {
+              const match = m.descripcion.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+              if (match && mapFacturas.has(match[0])) {
+                const f = mapFacturas.get(match[0]);
+                clienteNombre = `${f.nombreUno || ''} ${f.apellidoUno || ''}`.trim() + (f.alias ? ` (${f.alias})` : '');
+              }
+            }
+            return {
+              ...m,
+              cliente_nombre: clienteNombre,
+            };
+          });
+        } catch {
+          return all;
+        }
       }
     }
   } catch (netErr) {

@@ -77,6 +77,17 @@ export async function ensureDatabaseIntegrity(db) {
     await ensureColumnExists(db, 'movimientos', 'tipo', 'TEXT');
     await ensureColumnExists(db, 'movimientos', 'monto', 'REAL');
     await ensureColumnExists(db, 'movimientos', 'descripcion', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'idFactura', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'cliente_nombre', 'TEXT');
+
+    // Asegurar columnas en facturas
+    await ensureColumnExists(db, 'facturas', 'latitud', 'TEXT');
+    await ensureColumnExists(db, 'facturas', 'longitud', 'TEXT');
+    await ensureColumnExists(db, 'facturas', 'previous_invoice_id', 'TEXT');
+
+    // Asegurar columnas en pagos
+    await ensureColumnExists(db, 'pagos', 'latitud', 'TEXT');
+    await ensureColumnExists(db, 'pagos', 'longitud', 'TEXT');
 
     // Eliminar índices únicos restrictivos que impiden pagos parciales o múltiples pagos por factura
     try { await db.executeSql(`DROP INDEX IF EXISTS index_pago`); } catch {}

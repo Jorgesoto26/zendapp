@@ -164,6 +164,17 @@ export const saveInvoice = async (invoices) => {
           if (a.consecutivoTramitado) localConsecutivos[String(a.id)] = a.consecutivoTramitado;
         }
       }
+
+    // Preservar coordenadas existentes localmente para no sobreescribirlas si el servidor devuelve null
+    let localCoords = {};
+    try {
+      const rowsCoords = await getData(db, `SELECT id, latitud, longitud FROM facturas WHERE latitud IS NOT NULL AND latitud != ''`);
+      if (rowsCoords) {
+        for (const rc of rowsCoords) {
+          if (rc.id) localCoords[String(rc.id)] = { latitud: rc.latitud, longitud: rc.longitud };
+        }
+      }
+    } catch {}
     }
 
     // Si estamos online y hay caja abierta, consultar también movimientos del servidor para esta caja
@@ -221,8 +232,8 @@ export const saveInvoice = async (invoices) => {
       estado: element.estado || 'pendiente',
       estadoUsuario: element.estadoUsuario || null,
       facturaWriteDate: element.facturaWriteDate || null,
-      latitud: element.latitud || null,
-      longitud: element.longitud || null,
+      latitud: element.latitud || localCoords[invoiceIdStr]?.latitud || null,
+      longitud: element.longitud || localCoords[invoiceIdStr]?.longitud || null,
       nombreUno: element.nombreCliente || null,
       renovado: 'false',
       nombreUsuario: element.nombreUsuario || null,
