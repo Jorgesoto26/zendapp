@@ -70,7 +70,7 @@ const FormField = React.memo(({
 const CrearCliente = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { userId } = useAuth();
+  const { userId, profile } = useAuth();
   const fade = useRef(new Animated.Value(0)).current;
 
   const [formData, setFormData] = useState({
@@ -307,27 +307,35 @@ const CrearCliente = () => {
 
   const handleSubmit = async () => {
     if (!userId) {
+      console.log("Error no existe usuario logueado ", userId);
+
       appAlert('Error', 'Sesión no válida. Por favor inicia sesión nuevamente.');
       return;
     }
 
     // Validaciones estrictas con mensajes claros
     if (cleanTel.length < 10 || cleanTel.length > 12) {
+      console.log("telefono invalido ", cleanTel.length);
+
       appAlert('Teléfono inválido', `El teléfono debe tener entre 10 y 12 dígitos. Actualmente tiene ${cleanTel.length}.`);
       return;
     }
     if (cleanDoc.length < 6 || cleanDoc.length > 12) {
+      console.log("documento invalido ", cleanDoc.length);
       appAlert('Documento inválido', `El documento debe tener entre 6 y 12 caracteres. Actualmente tiene ${cleanDoc.length}.`);
       return;
     }
 
     const montoNum = parseMoneyToNumeric(formData.valor);
     if (!montoNum || montoNum <= 0) {
+      console.log("valor invalido ", montoNum);
       appAlert('Valor inválido', 'El monto del crédito debe ser mayor a 0');
       return;
     }
 
     if (!quoteSummary) {
+      console.log("Faltan datos del prestamo ");
+
       appAlert('Faltan datos', 'Por favor selecciona el plazo y el interés del crédito.');
       return;
     }
@@ -335,6 +343,7 @@ const CrearCliente = () => {
     // Validacion de limite maximo de venta por usuario (Requisito 1)
     const maxVenta = parseFloat(profile?.dinero_max_venta) || 0;
     if (maxVenta > 0 && montoNum > maxVenta) {
+      console.log("limite de venta excedido ", montoNum);
       appAlert(
         'Límite de venta excedido',
         `El monto ($${montoNum.toLocaleString('es-CO')}) excede tu límite máximo permitido por venta ($${maxVenta.toLocaleString('es-CO')}).`
@@ -345,6 +354,7 @@ const CrearCliente = () => {
     // Validacion de limite maximo de cuotas por usuario (Requisito 1)
     const maxCuotas = parseInt(profile?.max_cuotas, 10) || 0;
     if (maxCuotas > 0 && quoteSummary && quoteSummary.numCuotas > maxCuotas) {
+      console.log("limite de cuotas excedido ", quoteSummary.numCuotas);
       appAlert(
         'Límite de cuotas excedido',
         `La cantidad de cuotas (${quoteSummary.numCuotas}) supera el máximo permitido para tu usuario (${maxCuotas} cuotas).`
@@ -357,6 +367,7 @@ const CrearCliente = () => {
       // 1. Obtener caja abierta
       const cajaAbierta = await getCajaActual();
       if (!cajaAbierta) {
+        console.log("no tienes caja abierta ");
         appAlert('Sin caja abierta', 'No tienes una caja abierta. Ve a la sección Caja y abre una antes de registrar ventas.');
         setSaving(false);
         return;
@@ -473,7 +484,9 @@ const CrearCliente = () => {
           `UPDATE cajas SET saldo_final = COALESCE(saldo_final, 0) - ? WHERE id = ?`,
           [montoNum, cajaAbierta.id]
         );
-      } catch {}
+      } catch (err) {
+        console.log("error actualizando caja ", err);
+      }
 
       // 8. Notificar a las demas vistas via EventBus (Requisito 4)
       eventBus.emit(EVENTS.CLIENT_CREATED, {
@@ -484,8 +497,10 @@ const CrearCliente = () => {
 
       // 9. Sincronizar en background si hay red
       try {
-        SyncWithSupabase(false, () => {});
-      } catch {}
+        SyncWithSupabase(false, () => { });
+      } catch (err) {
+        console.log("error actualizando caja ", err);
+      }
 
       appAlert(
         '¡Venta registrada exitosamente!',
@@ -765,8 +780,8 @@ const CrearCliente = () => {
                 {!cleanTel || cleanTel.length < 10
                   ? 'Ingresa un teléfono válido de 10 a 12 dígitos.'
                   : !cleanDoc || cleanDoc.length < 6
-                  ? 'Ingresa un documento válido de 6 a 12 caracteres.'
-                  : 'Completa todos los campos obligatorios para habilitar el guardado.'}
+                    ? 'Ingresa un documento válido de 6 a 12 caracteres.'
+                    : 'Completa todos los campos obligatorios para habilitar el guardado.'}
               </Text>
             )}
           </Animated.View>

@@ -17,7 +17,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
-import { getAdminCajas, abrirCajasMasivo } from '../../services/adminService';
+import { getAdminCajas, abrirCajasMasivo, getAdminOpenCajasCount } from '../../services/adminService';
 import { CajaCard } from './components/CajaCard';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 
@@ -65,6 +65,7 @@ export default function AdminCajas() {
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
+  const [adminOpenCount, setAdminOpenCount] = useState(0);
 
   // Filtro de fecha (Requisito 9)
   const [selectedDate, setSelectedDate] = useState(null); // null = todas
@@ -77,13 +78,15 @@ export default function AdminCajas() {
     try {
       const data = await getAdminCajas(selectedDate, selectedDate);
       setCajas(data || []);
+      const openCount = await getAdminOpenCajasCount(userId);
+      setAdminOpenCount(openCount);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudieron cargar las cajas');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, userId]);
 
   // Requisito 8: useFocusEffect para recarga automatica al entrar o volver
   useFocusEffect(
@@ -97,24 +100,31 @@ export default function AdminCajas() {
     loadData(true);
   };
 
-  const adminAbiertas = cajas.filter(
-    (c) => (c.usuario_id === userId || c.rol_usuario === 'admin') && c.estado === 'abierta'
-  ).length;
-
   const handlePressAbrirMasivo = () => {
-    if (adminAbiertas >= 3) {
+    const todayIso = getTodayIso();
+    // Identificar si el admin autenticado ya tiene una caja abierta para hoy
+    const cajaHoyAdmin = cajas.find(
+      (c) => c.usuario_id === userId && c.estado === 'abierta' && (
+        (c.fecha_apertura && c.fecha_apertura.slice(0, 10) === todayIso)
+      )
+    );
+
+    // Si NO tiene caja de hoy y ya alcanzó el límite individual de 3 cajas abiertas:
+    if (!cajaHoyAdmin && adminOpenCount >= 3) {
       appAlert(
         'Tienes 3 cajas abiertas',
-        'Ya alcanzaste el lmite de 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas antes de poder realizar una nueva apertura.'
+        'Ya alcanzaste el límite de 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas anteriores antes de poder realizar una nueva apertura.'
       );
       return;
     }
 
+    const mensaje = cajaHoyAdmin
+      ? `Ya tienes una caja abierta para hoy. Se reutilizara como referencia y se abriran las cajas de tus vendedores subordinados activos que aun no tengan caja abierta.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
+      : `Deseas abrir las cajas de todos los vendedores activos y una nueva caja para ti con la fecha de hoy?\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`;
+
     appAlert(
       'Apertura Masiva de Cajas',
-      `Deseas abrir las cajas de todos los vendedores activos y una nueva caja para ti con la fecha de hoy?
-
-Actualmente tienes ${adminAbiertas} de 3 cajas permitidas abiertas.`,
+      mensaje,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -123,14 +133,14 @@ Actualmente tienes ${adminAbiertas} de 3 cajas permitidas abiertas.`,
             setOpening(true);
             try {
               const res = await abrirCajasMasivo();
-              appAlert(
-                'Apertura exitosa!',
-                `Se abrieron ${res.cajas_abiertas} caja(s) correctamente, incluyendo tu nueva caja del da.`
-              );
+              const detalle = res.admin_caja_reutilizada
+                ? `Se reutilizo tu caja de hoy y se abrieron ${res.vendedores_cajas_abiertas ?? (res.cajas_abiertas || 0)} caja(s) de vendedores.`
+                : `Se abrieron ${res.cajas_abiertas} caja(s) correctamente, incluyendo tu nueva caja del dia.`;
+              appAlert('Apertura exitosa!', detalle);
               loadData(true);
             } catch (err) {
               console.log('Error abrir masivo', err.message);
-              appAlert('Atencin', err.message || 'No se pudieron abrir las cajas');
+              appAlert('Atención', err.message || 'No se pudieron abrir las cajas');
             } finally {
               setOpening(false);
             }
@@ -168,7 +178,7 @@ Actualmente tienes ${adminAbiertas} de 3 cajas permitidas abiertas.`,
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Gestin de Cajas</Text>
           <Text style={styles.headerSubtitle}>
-            Supervisin diaria  {adminAbiertas}/3 cajas admin abiertas
+            Supervisin diaria  {adminOpenCount}/3 cajas admin abiertas
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

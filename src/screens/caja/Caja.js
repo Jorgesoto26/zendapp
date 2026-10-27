@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { BackHandler, View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, RefreshControl, SafeAreaView } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -91,7 +91,7 @@ export default function CajaScreen() {
     if (val < 0) return appAlert('Error', 'Saldo inicial no puede ser negativo');
     try { setLoading(true); await abrirCaja(val); await load(); appAlert('Éxito', 'Caja abierta'); } catch (e) { appAlert('Error', e.message); } finally { setLoading(false); }
   };
-    const handleCerrar = async () => {
+  const handleCerrar = async () => {
     try {
       const pendingCount = await getPendingSyncCount();
       if (pendingCount > 0) {
@@ -101,7 +101,7 @@ export default function CajaScreen() {
         );
         return;
       }
-    } catch {}
+    } catch { }
 
     appAlert('Cerrar caja del día', '¿Estás seguro de cerrar tu caja? Se calculará tu saldo final definitivo y se enviará el balance del día al sistema.', [
       { text: 'Cancelar', style: 'cancel' },

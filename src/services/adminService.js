@@ -62,7 +62,10 @@ export const updateAdminUser = async (userId, userData) => {
     password,
   } = userData;
 
-  const { data, error } = await supabase.rpc('admin_update_user', {
+  const hasNewPassword = Boolean(password && password.trim().length >= 6);
+
+  // Construir parmetros base (9 parmetros estndar)
+  const rpcParams = {
     p_user_id: userId,
     p_nombre: nombre,
     p_apellido: apellido,
@@ -72,8 +75,25 @@ export const updateAdminUser = async (userId, userData) => {
     p_max_cuotas: max_cuotas !== undefined ? parseInt(max_cuotas, 10) : null,
     p_permite_borrar_venta: permite_borrar_venta !== undefined ? !!permite_borrar_venta : null,
     p_permite_modificar_pagos: permite_modificar_pagos !== undefined ? !!permite_modificar_pagos : null,
-    p_password: password && password.trim().length >= 6 ? password.trim() : null,
-  });
+  };
+
+  // Solo incluir p_password si se ingres una nueva contrasea vlida
+  if (hasNewPassword) {
+    rpcParams.p_password = password.trim();
+  }
+
+  let { data, error } = await supabase.rpc('admin_update_user', rpcParams);
+
+  // Si fall con p_password por incompatibilidad con cach de PostgREST:
+  if (error && error.message && error.message.includes('schema cache') && hasNewPassword) {
+    console.warn('admin_update_user: la funcin desplegada no tiene p_password. Reintentando sin contrasea...');
+    delete rpcParams.p_password;
+    const retry = await supabase.rpc('admin_update_user', rpcParams);
+    if (!retry.error) {
+      throw new Error('Los datos se actualizaron correctamente, pero cambiar la contrasea requiere aplicar la migracin SQL en Supabase.');
+    }
+    error = retry.error;
+  }
 
   if (error) throw new Error(error.message || 'Error al actualizar usuario');
   return data;
@@ -230,4 +250,41 @@ export const trasladarCartera = async (vendedorOrigenId, vendedorDestinoId) => {
   });
   if (error) throw new Error(error.message || 'Error al trasladar la cartera');
   return data;
+};
+
+
+/**
+ * Obtiene el conteo exacto de cajas abiertas del administrador autenticado (mximo 3 permitidas)
+ */
+export const getAdminOpenCajasCount = async (targetUserId = null) => {
+  try {
+    // 1. Intentar RPC optimizada si est disponible en Supabase
+    const { data: rpcCount, error: rpcErr } = await supabase.rpc('admin_get_open_cajas_count');
+    if (!rpcErr && typeof rpcCount === 'number') {
+      return rpcCount;
+    }
+  } catch {}
+
+  // 2. Consulta directa a tabla cajas filtrando estrictamente por el usuario administrador
+  try {
+    let uid = targetUserId;
+    if (!uid) {
+      const { data: authData } = await supabase.auth.getUser();
+      uid = authData?.user?.id;
+    }
+    if (!uid) return 0;
+
+    const { count, error } = await supabase
+      .from('cajas')
+      .select('id', { count: 'exact', head: true })
+      .eq('usuario_id', uid)
+      .eq('estado', 'abierta');
+
+    if (!error && count !== null) {
+      return count;
+    }
+  } catch (e) {
+    console.log('Error obteniendo conteo de cajas abiertas admin:', e);
+  }
+  return 0;
 };

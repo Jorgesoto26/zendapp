@@ -145,6 +145,7 @@ export const saveInvoice = async (invoices) => {
   // Determinar facturas tramitadas en la caja actual para NO revertirlas a pendiente
   let tramitadasEnEstaCaja = new Set();
   let localConsecutivos = {};
+  let localCoords = {};
   try {
     const cajaActual = await getCajaActual();
     const currentCajaId = cajaActual?.id || null;
@@ -173,9 +174,9 @@ export const saveInvoice = async (invoices) => {
           if (a.consecutivoTramitado) localConsecutivos[String(a.id)] = a.consecutivoTramitado;
         }
       }
+    }
 
     // Preservar coordenadas existentes localmente para no sobreescribirlas si el servidor devuelve null
-    let localCoords = {};
     try {
       const rowsCoords = await getData(db, `SELECT id, latitud, longitud FROM facturas WHERE latitud IS NOT NULL AND latitud != ''`);
       if (rowsCoords) {
@@ -184,7 +185,6 @@ export const saveInvoice = async (invoices) => {
         }
       }
     } catch {}
-    }
 
     // Si estamos online y hay caja abierta, consultar también movimientos del servidor para esta caja
     if (currentCajaId) {
