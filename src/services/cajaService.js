@@ -10,13 +10,14 @@ export async function saveCajaLocal(db, caja, userId = null) {
   const saldoIni = Number(caja.saldo_inicial) || 0;
   const saldoFin = caja.saldo_final != null ? Number(caja.saldo_final) : null;
   const fechaCierre = caja.fecha_cierre || null;
+  const adminCajaId = caja.admin_caja_id || null;
 
   try {
     await db.executeSql(
       `INSERT OR REPLACE INTO cajas (
-        id, estado, saldo_inicial, saldo_final, fecha_apertura, fecha_cierre, usuario_id, fecha
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [String(caja.id), estado, saldoIni, saldoFin, fecha, fechaCierre, uid, fecha]
+        id, estado, saldo_inicial, saldo_final, fecha_apertura, fecha_cierre, usuario_id, fecha, admin_caja_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [String(caja.id), estado, saldoIni, saldoFin, fecha, fechaCierre, uid, fecha, adminCajaId]
     );
   } catch (err) {
     try {

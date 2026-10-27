@@ -207,37 +207,15 @@ export const createAdminCajaMovement = async ({ cajaId, tipo, descripcion, monto
   const numericMonto = parseFloat(monto) || 0;
   if (numericMonto <= 0) throw new Error('El monto debe ser mayor a cero');
 
-  const { data: movData, error: movError } = await supabase
-    .from('cash_movements')
-    .insert([
-      {
-        caja_id: cajaId,
-        tipo,
-        descripcion,
-        monto: numericMonto,
-      },
-    ])
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('rpc_create_cash_movement', {
+    p_caja_id: cajaId,
+    p_tipo: tipo,
+    p_descripcion: descripcion?.trim() || 'Movimiento de caja admin',
+    p_monto: numericMonto,
+  });
 
-  if (movError) throw new Error(movError.message || 'Error al registrar movimiento');
-
-  // Ajustar saldo_final de la caja
-  const delta = (tipo === 'ingreso' || tipo === 'pago') ? numericMonto : -numericMonto;
-
-  const { data: cajaData } = await supabase
-    .from('cajas')
-    .select('saldo_final')
-    .eq('id', cajaId)
-    .single();
-
-  const currentSaldo = cajaData?.saldo_final || 0;
-  await supabase
-    .from('cajas')
-    .update({ saldo_final: currentSaldo + delta })
-    .eq('id', cajaId);
-
-  return movData;
+  if (error) throw new Error(error.message || 'Error al registrar movimiento');
+  return data;
 };
 
 /**

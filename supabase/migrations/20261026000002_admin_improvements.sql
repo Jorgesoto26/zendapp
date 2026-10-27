@@ -553,6 +553,7 @@ $func$;
 -- =====================================================================
 -- 6. PROTECCIÓN EN SERVIDOR: Límites y bloqueo inhabilitados (Requisitos 1 y 2)
 -- =====================================================================
+DROP FUNCTION IF EXISTS public.rpc_create_cash_movement(uuid, text, text, numeric, uuid);
 CREATE OR REPLACE FUNCTION public.rpc_create_cash_movement(
   p_caja_id     uuid,
   p_tipo        text,

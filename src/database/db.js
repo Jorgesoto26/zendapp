@@ -67,6 +67,7 @@ export async function ensureDatabaseIntegrity(db) {
     await ensureColumnExists(db, 'cajas', 'saldo_final', 'REAL');
     await ensureColumnExists(db, 'cajas', 'estado', 'TEXT');
     await ensureColumnExists(db, 'cajas', 'fecha', 'TEXT');
+    await ensureColumnExists(db, 'cajas', 'admin_caja_id', 'TEXT');
 
     // Asegurar columnas en movimientos
     await ensureColumnExists(db, 'movimientos', 'caja_id', 'TEXT');
