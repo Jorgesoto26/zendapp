@@ -1,3 +1,4 @@
+import { getDbConnection, getData } from '../../database/db';
 import React, { useState, useCallback, useEffect } from 'react';
 import { BackHandler, View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, RefreshControl, SafeAreaView } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -12,7 +13,7 @@ import { eventBus, EVENTS } from '../../utils/eventBus';
 import { clearOnlyPendingSync, clearAllLocalData } from '../../utils/clearLocal';
 
 export default function CajaScreen() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const [caja, setCaja] = useState(null);
   const [movimientos, setMovimientos] = useState([]);
   const [historial, setHistorial] = useState([]);
@@ -103,17 +104,41 @@ export default function CajaScreen() {
       }
     } catch { }
 
-    appAlert('Cerrar caja del día', '¿Estás seguro de cerrar tu caja? Se calculará tu saldo final definitivo y se enviará el balance del día al sistema.', [
+    // Validar clientes pendientes en la ruta antes de cerrar caja
+    try {
+      const db = await getDbConnection();
+      const pend = await getData(db, `SELECT COUNT(*) as c FROM facturas WHERE estadoMovil = 'pendiente' AND saldo > 0`);
+      const pendCount = Number(pend?.[0]?.c || 0);
+      if (pendCount > 0) {
+        appAlert(
+          'Ruta pendiente',
+          `Aún tienes ${pendCount} cliente(s) por visitar hoy. Termina tu recorrido o registra los cobros antes de cerrar la caja.`
+        );
+        return;
+      }
+    } catch (e) {
+      console.log('Error verificando clientes pendientes en Caja:', e);
+    }
+
+    appAlert('Cerrar caja del día', '¿Estás seguro de cerrar tu caja? Se calculará tu saldo final definitivo, se enviará el balance del día al sistema y finalizará tu jornada.', [
       { text: 'Cancelar', style: 'cancel' },
       {
-        text: 'Cerrar',
+        text: 'Cerrar caja',
         style: 'destructive',
         onPress: async () => {
           try {
             setLoading(true);
-            await cerrarCaja(caja.id);
-            await load();
-            appAlert('Éxito', 'Caja cerrada exitosamente');
+            await cerrarCaja(caja.id, { validateRoute: true });
+            // Borrar datos operativos locales para cerrar la jornada
+            await clearAllLocalData();
+            appAlert('¡Jornada finalizada!', 'Tu caja ha sido cerrada exitosamente.', [
+              {
+                text: 'Aceptar',
+                onPress: async () => {
+                  await signOut();
+                },
+              },
+            ]);
           } catch (e) {
             appAlert('No se pudo cerrar', e.message);
           } finally {

@@ -248,69 +248,14 @@ export default function Payments() {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
-      // 1. Validar si hay datos pendientes por sincronizar en la nube
-      try {
-        const { getPendingSyncCount } = require('../../services/cajaService');
-        const pendingSync = await getPendingSyncCount();
-        if (pendingSync > 0) {
-          setShowLogout(false);
-          setLoggingOut(false);
-          setTimeout(
-            () =>
-              appAlert(
-                '¡Espera un momento!',
-                `Tienes ${pendingSync} cobro(s) o movimiento(s) guardados en tu teléfono que aún no se han enviado al sistema. Conéctate a internet y sincroniza antes de salir para no perder tu trabajo.`
-              ),
-            300
-          );
-          return;
-        }
-      } catch (errSync) {
-        console.log('Error verificando pendingSync:', errSync);
-      }
-
-      // 2. Validar si hay clientes pendientes de visitar en la ruta
-      const db = await getDbConnection();
-      let pendCount = 0;
-      try {
-        const pend = await getData(db, `SELECT COUNT(*) as c FROM facturas WHERE estadoMovil='pendiente'`);
-        pendCount = Number(pend?.[0]?.c || 0);
-        console.log('pendientes', pendCount);
-      } catch (e) { console.log('pend check error', e); }
-      if (pendCount > 0) {
+      const ok = await signOut();
+      if (ok) {
         setShowLogout(false);
-        setLoggingOut(false);
-        setTimeout(() => appAlert('Ruta pendiente', `Aún tienes ${pendCount} cliente(s) por visitar hoy. Termina tu recorrido o registra los cobros antes de cerrar sesión.`), 300);
-        return;
       }
-
-      // 3. Validar y cerrar caja si hay una abierta
-      try {
-        const { getCajaActual } = require('../../services/cajaService');
-        const caja = await getCajaActual();
-        if (caja && caja.estado === 'abierta') {
-          await cerrarCaja(caja.id);
-        }
-      } catch (e) {
-        console.log('Error cerrando caja en logout:', e);
-        setShowLogout(false);
-        setLoggingOut(false);
-        setTimeout(() => appAlert('No se puede cerrar sesión', e.message || 'Debes cerrar la caja antes de salir.'), 300);
-        return;
-      }
-
-      // 4. Intentar sync final
-      try { await SyncWithSupabase(false, () => { }); } catch { }
-
-      // 5. Borrar datos locales solo si no hubo errores previos
-      try { await clearAllLocalData(); } catch { }
-
-      await signOut();
     } catch (err) {
       console.log('handleLogout error:', err);
     } finally {
       setLoggingOut(false);
-      setShowLogout(false);
     }
   };
 

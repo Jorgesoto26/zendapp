@@ -274,13 +274,31 @@ export async function getPendingSyncCount() {
   return count;
 }
 
-export async function cerrarCaja(cajaId) {
+export async function cerrarCaja(cajaId, { validateRoute = false } = {}) {
   // 1. Validar que no haya registros pendientes por sincronizar
   const pendingCount = await getPendingSyncCount();
   if (pendingCount > 0) {
     throw new Error(
       `Tienes ${pendingCount} movimiento(s) guardado(s) en tu teléfono pendientes por enviar. Activa tu internet y presiona 'Sincronizar' para asegurar tu dinero antes de cerrar la caja.`
     );
+  }
+
+  // 1.1 Si se solicita validación de ruta (cierre de vendedor), validar clientes pendientes
+  if (validateRoute) {
+    try {
+      const db = await getDbConnection();
+      const pend = await getData(db, `SELECT COUNT(*) as c FROM facturas WHERE estadoMovil = 'pendiente' AND saldo > 0`);
+      const pendCount = Number(pend?.[0]?.c || 0);
+      if (pendCount > 0) {
+        throw new Error(
+          `Aún tienes ${pendCount} cliente(s) por visitar hoy. Termina tu recorrido o registra los cobros antes de cerrar la caja.`
+        );
+      }
+    } catch (e) {
+      if (e.message && e.message.includes('cliente(s) por visitar')) {
+        throw e;
+      }
+    }
   }
 
   // 2. Exigir conexión a internet para cerrar y cuadrar con el servidor

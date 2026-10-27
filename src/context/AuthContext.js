@@ -2,6 +2,12 @@ import { appAlert } from '../components/AppAlert';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
+let isAuthServiceRunning = false;
+export const setAuthServiceRunning = (val) => {
+  isAuthServiceRunning = Boolean(val);
+};
+export const getAuthServiceRunning = () => isAuthServiceRunning;
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -17,7 +23,7 @@ export function AuthProvider({ children }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ id: userId }),
         },
@@ -70,7 +76,7 @@ export function AuthProvider({ children }) {
             setLoading(false);
             appAlert(
               'Cuenta inhabilitada',
-              'Tu cuenta ha sido inhabilitada por el administrador. Se ha cerrado la sesin.'
+              'Tu cuenta ha sido inhabilitada por el administrador. Se ha cerrado la sesión.'
             );
           }
           return;
@@ -135,7 +141,11 @@ export function AuthProvider({ children }) {
           setLoading(false);
         }
       } else if (newSession) {
-        // En SIGNED_IN AuthService hace la validación primaria, aquí aseguramos la sesión
+        // Si AuthService está ejecutando el inicio de sesión y sincronización SQLite,
+        // no activar la sesión prematuramente para evitar condiciones de carrera en navegación
+        if (isAuthServiceRunning) {
+          return;
+        }
         checkSessionAndCaja(newSession, false);
       }
     });
@@ -145,6 +155,12 @@ export function AuthProvider({ children }) {
       listener.subscription.unsubscribe();
     };
   }, [fetchUserData]);
+
+  const setAuthSession = useCallback((sess, p) => {
+    setProfile(p || null);
+    setSession(sess || null);
+    setLoading(false);
+  }, []);
 
   const signOut = useCallback(async () => {
     try {
@@ -161,7 +177,7 @@ export function AuthProvider({ children }) {
       console.log('Error verificando pendientes en signOut:', e);
     }
 
-    await supabase.auth.signOut();
+    try { await supabase.auth.signOut(); } catch (e) { console.log("offline signOut:", e); }
     setSession(null);
     setProfile(null);
     return true;
@@ -176,6 +192,7 @@ export function AuthProvider({ children }) {
     loading,
     refreshProfile,
     signOut,
+    setAuthSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

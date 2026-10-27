@@ -7,12 +7,14 @@ import { supabase } from '../lib/supabase';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { getData, getDbConnection } from '../database/db';
 import { AuthService } from '../services/services';
+import { useAuth } from '../context/AuthContext';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { apple } from '../theme/appleTheme';
 import { AppleButton } from '../components/AppleButton';
 import { appAlert } from '../components/AppAlert';
 
 export default function LoginScreen() {
+  const { setAuthSession } = useAuth();
   const dbRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -64,6 +66,23 @@ export default function LoginScreen() {
       if (!result.success) {
         const title = (result.message && result.message.toLowerCase().includes('caja')) ? 'Caja requerida' : 'Error';
         appAlert(title, result.message);
+      } else if (result.session) {
+        if (result.isOffline) {
+          appAlert(
+            'Modo sin conexion',
+            'Has ingresado sin conexion a internet. Tu ruta y cobros registrados se sincronizaran cuando recuperes la senal.',
+            [
+              {
+                text: 'Continuar',
+                onPress: () => {
+                  setAuthSession(result.session, result.profile);
+                },
+              },
+            ]
+          );
+        } else {
+          setAuthSession(result.session, result.profile);
+        }
       }
     } catch (e) { appAlert('Error', e.message); } finally { setLoading(false); }
   };

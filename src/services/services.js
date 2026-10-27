@@ -1,3 +1,5 @@
+import NetInfo from '@react-native-community/netinfo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * services.js - Capa de servicios de Supabase para Zendapp
  *
@@ -9,22 +11,197 @@
  */
 import { updateData, insertOrReplaceData, getDbConnection, getData, insertTables } from '../database/db';
 import { supabase } from '../lib/supabase';
-import { getCajaActual, saveCajaLocal, saveMovimientoLocal } from './cajaService';
+import { getCajaActual, saveCajaLocal, saveMovimientoLocal, getPendingSyncCount } from './cajaService';
+import { clearAllLocalData } from '../utils/clearLocal';
+import { EvaluationDataSend } from '../utils/utilities';
+import { setAuthServiceRunning } from '../context/AuthContext';
 
 const SUPABASE_URL = 'https://gwpwntdwogxzmtegaaom.supabase.co';
 
+export function hashOfflinePassword(pwd) {
+  if (!pwd) return '';
+  let h1 = 0xdeadbeef, h2 = 0x41c64e6d;
+  const str = 'zenda_auth_salt_v1_' + pwd;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return String(4294967296 * (2097151 & h2) + (h1 >>> 0));
+}
+
 export const AuthService = async (db, email, password) => {
+  setAuthServiceRunning(true);
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      return { success: false, message: error.message || 'Usuario o contrasena incorrectos' };
+    const cleanEmail = (email || '').toLowerCase().trim();
+    const cleanPassword = (password || '').trim();
+
+    // 1. Verificar conectividad a internet
+    let isConnected = true;
+    try {
+      const net = await NetInfo.fetch();
+      isConnected = !!net.isConnected && (net.isInternetReachable !== false);
+    } catch (e) {
+      console.log('Error verificando NetInfo:', e);
     }
-    const { access_token } = data.session;
-    const userId = data.user.id;
+
+    let onlineAuthResult = null;
+    let isOfflineLogin = false;
+
+    if (isConnected) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword });
+        if (error) {
+          const msg = (error.message || '').toLowerCase();
+          if (msg.includes('network') || msg.includes('fetch') || msg.includes('timeout') || msg.includes('connection')) {
+            isOfflineLogin = true;
+          } else {
+            return { success: false, message: error.message || 'Usuario o contrasena incorrectos' };
+          }
+        } else if (data?.session) {
+          onlineAuthResult = data;
+        }
+      } catch (errAuth) {
+        console.log('Error de red durante signInWithPassword:', errAuth);
+        isOfflineLogin = true;
+      }
+    } else {
+      isOfflineLogin = true;
+    }
+
+    // =========================================================================
+    // CASO A: INICIO DE SESION OFFLINE (Sin internet o falla de red)
+    // =========================================================================
+    if (isOfflineLogin) {
+      console.log('Iniciando sesion en modo OFFLINE para:', cleanEmail);
+
+      const params = await getData(db, `SELECT id, valor FROM parametrizacion WHERE id IN (2, 3, 4, 5, 6, 7, 8)`);
+      const pMap = {};
+      params?.forEach(p => { pMap[p.id] = p.valor; });
+
+      const cachedToken = pMap[2];
+      const cachedEmail = (pMap[3] || '').toLowerCase().trim();
+      const cachedHash = pMap[4];
+      const cachedUserId = pMap[5];
+      const cachedRol = pMap[6] || 'vendedor';
+      const cachedNombre = pMap[7] || 'Usuario';
+      const cachedSuperiorId = pMap[8];
+
+      if (!cachedUserId || !cachedEmail) {
+        return {
+          success: false,
+          message: 'No hay datos de sesion guardados en este dispositivo. Debes conectarte a internet al menos una vez para iniciar sesion.',
+        };
+      }
+
+      if (cleanEmail !== cachedEmail) {
+        return {
+          success: false,
+          message: 'No tienes conexion a internet. Para iniciar sesion con una cuenta diferente debes conectarte a internet.',
+        };
+      }
+
+      const inputHash = hashOfflinePassword(cleanPassword);
+      if (cachedHash && inputHash !== cachedHash) {
+        return {
+          success: false,
+          message: 'Contrasena incorrecta (modo sin conexion).',
+        };
+      }
+
+      const isAdmin = cachedRol === 'admin' || cachedRol === 'superadmin';
+      let tieneCajaAbierta = false;
+      let localCaja = null;
+      try {
+        const cajas = await getData(
+          db,
+          `SELECT * FROM cajas WHERE estado = 'abierta' ORDER BY fecha_apertura DESC LIMIT 1`
+        );
+        if (cajas && cajas.length > 0) {
+          tieneCajaAbierta = true;
+          localCaja = cajas[0];
+        }
+      } catch (e) {
+        console.log('Error verificando caja local offline:', e);
+      }
+
+      if (!isAdmin && !tieneCajaAbierta) {
+        return {
+          success: false,
+          message: 'No tienes una caja abierta en este telefono para trabajar sin conexion. Conectate a internet para que tu administrador realice la apertura de tu caja.',
+        };
+      }
+
+      let cachedProfile = null;
+      try {
+        const pStr = await AsyncStorage.getItem('cached_profile');
+        if (pStr) cachedProfile = JSON.parse(pStr);
+      } catch {}
+
+      const offlineProfile = cachedProfile || {
+        id: cachedUserId,
+        nombre: cachedNombre,
+        rol: cachedRol,
+        superior_id: cachedSuperiorId,
+        activo: true,
+      };
+
+      const offlineSession = {
+        access_token: cachedToken || `offline_token_${cachedUserId}`,
+        user: {
+          id: cachedUserId,
+          email: cachedEmail,
+        },
+        isOffline: true,
+      };
+
+      return {
+        success: true,
+        user: offlineSession.user,
+        session: offlineSession,
+        profile: offlineProfile,
+        isOffline: true,
+      };
+    }
+
+    // =========================================================================
+    // CASO B: INICIO DE SESION ONLINE (Conexion exitosa con Supabase)
+    // =========================================================================
+    const { access_token } = onlineAuthResult.session;
+    const userId = onlineAuthResult.user.id;
+
+    // 1. Deteccion y proteccion de cambio de usuario
+    let prevUserId = null;
+    try {
+      const pUser = await getData(db, `SELECT valor FROM parametrizacion WHERE id = 5 LIMIT 1`);
+      prevUserId = pUser?.[0]?.valor;
+    } catch (e) {
+      console.log('Error leyendo usuario previo de parametrizacion:', e);
+    }
+
+    if (prevUserId && prevUserId !== userId) {
+      const hasPendingData = await EvaluationDataSend();
+      const pendingCount = await getPendingSyncCount();
+      if (hasPendingData || pendingCount > 0) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          message: 'Hay datos del usuario anterior sin sincronizar en este dispositivo. Para evitar perdida de informacion contable o mezcla de dinero, inicia sesion con la cuenta anterior y realiza la sincronizacion antes de cambiar de usuario.',
+        };
+      }
+      await clearAllLocalData();
+    }
+
+    // Guardar credenciales de sesion en parametrizacion (incluyendo login y hash para offline login)
     await Promise.all([
       updateData(db, 'parametrizacion', { id: 2, valor: access_token }),
+      updateData(db, 'parametrizacion', { id: 3, valor: cleanEmail }),
+      updateData(db, 'parametrizacion', { id: 4, valor: hashOfflinePassword(cleanPassword) }),
       updateData(db, 'parametrizacion', { id: 5, valor: userId }),
     ]);
+
     const response = await fetch(`${SUPABASE_URL}/functions/v1/get-user-profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access_token}` },
@@ -37,19 +214,17 @@ export const AuthService = async (db, email, password) => {
     const result = await response.json();
     let { profile, concepts, caja, movimientos } = result;
 
-    // Regla: Bloqueo de usuarios inhabilitados (activo = false)
     if (profile && profile.activo === false) {
       await supabase.auth.signOut();
       return {
         success: false,
-        message: 'Tu cuenta ha sido inhabilitada por el administrador. Contacta a tu administrador para ms informacin.',
+        message: 'Tu cuenta ha sido inhabilitada por el administrador. Contacta a tu administrador para mas informacion.',
       };
     }
 
     const isAdmin = profile?.rol === 'admin' || profile?.rol === 'superadmin';
     let tieneCajaAbierta = caja && caja.id && caja.estado === 'abierta';
 
-    // Doble verificación directa contra Supabase si no es admin y caja no vino abierta
     if (!isAdmin && !tieneCajaAbierta) {
       try {
         const { data: dbCaja } = await supabase
@@ -69,12 +244,11 @@ export const AuthService = async (db, email, password) => {
       }
     }
 
-    // Regla estricta: El vendedor NO puede iniciar sesión si no tiene caja abierta
     if (!isAdmin && !tieneCajaAbierta) {
       await supabase.auth.signOut();
       return {
         success: false,
-        message: 'No puedes iniciar sesión porque no tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas comenzar a trabajar.',
+        message: 'No puedes iniciar sesion porque no tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas comenzar a trabajar.',
       };
     }
 
@@ -84,6 +258,9 @@ export const AuthService = async (db, email, password) => {
         updateData(db, 'parametrizacion', { id: 7, valor: profile.nombre }),
         updateData(db, 'parametrizacion', { id: 8, valor: profile.superior_id }),
       ]);
+      try {
+        await AsyncStorage.setItem('cached_profile', JSON.stringify(profile));
+      } catch {}
     }
     if (caja && caja.id) {
       await saveCajaLocal(db, caja, userId);
@@ -101,10 +278,12 @@ export const AuthService = async (db, email, password) => {
     }
     const invoicesOk = await getInvoice(userId, access_token);
     console.log('Facturas cargadas:', invoicesOk);
-    return { success: true, user: data.user };
+    return { success: true, user: onlineAuthResult.user, session: onlineAuthResult.session, profile, isOffline: false };
   } catch (err) {
     console.error('Error en AuthService:', err);
     return { success: false, message: err.message || 'Error desconocido' };
+  } finally {
+    setAuthServiceRunning(false);
   }
 };
 
