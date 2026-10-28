@@ -13,7 +13,7 @@ const formatFechaApertura = (dateStr) => {
   if (!dateStr) return 'Sin fecha registrada';
   try {
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return 'Fecha invlida';
+    if (isNaN(d.getTime())) return 'Fecha inválida';
     const day = String(d.getDate()).padStart(2, '0');
     const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     const month = months[d.getMonth()];
@@ -30,8 +30,9 @@ const formatFechaApertura = (dateStr) => {
 
 export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
   const isOpen = caja.estado === 'abierta';
-  const isAdmin = caja.rol_usuario === 'admin';
+  const isAdmin = caja.rol_usuario === 'admin' || caja.rol_usuario === 'superadmin';
   const progreso = parseFloat(caja.progreso_visitas) || 0;
+  const retirosGastos = (parseFloat(caja.valor_retiros) || 0) + (parseFloat(caja.valor_gastos) || 0);
 
   return (
     <TouchableOpacity
@@ -66,7 +67,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
         </View>
       </View>
 
-      {/* Fecha de creacion / apertura (Requisito 10) */}
+      {/* Fecha de apertura */}
       <View style={styles.fechaRow}>
         <Icon name="calendar-check-o" size={11} color={apple.colors.secondaryLabel} style={{ marginRight: 5 }} />
         <Text style={styles.fechaText}>
@@ -74,16 +75,18 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
         </Text>
       </View>
 
-      {/* Barra de progreso de visitas */}
-      <View style={styles.progressContainer}>
-        <View style={styles.progressHeader}>
-          <Text style={styles.progressLabel}>Progreso de cobro</Text>
-          <Text style={styles.progressVal}>{progreso}%</Text>
+      {/* Para vendedores: Barra de progreso de visitas */}
+      {!isAdmin && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressLabel}>Progreso de cobro</Text>
+            <Text style={styles.progressVal}>{progreso}%</Text>
+          </View>
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${Math.min(progreso, 100)}%` }]} />
+          </View>
         </View>
-        <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: `${Math.min(progreso, 100)}%` }]} />
-        </View>
-      </View>
+      )}
 
       <View style={styles.divider} />
 
@@ -94,47 +97,80 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
           <Text style={styles.gridVal}>{formatMoney(caja.saldo_inicial)}</Text>
         </View>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Saldo Actual</Text>
+          <Text style={styles.gridLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
           <Text style={[styles.gridVal, { color: apple.colors.blue }]}>
             {formatMoney(caja.saldo_final)}
           </Text>
         </View>
       </View>
 
-      <View style={[styles.grid, { marginTop: 6 }]}>
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Debido Cobrar</Text>
-          <Text style={styles.gridVal}>{formatMoney(caja.valor_debido_cobrar)}</Text>
+      {/* Métricas específicas según Rol (Requisito 6) */}
+      {isAdmin ? (
+        /* Tarjeta Administrador: Solo conceptos financieros pertinentes */
+        <View style={[styles.grid, { marginTop: 6 }]}>
+          <View style={styles.gridItem}>
+            <Text style={styles.gridLabel}>Ingresos</Text>
+            <Text style={[styles.gridVal, { color: apple.colors.success }]}>
+              {formatMoney(caja.valor_ingresos)}
+            </Text>
+          </View>
+          <View style={styles.gridItem}>
+            <Text style={styles.gridLabel}>Retiros / Gastos</Text>
+            <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
+              {formatMoney(retirosGastos)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Recaudado</Text>
-          <Text style={[styles.gridVal, { color: apple.colors.success }]}>
-            {formatMoney(caja.valor_recaudado)}
-          </Text>
-        </View>
-      </View>
+      ) : (
+        /* Tarjeta Vendedor: Métricas operativas de cobranza y ruta */
+        <>
+          <View style={[styles.grid, { marginTop: 6 }]}>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>Debido Cobrar</Text>
+              <Text style={styles.gridVal}>{formatMoney(caja.valor_debido_cobrar)}</Text>
+            </View>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>Recaudado</Text>
+              <Text style={[styles.gridVal, { color: apple.colors.success }]}>
+                {formatMoney(caja.valor_recaudado)}
+              </Text>
+            </View>
+          </View>
 
-      <View style={[styles.grid, { marginTop: 6 }]}>
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Ventas</Text>
-          <Text style={styles.gridVal}>{formatMoney(caja.valor_ventas)}</Text>
-        </View>
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Gastos</Text>
-          <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
-            {formatMoney(caja.valor_gastos)}
-          </Text>
-        </View>
-      </View>
+          <View style={[styles.grid, { marginTop: 6 }]}>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>Ventas</Text>
+              <Text style={styles.gridVal}>{formatMoney(caja.valor_ventas)}</Text>
+            </View>
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>Gastos</Text>
+              <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
+                {formatMoney(caja.valor_gastos)}
+              </Text>
+            </View>
+          </View>
+        </>
+      )}
 
       {/* Footer stats */}
       <View style={styles.footerRow}>
-        <Text style={styles.footerStat}>
-          Clientes: <Text style={{ fontWeight: '700', color: apple.colors.label }}>{caja.total_clientes || 0}</Text>
-        </Text>
-        <Text style={styles.footerStat}>
-          No Pagos: <Text style={{ fontWeight: '700', color: apple.colors.danger }}>{caja.cantidad_nopagos || 0}</Text>
-        </Text>
+        {isAdmin ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Icon name="shield" size={12} color="#5856D6" />
+            <Text style={[styles.footerStat, { color: '#5856D6', fontWeight: '700' }]}>
+              Caja Administrativa
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.footerStat}>
+              Clientes: <Text style={{ fontWeight: '700', color: apple.colors.label }}>{caja.total_clientes || 0}</Text>
+            </Text>
+            <Text style={styles.footerStat}>
+              No Pagos: <Text style={{ fontWeight: '700', color: apple.colors.danger }}>{caja.cantidad_nopagos || 0}</Text>
+            </Text>
+          </>
+        )}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={styles.verMovText}>Movimientos</Text>
           <Icon name="chevron-right" size={11} color={apple.colors.blue} style={{ marginLeft: 4 }} />
@@ -159,25 +195,25 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   titleCol: {
     flex: 1,
-    marginRight: 8,
   },
   avatarBadge: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    justifyContent: 'center',
     alignItems: 'center',
-  },
-  avatarAdmin: {
-    backgroundColor: '#F0EFFF',
+    justifyContent: 'center',
   },
   avatarVendedor: {
-    backgroundColor: apple.colors.blueLight,
+    backgroundColor: '#EBF5FF',
+  },
+  avatarAdmin: {
+    backgroundColor: '#F3EEFD',
   },
   userName: {
     fontSize: 15,
@@ -186,21 +222,23 @@ const styles = StyleSheet.create({
   },
   roleText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: '700',
     color: apple.colors.tertiaryLabel,
+    letterSpacing: 0.5,
+    marginTop: 1,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: apple.radius.pill,
   },
   statusBadgeOpen: {
-    backgroundColor: '#E8F8EE',
+    backgroundColor: '#ECFDF5',
   },
   statusBadgeClosed: {
-    backgroundColor: '#FFEBEA',
+    backgroundColor: '#FEF2F2',
   },
   statusDot: {
     width: 6,
@@ -216,12 +254,7 @@ const styles = StyleSheet.create({
   fechaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    backgroundColor: apple.colors.fill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: apple.radius.s,
-    alignSelf: 'flex-start',
+    marginBottom: 8,
   },
   fechaText: {
     fontSize: 11,
@@ -232,25 +265,28 @@ const styles = StyleSheet.create({
     color: apple.colors.label,
   },
   progressContainer: {
-    marginTop: 10,
+    marginTop: 2,
+    marginBottom: 4,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
   progressLabel: {
     fontSize: 11,
+    fontWeight: '600',
     color: apple.colors.secondaryLabel,
   },
   progressVal: {
     fontSize: 11,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: apple.colors.blue,
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: apple.colors.bgGrouped,
+    backgroundColor: apple.colors.fill,
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -266,37 +302,43 @@ const styles = StyleSheet.create({
   },
   grid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
   },
   gridItem: {
     flex: 1,
+    backgroundColor: apple.colors.fill,
+    borderRadius: apple.radius.s,
+    padding: 8,
   },
   gridLabel: {
     fontSize: 10,
     color: apple.colors.secondaryLabel,
-    marginBottom: 1,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   gridVal: {
     fontSize: 13,
     fontWeight: '700',
     color: apple.colors.label,
+    marginTop: 2,
   },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 10,
     paddingTop: 8,
     borderTopWidth: 0.5,
     borderTopColor: apple.colors.separator,
   },
   footerStat: {
-    fontSize: 12,
+    fontSize: 11,
     color: apple.colors.secondaryLabel,
   },
   verMovText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: apple.colors.blue,
   },
 });

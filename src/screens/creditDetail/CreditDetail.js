@@ -84,6 +84,16 @@ export default function CreditDetail({ route, navigation }) {
             [invoiceId]
           );
           setPagos(localPagos || []);
+
+          const localCuotas = await getData(
+            db,
+            `SELECT id, numero, fecha_vencimiento, monto, estado, monto_pagado
+             FROM cuotas WHERE invoice_id = ? ORDER BY numero ASC`,
+            [invoiceId]
+          );
+          if (localCuotas && localCuotas.length > 0) {
+            setCuotas(localCuotas);
+          }
         }
       } catch (err) {
         console.log('Error leyendo factura local:', err);
@@ -121,7 +131,18 @@ export default function CreditDetail({ route, navigation }) {
               .select('id, numero, fecha_vencimiento, monto, estado, monto_pagado')
               .eq('invoice_id', invoiceId)
               .order('numero', { ascending: true });
-            if (cs) setCuotas(cs);
+            if (cs && cs.length > 0) {
+              setCuotas(cs);
+              for (const itemC of cs) {
+                try {
+                  await db.executeSql(
+                    `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [String(itemC.id), String(invoiceId), itemC.numero, itemC.fecha_vencimiento, Number(itemC.monto), itemC.estado || 'pendiente', Number(itemC.monto_pagado || 0)]
+                  );
+                } catch {}
+              }
+            }
 
             const { data: ps } = await supabase
               .from('payments')

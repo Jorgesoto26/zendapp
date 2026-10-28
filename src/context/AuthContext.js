@@ -1,6 +1,9 @@
 import { appAlert } from '../components/AppAlert';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
+import { SUPABASE_URL } from '../config/env';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDbConnection, getData } from '../database/db';
 
 let isAuthServiceRunning = false;
 export const setAuthServiceRunning = (val) => {
@@ -18,7 +21,7 @@ export function AuthProvider({ children }) {
   const fetchUserData = useCallback(async (userId, accessToken) => {
     try {
       const response = await fetch(
-        'https://gwpwntdwogxzmtegaaom.supabase.co/functions/v1/get-user-profile',
+        `${SUPABASE_URL}/functions/v1/get-user-profile`,
         {
           method: 'POST',
           headers: {
@@ -37,9 +40,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    if (data?.session?.user) {
-      const { profile: p } = await fetchUserData(data.session.user.id, data.session.access_token);
+    const sess = await ensureAuthenticatedSession();
+    if (sess?.user) {
+      const { profile: p } = await fetchUserData(sess.user.id, sess.access_token);
       if (p && p.activo === false) {
         await supabase.auth.signOut();
         setSession(null);
@@ -47,7 +50,7 @@ export function AuthProvider({ children }) {
         appAlert('Cuenta inhabilitada', 'Tu cuenta ha sido inhabilitada por el administrador.');
         return;
       }
-      setProfile(p);
+      if (p) setProfile(p);
     }
   }, [fetchUserData]);
 
@@ -67,7 +70,7 @@ export function AuthProvider({ children }) {
       try {
         const { profile: p, caja: c } = await fetchUserData(sess.user.id, sess.access_token);
 
-        // Bloqueo inmediato de usuarios inhabilitados
+        // Bloqueo inmediato de usuarios inhabilitados confirmado por el servidor
         if (p && p.activo === false) {
           await supabase.auth.signOut();
           if (mounted) {
@@ -82,7 +85,26 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        const isAdmin = p?.rol === 'admin' || p?.rol === 'superadmin';
+        // Si la consulta remota de perfil falló por red/offline y ya teníamos sesión o no es login inicial:
+        // PRESERVAR la sesión y consultar caché/SQLite para no cerrar sesión por error de red
+        let effectiveProfile = p;
+        if (p) {
+          try {
+            await AsyncStorage.setItem('cached_profile', JSON.stringify(p));
+          } catch {}
+        } else {
+          try {
+            const pStr = await AsyncStorage.getItem('cached_profile');
+            if (pStr) {
+              const parsed = JSON.parse(pStr);
+              if (parsed?.id === sess.user.id) {
+                effectiveProfile = parsed;
+              }
+            }
+          } catch {}
+        }
+
+        const isAdmin = effectiveProfile?.rol === 'admin' || effectiveProfile?.rol === 'superadmin';
 
         let tieneCaja = c && c.id && c.estado === 'abierta';
         if (!isAdmin && !tieneCaja) {
@@ -99,25 +121,36 @@ export function AuthProvider({ children }) {
           } catch {}
         }
 
+        // Si aún no se detecta caja abierta en Supabase, verificar SQLite local antes de cualquier bloqueo
         if (!isAdmin && !tieneCaja) {
-          // Bloquear vendedor sin caja abierta
+          try {
+            const db = await getDbConnection();
+            const localCajas = await getData(
+              db,
+              `SELECT id FROM cajas WHERE estado = 'abierta' AND (usuario_id = ? OR usuario_id IS NULL OR usuario_id = '') LIMIT 1`,
+              [sess.user.id]
+            );
+            if (localCajas && localCajas.length > 0) tieneCaja = true;
+          } catch {}
+        }
+
+        // Solo bloquear por falta de caja si es inicio de sesión inicial explícito Y no estamos en modo offline
+        if (!isAdmin && !tieneCaja && isInitial && p) {
           await supabase.auth.signOut();
           if (mounted) {
             setSession(null);
             setProfile(null);
             setLoading(false);
-            if (isInitial) {
-              appAlert(
-                'Caja requerida',
-                'No tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas ingresar.'
-              );
-            }
+            appAlert(
+              'Caja requerida',
+              'No tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas ingresar.'
+            );
           }
           return;
         }
 
         if (mounted) {
-          setProfile(p);
+          if (effectiveProfile) setProfile(effectiveProfile);
           setSession(sess);
           setLoading(false);
         }
@@ -129,8 +162,8 @@ export function AuthProvider({ children }) {
       }
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (mounted) checkSessionAndCaja(data.session, true);
+    ensureAuthenticatedSession().then((sess) => {
+      if (mounted) checkSessionAndCaja(sess, true);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
@@ -160,6 +193,9 @@ export function AuthProvider({ children }) {
     setProfile(p || null);
     setSession(sess || null);
     setLoading(false);
+    if (p) {
+      AsyncStorage.setItem('cached_profile', JSON.stringify(p)).catch(() => {});
+    }
   }, []);
 
   const signOut = useCallback(async () => {
@@ -178,6 +214,11 @@ export function AuthProvider({ children }) {
     }
 
     try { await supabase.auth.signOut(); } catch (e) { console.log("offline signOut:", e); }
+    try { await AsyncStorage.removeItem('cached_profile'); } catch {}
+    try {
+      const db = await getDbConnection();
+      await db.executeSql(`UPDATE parametrizacion SET valor = NULL WHERE id IN (2, 3, 4, 5, 6, 7, 8)`);
+    } catch {}
     setSession(null);
     setProfile(null);
     return true;

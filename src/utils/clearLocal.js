@@ -24,7 +24,7 @@ export async function clearAllLocalData() {
     try { await db.executeSql(`UPDATE writeDate SET valor = NULL`); } catch {}
 
     // AsyncStorage
-    await AsyncStorage.clear();
+    await AsyncStorage.multiRemove(['cached_profile', 'sincronizar']);
     return true;
   } catch (e) {
     console.log('clearAllLocalData error', e);

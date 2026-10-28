@@ -1,6 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
 import { getDbConnection, getData, updateData } from '../database/db';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { appAlert } from '../components/AppAlert';
@@ -37,10 +37,6 @@ export const resetSyncLock = async () => {
  * Todas las llamadas dentro del proceso comparten el mismo coordinador.
  */
 export const SyncWithSupabase = async (toas = true, callLoading = () => { }) => {
-  // Si ya hay una sincronizacion en curso:
-  // 1. No iniciar otra ejecucion concurrente
-  // 2. Marcar hasPendingSync para que la sincronizacion actual revise nuevos datos al terminar
-  // 3. Compartir la promesa activa para que el llamador reciba un resultado consistente
   if (isSyncing) {
     console.log('SyncWithSupabase: sincronizacion en curso. Se agenda pasada pendiente.');
     hasPendingSync = true;
@@ -65,18 +61,15 @@ export const SyncWithSupabase = async (toas = true, callLoading = () => { }) => 
     let finalResult = false;
     try {
       finalResult = await executeSyncRun(toas);
-      // Si llegaron nuevas operaciones mientras se sincronizaba, se procesa la pasada pendiente
       while (hasPendingSync && (await EvaluationDataSend())) {
         hasPendingSync = false;
         finalResult = await executeSyncRun(false);
       }
       return finalResult;
     } finally {
-      // Liberacion estricta y segura del bloqueo
       isSyncing = false;
       hasPendingSync = false;
       activeSyncPromise = null;
-      // Notificar a los componentes de la app que la sincronizacion finalizo
       eventBus.emit(EVENTS.SYNC_COMPLETED);
     }
   };
@@ -110,24 +103,33 @@ const executeSyncRun = async (toas) => {
       return false;
     }
 
-    // Validar si la cuenta del usuario esta inhabilitada (Requisito 2 Admin)
-    const { data: authData } = await supabase.auth.getSession();
-    if (authData?.session?.user) {
-      const { data: profCheck } = await supabase
-        .from('profiles')
-        .select('activo')
-        .eq('id', authData.session.user.id)
-        .maybeSingle();
+    // 1. Obtener y renovar sesión de forma segura y transparente
+    const session = await ensureAuthenticatedSession();
+    if (!session?.user?.id) {
+      console.warn('SyncWithSupabase: Sesión expirada o no autenticado.');
+      toas && Toast.show({
+        type: 'error',
+        text1: 'Sesión expirada',
+        text2: 'No fue posible autenticar con el servidor. Inicia sesión nuevamente.',
+      });
+      return false;
+    }
 
-      if (profCheck && profCheck.activo === false) {
-        console.warn('SyncWithSupabase: Usuario inhabilitado. No puede sincronizar.');
-        toas && Toast.show({
-          text1: 'Cuenta inhabilitada',
-          text2: 'Tu cuenta ha sido inhabilitada por el administrador',
-          type: 'error'
-        });
-        return false;
-      }
+    // Validar si la cuenta del usuario esta inhabilitada
+    const { data: profCheck } = await supabase
+      .from('profiles')
+      .select('activo')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (profCheck && profCheck.activo === false) {
+      console.warn('SyncWithSupabase: Usuario inhabilitado. No puede sincronizar.');
+      toas && Toast.show({
+        text1: 'Cuenta inhabilitada',
+        text2: 'Tu cuenta ha sido inhabilitada por el administrador',
+        type: 'error'
+      });
+      return false;
     }
 
     // Reiniciar colecciones del lote
@@ -136,16 +138,16 @@ const executeSyncRun = async (toas) => {
     idMapping.clear();
 
     // 1. Enviar ventas pendientes
-    await SendVentas(toas);
+    const ventasResult = await SendVentas();
 
     // 2. Enviar pagos locales pendientes
-    await SendPay(toas);
+    await SendPay();
 
     // 3. Enviar movimientos locales de caja
-    await SendMovimientos(toas);
+    await SendMovimientos();
 
     // 4. Enviar lote recolectado
-    const res = await sendCollectedItems(toas);
+    const collectedResult = await sendCollectedItems(session);
 
     // 5. Sincronizar caja activa y movimientos
     try {
@@ -154,9 +156,47 @@ const executeSyncRun = async (toas) => {
       console.log('SyncCajaAndMovimientos error en SyncWithSupabase:', eCaja);
     }
 
-    return res;
+    // Evaluación veraz de resultados para Toast (Requisito 3)
+    const totalSynced = (ventasResult.syncedCount || 0) + (collectedResult.syncedCount || 0);
+    const allErrors = [...(ventasResult.errors || []), ...(collectedResult.errors || [])];
+
+    if (allErrors.length === 0) {
+      if (totalSynced > 0) {
+        toas && Toast.show({
+          text1: '¡Sincronización exitosa!',
+          text2: `Se enviaron ${totalSynced} registro(s) al sistema`,
+        });
+      } else {
+        toas && Toast.show({
+          text1: 'Todo al día',
+          text2: 'No tienes operaciones pendientes por enviar',
+        });
+      }
+      return true;
+    } else {
+      if (totalSynced > 0) {
+        toas && Toast.show({
+          type: 'info',
+          text1: 'Sincronización parcial',
+          text2: `Se enviaron ${totalSynced} registro(s), pero ${allErrors.length} operación(es) fallaron.`,
+        });
+      } else {
+        const firstErr = allErrors[0]?.message || allErrors[0] || 'Error al sincronizar con el servidor';
+        toas && Toast.show({
+          type: 'error',
+          text1: 'Error de sincronización',
+          text2: String(firstErr).slice(0, 100),
+        });
+      }
+      return false;
+    }
   } catch (e) {
     console.log('executeSyncRun error:', e);
+    toas && Toast.show({
+      type: 'error',
+      text1: 'Error de sincronización',
+      text2: e.message || String(e),
+    });
     return false;
   }
 };
@@ -164,8 +204,10 @@ const executeSyncRun = async (toas) => {
 /**
  * Sincroniza ventas guardadas offline (ventas_pendientes)
  */
-const SendVentas = async (toas) => {
+const SendVentas = async () => {
   const db = await getDbConnection();
+  const resultSummary = { syncedCount: 0, errors: [] };
+
   try {
     await db.executeSql(`CREATE TABLE IF NOT EXISTS ventas_pendientes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -174,11 +216,10 @@ const SendVentas = async (toas) => {
       estado TEXT DEFAULT 'pendiente',
       created_at TEXT
     )`);
-    // Recuperar cualquier venta que haya quedado en 'enviando' por crash previo
     await db.executeSql(`UPDATE ventas_pendientes SET estado = 'pendiente' WHERE estado = 'enviando'`);
 
     const pending = await getData(db, `SELECT * FROM ventas_pendientes WHERE estado = 'pendiente' ORDER BY id ASC`);
-    if (!pending || pending.length === 0) return true;
+    if (!pending || pending.length === 0) return resultSummary;
 
     for (const item of pending) {
       let payload;
@@ -191,12 +232,15 @@ const SendVentas = async (toas) => {
 
       await db.executeSql(`UPDATE ventas_pendientes SET estado = 'enviando' WHERE id = ?`, [item.id]);
 
+      // UUID determinista para idempotencia matemática contra reintentos (Requisito 3)
+      const localSaleUuid = `00000000-0000-4000-7000-${Math.abs(Number(item.temp_id) || item.id || 1).toString(16).padStart(12, '0')}`;
+
       try {
         const { data: result, error: rpcError } = await supabase.rpc('create_sale', {
           nombre: payload.nombre,
           apellido: payload.apellido || '',
           alias: payload.alias || '',
-          email: '',
+          email: payload.email || '',
           telefono: payload.telefono || '',
           direccion: payload.direccion || '',
           documento: payload.documento || '',
@@ -205,12 +249,17 @@ const SendVentas = async (toas) => {
           caja_id: payload.caja_id,
           plazo_id: parseInt(payload.plazo_id, 10),
           interes_id: parseInt(payload.interes_id, 10),
+          client_uuid: localSaleUuid,
+          latitud: payload.latitud != null ? parseFloat(payload.latitud) : null,
+          longitud: payload.longitud != null ? parseFloat(payload.longitud) : null,
+          previous_invoice_id: payload.previous_invoice_id || null,
+          fecha: payload.fecha || payload.created_at || null,
         });
 
         if (rpcError) throw rpcError;
 
         const remoteInvoiceId = result.id_factura;
-        console.log("Venta offline sincronizada con exito. Factura remota:", remoteInvoiceId);
+        console.log("Venta offline sincronizada con éxito. Factura remota:", remoteInvoiceId);
 
         // Marcar venta_pendiente como sincronizada
         await db.executeSql(`UPDATE ventas_pendientes SET estado = 'sincronizado' WHERE id = ?`, [item.id]);
@@ -233,35 +282,60 @@ const SendVentas = async (toas) => {
         } catch (errMovSync) {
           console.log('Error actualizando id de movimiento venta tras sync:', errMovSync);
         }
+
+        // Reconciliar e incorporar cuotas remotas a SQLite (Requisito 11)
+        try {
+          const { data: serverCuotas, error: eCuotas } = await supabase
+            .from('cuotas')
+            .select('id, numero, fecha_vencimiento, monto, estado, monto_pagado')
+            .eq('invoice_id', remoteInvoiceId)
+            .order('numero', { ascending: true });
+
+          if (!eCuotas && serverCuotas && serverCuotas.length > 0) {
+            await db.executeSql(`DELETE FROM cuotas WHERE invoice_id = ? OR invoice_id = ?`, [String(item.temp_id), String(remoteInvoiceId)]);
+            for (const sc of serverCuotas) {
+              await db.executeSql(
+                `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [String(sc.id), String(remoteInvoiceId), sc.numero, sc.fecha_vencimiento, Number(sc.monto), sc.estado || 'pendiente', Number(sc.monto_pagado || 0)]
+              );
+            }
+          } else {
+            await db.executeSql(`UPDATE cuotas SET invoice_id = ? WHERE invoice_id = ?`, [String(remoteInvoiceId), String(item.temp_id)]);
+          }
+        } catch (errCuotas) {
+          console.log('Error reconciliando cuotas en SendVentas:', errCuotas);
+          await db.executeSql(`UPDATE cuotas SET invoice_id = ? WHERE invoice_id = ?`, [String(remoteInvoiceId), String(item.temp_id)]);
+        }
+
+        resultSummary.syncedCount++;
       } catch (saleErr) {
         console.log(`Error enviando venta pendiente ${item.id}:`, saleErr);
         await db.executeSql(`UPDATE ventas_pendientes SET estado = 'pendiente' WHERE id = ?`, [item.id]);
+        resultSummary.errors.push(saleErr);
       }
     }
-    return true;
   } catch (err) {
     console.log('SendVentas error:', err);
-    return true;
+    resultSummary.errors.push(err);
   }
+  return resultSummary;
 };
 
 /**
  * Prepara pagos pendientes locales
  */
-const SendPay = async (toas) => {
+const SendPay = async () => {
   const db = await getDbConnection();
-  // Recuperar cualquier pago que haya quedado trabado en 'enviando' por crash previo
-  await db.executeSql(`UPDATE pagos SET estadoMovil = 'actualizado' WHERE id < 0 AND estadoMovil = 'enviando'`);
+  await db.executeSql(`UPDATE pagos SET estadoMovil = 'actualizado' WHERE estadoMovil = 'enviando'`);
 
-  // Solo pagos pendientes que NO han sido sincronizados
-  const pagos = await getData(db, `SELECT * FROM pagos WHERE id < 0 AND estadoMovil = 'actualizado' ORDER BY id ASC`);
+  const pagos = await getData(db, `SELECT * FROM pagos WHERE estadoMovil = 'actualizado' ORDER BY horaDispositivo ASC`);
   if (!pagos || pagos.length === 0) return true;
 
-  // Marcar inmediatamente como 'enviando' para evitar que otra llamada concurrente los tome
   for (const p of pagos) {
     await db.executeSql(`UPDATE pagos SET estadoMovil = 'enviando' WHERE id = ?`, [p.id]);
     const payload = {
-      id: p.id, // temporal negativo
+      id: p.id,
       detalle: {
         tipo: p.tipo,
         valor: parseFloat(p.valor),
@@ -273,21 +347,19 @@ const SendPay = async (toas) => {
         secuencia_pago: p.secuencia_pago,
       },
     };
-    const originalId = p.id;
-    addToSyncCollection(payload, originalId, 'payment');
+    addToSyncCollection(payload, p.id, 'payment');
   }
   return true;
 };
 
 /**
- * Prepara movimientos de caja pendientes locales
+ * Prepara movimientos de caja pendientes locales (creaciones y modificaciones)
  */
-const SendMovimientos = async (toas) => {
+const SendMovimientos = async () => {
   const db = await getDbConnection();
-  await db.executeSql(`UPDATE movimientos SET estadoMovil = 'actualizado' WHERE id < 0 AND estadoMovil = 'enviando'`);
+  await db.executeSql(`UPDATE movimientos SET estadoMovil = 'actualizado' WHERE estadoMovil = 'enviando'`);
 
-  // Solo movimientos pendientes que NO han sido sincronizados
-  const movs = await getData(db, `SELECT * FROM movimientos WHERE id < 0 AND estadoMovil = 'actualizado' ORDER BY horaDispositivo ASC`);
+  const movs = await getData(db, `SELECT * FROM movimientos WHERE estadoMovil = 'actualizado' ORDER BY COALESCE(horaDispositivo, fecha) ASC`);
   if (!movs || movs.length === 0) return true;
 
   for (const m of movs) {
@@ -298,11 +370,11 @@ const SendMovimientos = async (toas) => {
       detalle: {
         tipo: m.tipo,
         valor: valNum,
-        hora_dispositivo: m.horaDispositivo,
+        hora_dispositivo: m.horaDispositivo || m.fecha,
         latitud: m.latitud,
         longitud: m.longitud,
         descripcion: m.descripcion || '',
-        idCaja: m.idCaja,
+        idCaja: m.idCaja || m.caja_id,
       },
     };
     addToSyncCollection(payload, m.id, 'movimiento');
@@ -325,15 +397,15 @@ const addToSyncCollection = (item, originalId, type) => {
 /**
  * Envia la coleccion de pagos y movimientos a Supabase
  */
-const sendCollectedItems = async (toas) => {
+const sendCollectedItems = async (sessionParam = null) => {
+  const resultSummary = { syncedCount: 0, errors: [] };
   if (globalSyncCollection.length === 0) {
-    toas && Toast.show({ text1: 'Todo al dia', text2: 'No tienes movimientos pendientes por enviar' });
-    return true;
+    return resultSummary;
   }
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('No autenticado');
+    const session = sessionParam || (await ensureAuthenticatedSession());
+    if (!session?.user?.id) throw new Error('No autenticado');
     const db = await getDbConnection();
 
     const results = [];
@@ -368,40 +440,15 @@ const sendCollectedItems = async (toas) => {
           if (!clientId) throw new Error('No se pudo obtener client_id de la factura');
           if (!cajaId) throw new Error('No hay caja abierta para el usuario');
 
-          // UUID determinista para idempotencia matematica contra reintentos y cortes de red (Requisito 4)
           const localPaymentUuid = `00000000-0000-4000-8000-${Math.abs(Number(item.id) || 1).toString(16).padStart(12, '0')}`;
+          const pDate = new Date().toISOString().slice(0, 10);
 
-          // nopago: registrar visita sin recaudo (monto 0)
           if (item.detalle.tipo === 'nopago' || Number(item.detalle.valor) === 0) {
-            try {
-              const { data: pay, error: ePay } = await supabase
-                .from('payments')
-                .insert([{
-                  invoice_id: item.detalle.idFactura,
-                  client_id: clientId,
-                  amount: 0,
-                  payment_date: new Date().toISOString().slice(0, 10),
-                  method: 'nopago',
-                  cash_movement_id: null,
-                  client_uuid: localPaymentUuid,
-                }])
-                .select('id')
-                .maybeSingle();
-
-              if (!ePay && pay) {
-                results.push({ idv: item.id, idn: pay.id, ok: true });
-                continue;
-              }
-            } catch (nopagoErr) {
-              console.log('Error insertando nopago directo:', nopagoErr);
-            }
-
-            // Fallback RPC create_payment con amount 0 y client_uuid
             const { data: rpcId, error: rpcErr } = await supabase.rpc('create_payment', {
               p_invoice_id: item.detalle.idFactura,
               p_client_id: clientId,
               p_amount: 0,
-              p_payment_date: new Date().toISOString().slice(0, 10),
+              p_payment_date: pDate,
               p_method: 'nopago',
               p_caja_id: cajaId,
               p_client_uuid: localPaymentUuid,
@@ -413,7 +460,6 @@ const sendCollectedItems = async (toas) => {
 
           const valNum = parseFloat(item.detalle.valor) || 0;
           const pMethod = item.detalle.tipo === 'parcial' ? 'parcial' : 'cash';
-          const pDate = new Date().toISOString().slice(0, 10);
 
           const { data, error } = await supabase.rpc('create_payment', {
             p_invoice_id: item.detalle.idFactura,
@@ -435,16 +481,32 @@ const sendCollectedItems = async (toas) => {
           }
           if (!targetCajaId) throw new Error('No hay caja abierta para registrar el movimiento');
           const valNum = parseFloat(item.detalle.valor) || 0;
-          const localMovUuid = `00000000-0000-4000-9000-${Math.abs(Number(item.id) || 1).toString(16).padStart(12, '0')}`;
-          const { data: mv, error } = await supabase.rpc('rpc_create_cash_movement', {
-            p_caja_id: targetCajaId,
-            p_tipo: item.detalle.tipo,
-            p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
-            p_monto: valNum,
-            p_client_uuid: localMovUuid,
-          });
-          if (error) throw error;
-          results.push({ idv: item.id, idn: mv?.id || item.id, ok: true });
+
+          // Distinguir creación nueva (id negativo local) vs edición de movimiento remoto existente
+          const isNegativeTemp = typeof item.id === 'number' ? item.id < 0 : (String(item.id).startsWith('-') || String(item.id).startsWith('temp-'));
+
+          if (isNegativeTemp) {
+            const localMovUuid = `00000000-0000-4000-9000-${Math.abs(Number(item.id) || 1).toString(16).padStart(12, '0')}`;
+            const { data: mv, error } = await supabase.rpc('rpc_create_cash_movement', {
+              p_caja_id: targetCajaId,
+              p_tipo: item.detalle.tipo,
+              p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
+              p_monto: valNum,
+              p_client_uuid: localMovUuid,
+              p_fecha: item.detalle.hora_dispositivo || null,
+            });
+            if (error) throw error;
+            results.push({ idv: item.id, idn: mv?.id || item.id, ok: true });
+          } else {
+            // Edición de movimiento existente sin crear duplicados (Requisito 9)
+            const { data: mv, error } = await supabase.rpc('rpc_update_cash_movement', {
+              p_movement_id: item.id,
+              p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
+              p_monto: valNum,
+            });
+            if (error) throw error;
+            results.push({ idv: item.id, idn: item.id, ok: true });
+          }
         }
       } catch (err) {
         const msg = err.message || String(err);
@@ -461,18 +523,14 @@ const sendCollectedItems = async (toas) => {
 
     if (okItems.length > 0) {
       await processResponseAndUpdateTables(okItems);
-      toas && Toast.show({ text1: 'Sincronizacion exitosa!', text2: `Se enviaron ${okItems.length} registro(s) al sistema` });
+      resultSummary.syncedCount = okItems.length;
     }
 
     if (errItems.length > 0) {
+      resultSummary.errors = errItems;
       for (const er of errItems) {
-        const msg = `Factura ${String(er.factura).slice(0, 8)}: ${er.error}`;
-        Toast.show({ text1: 'Error sync', text2: msg });
-        console.log('Sync error detail', er);
-        // Caso saldo 0 o factura pagada: marcar como error_sync para no reintentar infinito
         if (er.error.includes('excede el saldo') || er.error.includes('FACTURA_PAGADA') || er.error.includes('completamente pagada')) {
           try {
-            const db = await getDbConnection();
             await db.executeSql(`UPDATE pagos SET estadoMovil = 'error_sync' WHERE id = ?`, [er.idv]);
             try {
               const { data: inv } = await supabase.from('invoice').select('saldo').eq('id', er.factura).single();
@@ -480,9 +538,7 @@ const sendCollectedItems = async (toas) => {
             } catch {}
           } catch {}
         } else {
-          // Error temporal (red, etc.): revertir de 'enviando' a 'actualizado' para reintento en el proximo ciclo
           try {
-            const db = await getDbConnection();
             await db.executeSql(`UPDATE pagos SET estadoMovil = 'actualizado' WHERE id = ? AND estadoMovil = 'enviando'`, [er.idv]);
             await db.executeSql(`UPDATE movimientos SET estadoMovil = 'actualizado' WHERE id = ? AND estadoMovil = 'enviando'`, [er.idv]);
           } catch {}
@@ -495,19 +551,16 @@ const sendCollectedItems = async (toas) => {
         if (old) newMap.set(er.idv, old);
       }
       idMapping = newMap;
-      if (okItems.length === 0) return false;
     } else {
       globalSyncCollection = [];
       idMapping.clear();
       idCounter = -1;
     }
-
-    return errItems.length === 0;
   } catch (e) {
-    console.log('sendCollectedItems error', e);
-    Toast.show({ text1: 'Sync error', text2: e.message || String(e) });
-    return false;
+    console.log('sendCollectedItems fatal error', e);
+    resultSummary.errors.push(e);
   }
+  return resultSummary;
 };
 
 /**
@@ -538,7 +591,6 @@ const processResponseAndUpdateTables = async (response) => {
         );
       } catch { }
 
-      // Marcar movimiento local de este pago como sincronizado para no sumar en pendientes
       try {
         await db.executeSql(
           `UPDATE movimientos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ? OR (idFactura = ? AND tipo = 'pago')`,
@@ -546,11 +598,10 @@ const processResponseAndUpdateTables = async (response) => {
         );
       } catch {}
 
-      // Guardar id remoto para referencia
       try { await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ? OR id = '' || ?`, [item.idn, item.idv, item.idv]); } catch { }
     } else if (mapping.type === 'movimiento') {
       try {
-        if (item.idn) {
+        if (item.idn && String(item.idn) !== String(item.idv)) {
           await db.executeSql(
             `UPDATE movimientos SET id = ?, estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ?`,
             [String(item.idn), item.idv, item.idv]
@@ -579,7 +630,7 @@ const processResponseAndUpdateTables = async (response) => {
  */
 export const SyncCajaAndMovimientos = async () => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await ensureAuthenticatedSession();
     if (!session?.user?.id) return;
     const userId = session.user.id;
     const db = await getDbConnection();
@@ -620,7 +671,6 @@ export const SyncCajaAndMovimientos = async () => {
         }
       }
     } else if (!cajaErr && !caja) {
-      // Si el servidor confirma que NO hay caja abierta, marcar como cerrada en SQLite
       try {
         await db.executeSql(`UPDATE cajas SET estado = 'cerrada' WHERE usuario_id = ?`, [userId]);
       } catch { }

@@ -32,6 +32,7 @@ export default function AdminUsuarios() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('activos'); // 'activos' | 'inactivos'
   const [showLogout, setShowLogout] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,7 +57,7 @@ export default function AdminUsuarios() {
   const loadUsers = useCallback(async () => {
     try {
       const data = await getSubordinates();
-      setUsers(data);
+      setUsers(data || []);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudieron cargar los usuarios');
     } finally {
@@ -70,20 +71,22 @@ export default function AdminUsuarios() {
   }, [loadUsers]);
 
   useEffect(() => {
-    if (!search.trim()) {
-      setFilteredUsers(users);
-    } else {
+    let list = users.filter((u) => {
+      const isActivo = u.activo !== false;
+      return statusFilter === 'activos' ? isActivo : !isActivo;
+    });
+
+    if (search.trim()) {
       const q = search.toLowerCase();
-      setFilteredUsers(
-        users.filter(
-          (u) =>
-            u.nombre?.toLowerCase().includes(q) ||
-            u.apellido?.toLowerCase().includes(q) ||
-            u.email?.toLowerCase().includes(q)
-        )
+      list = list.filter(
+        (u) =>
+          u.nombre?.toLowerCase().includes(q) ||
+          u.apellido?.toLowerCase().includes(q) ||
+          u.email?.toLowerCase().includes(q)
       );
     }
-  }, [search, users]);
+    setFilteredUsers(list);
+  }, [search, users, statusFilter]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -124,14 +127,13 @@ export default function AdminUsuarios() {
       }
       loadUsers();
     } catch (err) {
-      console.log("eeeerror", err);
-
+      console.log('Error guardando usuario:', err);
       appAlert('Error', err.message);
     }
   };
 
-  const vendedoresCount = users.filter((u) => u.rol === 'vendedor').length;
-  const adminsCount = users.filter((u) => u.rol === 'admin').length;
+  const activosCount = users.filter((u) => u.activo !== false).length;
+  const inactivosCount = users.filter((u) => u.activo === false).length;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -140,7 +142,7 @@ export default function AdminUsuarios() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Usuarios</Text>
           <Text style={styles.headerSubtitle}>
-            {vendedoresCount} {vendedoresCount === 1 ? 'vendedor' : 'vendedores'} · {adminsCount} {adminsCount === 1 ? 'admin' : 'admins'}
+            {activosCount} activos · {inactivosCount} inactivos
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -155,6 +157,28 @@ export default function AdminUsuarios() {
             <Icon name="plus" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Segmented Filter Activos / Inactivos (Requisito 2) */}
+      <View style={styles.segment}>
+        <TouchableOpacity
+          onPress={() => setStatusFilter('activos')}
+          style={[styles.segOpt, statusFilter === 'activos' && styles.segActive]}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.segText, statusFilter === 'activos' && styles.segTextActive]}>
+            Activos ({activosCount})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setStatusFilter('inactivos')}
+          style={[styles.segOpt, statusFilter === 'inactivos' && styles.segActive]}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.segText, statusFilter === 'inactivos' && styles.segTextActive]}>
+            Inactivos ({inactivosCount})
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Buscador */}
@@ -193,9 +217,15 @@ export default function AdminUsuarios() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="users" size={48} color={apple.colors.tertiaryLabel} />
-              <Text style={styles.emptyTitle}>No hay usuarios</Text>
+              <Text style={styles.emptyTitle}>
+                {statusFilter === 'activos' ? 'No hay usuarios activos' : 'No hay usuarios inactivos'}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                {search ? 'No se encontraron coincidencias' : 'Crea tu primer vendedor con el botón +'}
+                {search
+                  ? 'No se encontraron coincidencias para la búsqueda'
+                  : statusFilter === 'activos'
+                  ? 'Crea un nuevo vendedor usando el botón +'
+                  : 'Los usuarios inhabilitados aparecerán en esta sección'}
               </Text>
             </View>
           }
@@ -221,7 +251,7 @@ export default function AdminUsuarios() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: apple.colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -264,6 +294,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...apple.shadow.subtle,
+  },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: apple.colors.fill,
+    marginHorizontal: apple.spacing.l,
+    marginTop: 6,
+    marginBottom: 4,
+    borderRadius: apple.radius.s,
+    padding: 3,
+    gap: 4,
+  },
+  segOpt: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: apple.radius.s - 2,
+    alignItems: 'center',
+  },
+  segActive: {
+    backgroundColor: apple.colors.card,
+    ...apple.shadow.subtle,
+  },
+  segText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: apple.colors.secondaryLabel,
+  },
+  segTextActive: {
+    color: apple.colors.label,
+    fontWeight: '700',
   },
   searchContainer: {
     flexDirection: 'row',

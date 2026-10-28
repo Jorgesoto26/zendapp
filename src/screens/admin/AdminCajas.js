@@ -1,5 +1,5 @@
 // src/screens/admin/AdminCajas.js
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,7 @@ const getYesterdayIso = () => {
 };
 
 const formatReadableDate = (isoStr) => {
-  if (!isoStr) return 'Todas las fechas';
+  if (!isoStr) return 'Hoy';
   try {
     const parts = isoStr.split('-');
     if (parts.length === 3) {
@@ -56,6 +56,11 @@ const formatReadableDate = (isoStr) => {
   }
 };
 
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
 export default function AdminCajas() {
   const navigation = useNavigation();
   const { userId, signOut } = useAuth();
@@ -67,12 +72,19 @@ export default function AdminCajas() {
   const [showLogout, setShowLogout] = useState(false);
   const [adminOpenCount, setAdminOpenCount] = useState(0);
 
-  // Filtro de fecha (Requisito 9)
-  const [selectedDate, setSelectedDate] = useState(null); // null = todas
+  // Filtros de fecha exclusivos: 'hoy' (defecto), 'ayer', 'custom' (Requisito 5)
+  const [selectedDate, setSelectedDate] = useState(getTodayIso());
   const [dateModalVisible, setDateModalVisible] = useState(false);
   const [customDateInput, setCustomDateInput] = useState('');
 
-  // Requisito 8: Carga y actualizacion de datos
+  // Estados para el calendario interactivo
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+
+  const isHoy = selectedDate === getTodayIso();
+  const isAyer = selectedDate === getYesterdayIso();
+  const isCustom = !isHoy && !isAyer;
+
   const loadData = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
@@ -88,7 +100,6 @@ export default function AdminCajas() {
     }
   }, [selectedDate, userId]);
 
-  // Requisito 8: useFocusEffect para recarga automatica al entrar o volver
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -102,14 +113,12 @@ export default function AdminCajas() {
 
   const handlePressAbrirMasivo = () => {
     const todayIso = getTodayIso();
-    // Identificar si el admin autenticado ya tiene una caja abierta para hoy
     const cajaHoyAdmin = cajas.find(
       (c) => c.usuario_id === userId && c.estado === 'abierta' && (
-        (c.fecha_apertura && c.fecha_apertura.slice(0, 10) === todayIso)
+        c.fecha_apertura && c.fecha_apertura.slice(0, 10) === todayIso
       )
     );
 
-    // Si NO tiene caja de hoy y ya alcanzó el límite individual de 3 cajas abiertas:
     if (!cajaHoyAdmin && adminOpenCount >= 3) {
       appAlert(
         'Tienes 3 cajas abiertas',
@@ -119,8 +128,8 @@ export default function AdminCajas() {
     }
 
     const mensaje = cajaHoyAdmin
-      ? `Ya tienes una caja abierta para hoy. Se reutilizara como referencia y se abriran las cajas de tus vendedores subordinados activos que aun no tengan caja abierta.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
-      : `Deseas abrir las cajas de todos los vendedores activos y una nueva caja para ti con la fecha de hoy?\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`;
+      ? `Ya tienes una caja abierta para hoy. Se reutilizará como referencia y se abrirán las cajas de tus vendedores subordinados activos que aún no tengan caja abierta.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
+      : `¿Deseas abrir las cajas de todos los vendedores activos y una nueva caja para ti con la fecha de hoy?\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`;
 
     appAlert(
       'Apertura Masiva de Cajas',
@@ -134,9 +143,9 @@ export default function AdminCajas() {
             try {
               const res = await abrirCajasMasivo();
               const detalle = res.admin_caja_reutilizada
-                ? `Se reutilizo tu caja de hoy y se abrieron ${res.vendedores_cajas_abiertas ?? (res.cajas_abiertas || 0)} caja(s) de vendedores.`
-                : `Se abrieron ${res.cajas_abiertas} caja(s) correctamente, incluyendo tu nueva caja del dia.`;
-              appAlert('Apertura exitosa!', detalle);
+                ? `Se reutilizó tu caja de hoy y se abrieron ${res.vendedores_cajas_abiertas ?? (res.cajas_abiertas || 0)} caja(s) de vendedores.`
+                : `Se abrieron ${res.cajas_abiertas} caja(s) correctamente, incluyendo tu nueva caja del día.`;
+              appAlert('¡Apertura exitosa!', detalle);
               loadData(true);
             } catch (err) {
               console.log('Error abrir masivo', err.message);
@@ -154,31 +163,72 @@ export default function AdminCajas() {
     navigation.navigate('AdminCajaDetalle', { caja });
   };
 
-  const handleApplyCustomDate = () => {
-    const trimmed = customDateInput.trim();
-    if (!trimmed) {
-      setSelectedDate(null);
-      setDateModalVisible(false);
-      return;
+  const openCalendarModal = () => {
+    try {
+      const parts = selectedDate.split('-');
+      if (parts.length === 3) {
+        setCalYear(parseInt(parts[0], 10));
+        setCalMonth(parseInt(parts[1], 10) - 1);
+      }
+    } catch {}
+    setCustomDateInput(selectedDate);
+    setDateModalVisible(true);
+  };
+
+  const handlePrevMonth = () => {
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear(y => y - 1);
+    } else {
+      setCalMonth(m => m - 1);
     }
-    // Validar formato YYYY-MM-DD
+  };
+
+  const handleNextMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear(y => y + 1);
+    } else {
+      setCalMonth(m => m + 1);
+    }
+  };
+
+  const handleSelectDay = (day) => {
+    const mStr = String(calMonth + 1).padStart(2, '0');
+    const dStr = String(day).padStart(2, '0');
+    const iso = `${calYear}-${mStr}-${dStr}`;
+    setSelectedDate(iso);
+    setDateModalVisible(false);
+  };
+
+  const handleApplyCustomInput = () => {
+    const trimmed = customDateInput.trim();
     const regex = /^\d{4}-\d{2}-\d{2}$/;
     if (!regex.test(trimmed)) {
-      appAlert('Formato invlido', 'Por favor ingresa la fecha en formato AAAA-MM-DD (ejemplo: 2026-10-26)');
+      appAlert('Formato inválido', 'Por favor ingresa la fecha en formato AAAA-MM-DD (ej: 2026-10-26)');
       return;
     }
     setSelectedDate(trimmed);
     setDateModalVisible(false);
   };
 
+  // Generar cuadrícula de días para el calendario
+  const calendarDays = useMemo(() => {
+    const firstDayIndex = new Date(calYear, calMonth, 1).getDay(); // 0 domingo, 1 lunes...
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    const blanks = Array.from({ length: firstDayIndex }, (_, i) => null);
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    return [...blanks, ...days];
+  }, [calYear, calMonth]);
+
   return (
     <SafeAreaView style={styles.root}>
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Gestin de Cajas</Text>
+          <Text style={styles.headerTitle}>Gestión de Cajas</Text>
           <Text style={styles.headerSubtitle}>
-            Supervisin diaria  {adminOpenCount}/3 cajas admin abiertas
+            Supervisión diaria · {adminOpenCount}/3 cajas admin abiertas
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -196,85 +246,50 @@ export default function AdminCajas() {
         </View>
       </View>
 
-      {/* Selector / Filtro de Fecha (Requisito 9) */}
+      {/* Selector de Filtros Exclusivos: Hoy, Ayer, Fecha específica (Requisito 5) */}
       <View style={styles.filterSection}>
         <View style={styles.filterRow}>
           <TouchableOpacity
-            style={[styles.filterChip, selectedDate === null && styles.filterChipActive]}
-            onPress={() => setSelectedDate(null)}
-          >
-            <Text style={[styles.filterChipText, selectedDate === null && styles.filterChipTextActive]}>
-              Todas
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterChip, selectedDate === getTodayIso() && styles.filterChipActive]}
+            style={[styles.filterChip, isHoy && styles.filterChipActive]}
             onPress={() => setSelectedDate(getTodayIso())}
           >
-            <Text style={[styles.filterChipText, selectedDate === getTodayIso() && styles.filterChipTextActive]}>
+            <Text style={[styles.filterChipText, isHoy && styles.filterChipTextActive]}>
               Hoy
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.filterChip, selectedDate === getYesterdayIso() && styles.filterChipActive]}
+            style={[styles.filterChip, isAyer && styles.filterChipActive]}
             onPress={() => setSelectedDate(getYesterdayIso())}
           >
-            <Text style={[styles.filterChipText, selectedDate === getYesterdayIso() && styles.filterChipTextActive]}>
+            <Text style={[styles.filterChipText, isAyer && styles.filterChipTextActive]}>
               Ayer
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[
-              styles.filterChip,
-              selectedDate !== null &&
-                selectedDate !== getTodayIso() &&
-                selectedDate !== getYesterdayIso() &&
-                styles.filterChipActive,
-            ]}
-            onPress={() => {
-              setCustomDateInput(selectedDate || getTodayIso());
-              setDateModalVisible(true);
-            }}
+            style={[styles.filterChip, isCustom && styles.filterChipActive]}
+            onPress={openCalendarModal}
           >
             <Icon
               name="calendar"
               size={12}
-              color={
-                selectedDate !== null &&
-                selectedDate !== getTodayIso() &&
-                selectedDate !== getYesterdayIso()
-                  ? '#fff'
-                  : apple.colors.blue
-              }
-              style={{ marginRight: 4 }}
+              color={isCustom ? '#fff' : apple.colors.blue}
+              style={{ marginRight: 5 }}
             />
-            <Text
-              style={[
-                styles.filterChipText,
-                selectedDate !== null &&
-                  selectedDate !== getTodayIso() &&
-                  selectedDate !== getYesterdayIso() &&
-                  styles.filterChipTextActive,
-              ]}
-            >
-              Fecha...
+            <Text style={[styles.filterChipText, isCustom && styles.filterChipTextActive]}>
+              {isCustom ? formatReadableDate(selectedDate) : 'Fecha específica'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {selectedDate !== null && (
+        {isCustom && (
           <View style={styles.activeFilterBadge}>
-            <Icon name="filter" size={11} color={apple.colors.blue} style={{ marginRight: 5 }} />
+            <Icon name="calendar-check-o" size={11} color={apple.colors.blue} style={{ marginRight: 5 }} />
             <Text style={styles.activeFilterText}>
-              Filtrado por apertura:{' '}
-              <Text style={{ fontWeight: '700', color: apple.colors.blue }}>
-                {formatReadableDate(selectedDate)}
-              </Text>
+              Consultando fecha: <Text style={{ fontWeight: '700', color: apple.colors.blue }}>{formatReadableDate(selectedDate)}</Text>
             </Text>
-            <TouchableOpacity onPress={() => setSelectedDate(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => setSelectedDate(getTodayIso())} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Icon name="times-circle" size={14} color={apple.colors.secondaryLabel} style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </View>
@@ -289,7 +304,7 @@ export default function AdminCajas() {
       ) : (
         <FlatList
           data={cajas}
-          keyExtractor={(item) => item.caja_id}
+          keyExtractor={(item) => String(item.caja_id || item.id)}
           renderItem={({ item }) => (
             <CajaCard
               caja={item}
@@ -305,53 +320,103 @@ export default function AdminCajas() {
               <Icon name="archive" size={48} color={apple.colors.tertiaryLabel} />
               <Text style={styles.emptyTitle}>No hay cajas registradas</Text>
               <Text style={styles.emptySubtitle}>
-                {selectedDate
-                  ? `No se encontraron cajas con apertura en la fecha ${formatReadableDate(selectedDate)}`
-                  : 'Usa el botn "Abrir Masivo" para iniciar el da'}
+                {isHoy
+                  ? 'No hay cajas abiertas para hoy. Usa el botón "Abrir Masivo" para iniciar jornada.'
+                  : `No se encontraron registros de cajas para el día ${formatReadableDate(selectedDate)}.`}
               </Text>
             </View>
           }
         />
       )}
 
-      {/* MODAL SELECCIONAR FECHA ESPECIFICA (Requisito 9) */}
+      {/* MODAL SELECTOR DE FECHA INTERACTIVO (Requisito 5) */}
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconWrap}>
-              <Icon name="calendar" size={22} color={apple.colors.blue} />
-            </View>
-            <Text style={styles.modalTitle}>Filtrar por fecha de apertura</Text>
-            <Text style={styles.modalSubtitle}>
-              Ingresa la fecha que deseas consultar en formato AAAA-MM-DD
-            </Text>
-
-            <TextInput
-              style={styles.modalInput}
-              value={customDateInput}
-              onChangeText={setCustomDateInput}
-              placeholder="AAAA-MM-DD (ej: 2026-10-26)"
-              placeholderTextColor={apple.colors.tertiaryLabel}
-              keyboardType="numbers-and-punctuation"
-              autoFocus
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={() => setDateModalVisible(false)}
-              >
-                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setDateModalVisible(false)}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation?.()}
+            style={styles.modalCard}
+          >
+            {/* Header del Calendario */}
+            <View style={styles.calendarNav}>
+              <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="chevron-left" size={14} color={apple.colors.blue} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnPrimary]}
-                onPress={handleApplyCustomDate}
-              >
-                <Text style={styles.modalBtnPrimaryText}>Aplicar filtro</Text>
+              <Text style={styles.calMonthTitle}>
+                {MONTH_NAMES[calMonth]} {calYear}
+              </Text>
+              <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Icon name="chevron-right" size={14} color={apple.colors.blue} />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+
+            {/* Días de la semana */}
+            <View style={styles.weekRow}>
+              {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((d, idx) => (
+                <Text key={idx} style={styles.weekText}>{d}</Text>
+              ))}
+            </View>
+
+            {/* Cuadrícula de Días */}
+            <View style={styles.daysGrid}>
+              {calendarDays.map((day, idx) => {
+                if (day === null) {
+                  return <View key={idx} style={styles.dayCellBlank} />;
+                }
+                const mStr = String(calMonth + 1).padStart(2, '0');
+                const dStr = String(day).padStart(2, '0');
+                const thisIso = `${calYear}-${mStr}-${dStr}`;
+                const isSelected = selectedDate === thisIso;
+                const isToday = thisIso === getTodayIso();
+
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => handleSelectDay(day)}
+                    style={[
+                      styles.dayCell,
+                      isSelected && styles.dayCellSelected,
+                      isToday && !isSelected && styles.dayCellToday,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        isSelected && styles.dayTextSelected,
+                        isToday && !isSelected && styles.dayTextToday,
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Input manual alternativo */}
+            <View style={styles.manualInputRow}>
+              <TextInput
+                style={styles.manualInput}
+                value={customDateInput}
+                onChangeText={setCustomDateInput}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor={apple.colors.tertiaryLabel}
+                keyboardType="numbers-and-punctuation"
+              />
+              <TouchableOpacity style={styles.manualApplyBtn} onPress={handleApplyCustomInput}>
+                <Text style={styles.manualApplyText}>Aplicar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.cancelModalBtn} onPress={() => setDateModalVisible(false)}>
+              <Text style={styles.cancelModalText}>Cerrar</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       <LogoutConfirmModal
@@ -423,8 +488,8 @@ const styles = StyleSheet.create({
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: apple.radius.m,
     backgroundColor: apple.colors.card,
     borderWidth: 1,
@@ -441,20 +506,21 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
   activeFilterBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#EBF3FF',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: apple.radius.s,
     marginTop: 8,
-    alignSelf: 'flex-start',
   },
   activeFilterText: {
-    fontSize: 11,
+    fontSize: 12,
     color: apple.colors.secondaryLabel,
+    flex: 1,
   },
   listContent: {
     paddingHorizontal: apple.spacing.l,
@@ -482,85 +548,126 @@ const styles = StyleSheet.create({
     color: apple.colors.tertiaryLabel,
     marginTop: 4,
     textAlign: 'center',
-    paddingHorizontal: 20,
+    maxWidth: 280,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: apple.spacing.l,
+    padding: 20,
   },
   modalCard: {
     width: '100%',
     maxWidth: 360,
     backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.xl,
-    padding: apple.spacing.l,
-    alignItems: 'center',
-    ...apple.shadow.large,
+    borderRadius: apple.radius.l,
+    padding: 20,
+    ...apple.shadow.elevated,
   },
-  modalIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EBF3FF',
-    justifyContent: 'center',
+  calendarNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: apple.spacing.s,
+    marginBottom: 14,
   },
-  modalTitle: {
-    ...apple.typography.headline,
+  calNavBtn: {
+    padding: 8,
+  },
+  calMonthTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: apple.colors.label,
-    textAlign: 'center',
-    marginBottom: 4,
   },
-  modalSubtitle: {
-    ...apple.typography.caption1,
-    color: apple.colors.secondaryLabel,
-    textAlign: 'center',
-    marginBottom: apple.spacing.m,
-  },
-  modalInput: {
-    width: '100%',
-    height: 44,
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.m,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: apple.colors.separator,
-    ...apple.typography.body,
-    color: apple.colors.label,
-    textAlign: 'center',
-    marginBottom: apple.spacing.m,
-  },
-  modalActions: {
+  weekRow: {
     flexDirection: 'row',
-    gap: 12,
-    width: '100%',
+    justifyContent: 'space-around',
+    marginBottom: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: apple.colors.separator,
+    paddingBottom: 6,
   },
-  modalBtn: {
+  weekText: {
+    width: 38,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    color: apple.colors.secondaryLabel,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  dayCellBlank: {
+    width: `${100 / 7}%`,
+    height: 38,
+  },
+  dayCell: {
+    width: `${100 / 7}%`,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 19,
+    marginVertical: 2,
+  },
+  dayCellSelected: {
+    backgroundColor: apple.colors.blue,
+  },
+  dayCellToday: {
+    borderWidth: 1,
+    borderColor: apple.colors.blue,
+  },
+  dayText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: apple.colors.label,
+  },
+  dayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  dayTextToday: {
+    color: apple.colors.blue,
+    fontWeight: '700',
+  },
+  manualInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 0.5,
+    borderTopColor: apple.colors.separator,
+  },
+  manualInput: {
     flex: 1,
-    height: 42,
-    borderRadius: apple.radius.m,
+    backgroundColor: apple.colors.fill,
+    borderRadius: apple.radius.s,
+    paddingHorizontal: 12,
+    height: 38,
+    fontSize: 13,
+    color: apple.colors.label,
+  },
+  manualApplyBtn: {
+    backgroundColor: apple.colors.blue,
+    paddingHorizontal: 14,
+    borderRadius: apple.radius.s,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalBtnCancel: {
-    backgroundColor: apple.colors.fill,
+  manualApplyText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
   },
-  modalBtnCancelText: {
-    ...apple.typography.subheadline,
+  cancelModalBtn: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  cancelModalText: {
+    color: apple.colors.secondaryLabel,
     fontWeight: '600',
-    color: apple.colors.label,
-  },
-  modalBtnPrimary: {
-    backgroundColor: apple.colors.blue,
-  },
-  modalBtnPrimaryText: {
-    ...apple.typography.subheadline,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: 13,
   },
 });

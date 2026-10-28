@@ -1,10 +1,11 @@
 // src/services/adminService.js
-import { supabase } from '../lib/supabase';
+import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 
 /**
  * Obtiene la lista de usuarios subordinados (vendedores y administradores)
  */
 export const getSubordinates = async () => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_get_subordinates');
   if (error) throw new Error(error.message || 'Error al obtener usuarios');
   return data || [];
@@ -14,6 +15,7 @@ export const getSubordinates = async () => {
  * Crea un nuevo usuario en auth + profile
  */
 export const createAdminUser = async (userData) => {
+  await ensureAuthenticatedSession();
   const {
     email,
     password,
@@ -50,6 +52,7 @@ export const createAdminUser = async (userData) => {
  * Actualiza permisos y datos de un subordinado
  */
 export const updateAdminUser = async (userId, userData) => {
+  await ensureAuthenticatedSession();
   const {
     nombre,
     apellido,
@@ -103,6 +106,7 @@ export const updateAdminUser = async (userId, userData) => {
  * Habilita o inhabilita un usuario subordinado
  */
 export const toggleAdminUser = async (userId) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_toggle_user', {
     p_user_id: userId,
   });
@@ -114,6 +118,7 @@ export const toggleAdminUser = async (userId) => {
  * Obtiene el resumen de cartera agrupado por vendedores
  */
 export const getCarteraSummary = async () => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_get_cartera_summary');
   if (error) throw new Error(error.message || 'Error al obtener cartera');
   return data || [];
@@ -123,6 +128,7 @@ export const getCarteraSummary = async () => {
  * Obtiene el detalle de créditos y clientes de un vendedor específico
  */
 export const getCarteraDetail = async (userId) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_get_cartera_detail', {
     p_usuario_id: userId,
   });
@@ -134,6 +140,7 @@ export const getCarteraDetail = async (userId) => {
  * Bloquea (castiga) un crédito moroso
  */
 export const castigarCartera = async (invoiceId) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_castigar_cartera', {
     p_invoice_id: invoiceId,
   });
@@ -145,6 +152,7 @@ export const castigarCartera = async (invoiceId) => {
  * Obtiene la lista de cajas (con métricas calculadas)
  */
 export const getAdminCajas = async (fechaIni = null, fechaFin = null) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_get_cajas', {
     p_fecha_ini: fechaIni,
     p_fecha_fin: fechaFin,
@@ -158,6 +166,7 @@ export const getAdminCajas = async (fechaIni = null, fechaFin = null) => {
  * El saldo inicial se calcula automáticamente del saldo final anterior o 0 si es la primera caja.
  */
 export const abrirCajasMasivo = async () => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_abrir_cajas_masivo');
   if (error) throw new Error(error.message || 'Error al abrir cajas');
   return data;
@@ -167,6 +176,7 @@ export const abrirCajasMasivo = async () => {
  * Obtiene los top clientes morosos
  */
 export const getAdminMorosos = async (limit = 50) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_get_morosos', {
     p_limit: limit,
   });
@@ -178,6 +188,7 @@ export const getAdminMorosos = async (limit = 50) => {
  * Obtiene el reporte consolidado por rango de fechas
  */
 export const getReporteConsolidado = async (fechaIni, fechaFin) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_reporte_consolidado', {
     p_fecha_ini: fechaIni,
     p_fecha_fin: fechaFin,
@@ -190,6 +201,7 @@ export const getReporteConsolidado = async (fechaIni, fechaFin) => {
  * Obtiene los movimientos detallados de una caja
  */
 export const getCajaMovements = async (cajaId) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase
     .from('cash_movements')
     .select('*')
@@ -204,6 +216,7 @@ export const getCajaMovements = async (cajaId) => {
  * Registra un movimiento en la caja del admin o subordinado (gasto, ingreso, retiro)
  */
 export const createAdminCajaMovement = async ({ cajaId, tipo, descripcion, monto }) => {
+  await ensureAuthenticatedSession();
   const numericMonto = parseFloat(monto) || 0;
   if (numericMonto <= 0) throw new Error('El monto debe ser mayor a cero');
 
@@ -222,6 +235,7 @@ export const createAdminCajaMovement = async ({ cajaId, tipo, descripcion, monto
  * Traslada la cartera completa de un vendedor a otro de forma atomica
  */
 export const trasladarCartera = async (vendedorOrigenId, vendedorDestinoId) => {
+  await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_trasladar_cartera', {
     p_vendedor_origen: vendedorOrigenId,
     p_vendedor_destino: vendedorDestinoId,
@@ -265,4 +279,63 @@ export const getAdminOpenCajasCount = async (targetUserId = null) => {
     console.log('Error obteniendo conteo de cajas abiertas admin:', e);
   }
   return 0;
+};
+
+/**
+ * Obtiene la lista de cajas de vendedores subordinados que están actualmente abiertas
+ */
+export const getSubordinateOpenCajas = async (adminId) => {
+  await ensureAuthenticatedSession();
+  try {
+    let targetAdminId = adminId;
+    if (!targetAdminId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      targetAdminId = user?.id;
+    }
+    if (!targetAdminId) return [];
+
+    const { data, error } = await supabase
+      .from('cajas')
+      .select(`
+        id,
+        usuario_id,
+        estado,
+        saldo_inicial,
+        saldo_final,
+        fecha_apertura,
+        profiles:usuario_id (
+          id,
+          nombre,
+          apellido,
+          rol,
+          superior_id
+        )
+      `)
+      .eq('estado', 'abierta');
+
+    if (error) {
+      console.log('Error consultando cajas abiertas de subordinados:', error);
+      return [];
+    }
+
+    const openSubordinates = (data || []).filter(c => {
+      const prof = c.profiles;
+      return prof && prof.superior_id === targetAdminId && prof.rol === 'vendedor';
+    });
+
+    return openSubordinates.map(c => ({
+      caja_id: c.id,
+      id: c.id,
+      usuario_id: c.usuario_id,
+      nombre_usuario: `${c.profiles?.nombre || ''} ${c.profiles?.apellido || ''}`.trim() || 'Vendedor',
+      rol_usuario: c.profiles?.rol || 'vendedor',
+      saldo_inicial: c.saldo_inicial || 0,
+      saldo_final: c.saldo_final || 0,
+      fecha_apertura: c.fecha_apertura,
+      estado: c.estado,
+    }));
+  } catch (e) {
+    console.log('Error en getSubordinateOpenCajas:', e);
+    return [];
+  }
 };

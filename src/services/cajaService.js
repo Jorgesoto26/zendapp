@@ -1,6 +1,35 @@
 import NetInfo from '@react-native-community/netinfo';
-import { supabase } from '../lib/supabase';
+import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { getDbConnection, getData } from '../database/db';
+
+export async function computeCajaSaldo(db, caja) {
+  if (!caja || !caja.id) return caja;
+  try {
+    const rows = await getData(
+      db,
+      `SELECT COALESCE(SUM(
+        CASE
+          WHEN tipo IN ('ingreso', 'pago') THEN monto
+          WHEN tipo IN ('retiro', 'venta', 'renovacion', 'gasto') THEN -monto
+          ELSE 0
+        END
+      ), 0) AS total_movs
+      FROM movimientos
+      WHERE (idCaja = ? OR caja_id = ?)`,
+      [String(caja.id), String(caja.id)]
+    );
+    const saldoIni = Number(caja.saldo_inicial) || 0;
+    const totalMovs = Number(rows?.[0]?.total_movs || 0);
+    const saldoCalculado = saldoIni + totalMovs;
+
+    return {
+      ...caja,
+      saldo_final: saldoCalculado,
+    };
+  } catch (e) {
+    return caja;
+  }
+}
 
 export async function saveCajaLocal(db, caja, userId = null) {
   if (!caja || !caja.id) return;
@@ -8,7 +37,8 @@ export async function saveCajaLocal(db, caja, userId = null) {
   const fecha = caja.fecha_apertura || caja.fecha || new Date().toISOString();
   const estado = caja.estado || 'abierta';
   const saldoIni = Number(caja.saldo_inicial) || 0;
-  const saldoFin = caja.saldo_final != null ? Number(caja.saldo_final) : null;
+  // Si saldo_final es nulo (caja recién abierta), inicializar con saldo_inicial
+  const saldoFin = caja.saldo_final != null ? Number(caja.saldo_final) : saldoIni;
   const fechaCierre = caja.fecha_cierre || null;
   const adminCajaId = caja.admin_caja_id || null;
 
@@ -41,21 +71,23 @@ export async function saveMovimientoLocal(db, m, cajaId = null, estadoMovil = 's
   const tipo = m.tipo || 'ingreso';
   const desc = m.descripcion || '';
   const monto = Number(m.monto != null ? m.monto : m.valor) || 0;
+  const lat = m.latitud != null ? String(m.latitud) : null;
+  const lng = m.longitud != null ? String(m.longitud) : null;
 
   try {
     await db.executeSql(
       `INSERT OR REPLACE INTO movimientos (
-        id, tipo, descripcion, monto, fecha, horaDispositivo, idCaja, caja_id, estadoMovil
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [String(m.id), tipo, desc, monto, fecha, fecha, cid, cid, estadoMovil]
+        id, tipo, descripcion, monto, fecha, horaDispositivo, idCaja, caja_id, estadoMovil, latitud, longitud
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [String(m.id), tipo, desc, monto, fecha, fecha, cid, cid, estadoMovil, lat, lng]
     );
   } catch (err) {
     try {
       await db.executeSql(
         `INSERT OR REPLACE INTO movimientos (
-          id, tipo, descripcion, monto, horaDispositivo, idCaja, estadoMovil
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [String(m.id), tipo, desc, monto, fecha, cid, estadoMovil]
+          id, tipo, descripcion, monto, fecha, horaDispositivo, idCaja, caja_id, estadoMovil
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [String(m.id), tipo, desc, monto, fecha, fecha, cid, cid, estadoMovil]
       );
     } catch (e2) {
       console.log('saveMovimientoLocal fallback error:', e2);
@@ -90,7 +122,7 @@ async function getCajaActualLocal(db) {
       } catch { }
     }
     if (rows && rows.length > 0) {
-      return rows[0];
+      return await computeCajaSaldo(db, rows[0]);
     }
   } catch (err) {
     console.log('getCajaActualLocal error:', err);
@@ -111,7 +143,7 @@ export async function getCajaActual() {
 
   // 2. Si hay conexión, consultar Supabase
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await ensureAuthenticatedSession();
     const userId = session?.user?.id;
     if (userId) {
       const { data, error } = await supabase
@@ -126,7 +158,7 @@ export async function getCajaActual() {
       if (!error) {
         if (data) {
           await saveCajaLocal(db, data, userId);
-          return data;
+          return await computeCajaSaldo(db, data);
         } else {
           // Servidor confirma que no hay caja abierta
           try {
@@ -150,7 +182,7 @@ export async function getHistorialCajas(limit = 20, offset = 0) {
   try {
     const net = await NetInfo.fetch();
     if (net.isConnected) {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await ensureAuthenticatedSession();
       const userId = session?.user?.id;
       if (userId) {
         const { data, error } = await supabase
@@ -194,7 +226,7 @@ export async function getHistorialCajas(limit = 20, offset = 0) {
 }
 
 export async function abrirCaja(saldoInicial = 0) {
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await ensureAuthenticatedSession();
   if (!session) throw new Error('No autenticado');
   const userId = session.user.id;
 
@@ -220,9 +252,10 @@ export async function abrirCaja(saldoInicial = 0) {
     throw new Error('Tienes 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas antes de poder abrir una nueva.');
   }
 
+  const saldoNum = Number(saldoInicial) || 0;
   const { data, error } = await supabase
     .from('cajas')
-    .insert([{ usuario_id: userId, estado: 'abierta', saldo_inicial: Number(saldoInicial) || 0 }])
+    .insert([{ usuario_id: userId, estado: 'abierta', saldo_inicial: saldoNum, saldo_final: saldoNum }])
     .select()
     .single();
   if (error) throw error;
@@ -243,13 +276,11 @@ export async function getPendingSyncCount() {
   const db = await getDbConnection();
   let count = 0;
 
-  // Requisito 11: Solo contar registros que verdaderamente estan pendientes y NO sincronizados
   try {
     const movs = await getData(
       db,
       `SELECT COUNT(*) as c FROM movimientos
-       WHERE (((id < 0 OR id LIKE '-%' OR id LIKE 'temp-%') AND estadoMovil != 'sincronizado')
-          OR estadoMovil IN ('actualizado', 'enviando'))`
+       WHERE estadoMovil IN ('actualizado', 'enviando')`
     );
     count += Number(movs?.[0]?.c || 0);
   } catch {}
@@ -266,8 +297,7 @@ export async function getPendingSyncCount() {
     const pagos = await getData(
       db,
       `SELECT COUNT(*) as c FROM pagos
-       WHERE (((id < 0 OR id LIKE '-%' OR id LIKE 'temp-%') AND estadoMovil != 'sincronizado')
-          OR estadoMovil IN ('actualizado', 'enviando'))`
+       WHERE estadoMovil IN ('actualizado', 'enviando')`
     );
     count += Number(pagos?.[0]?.c || 0);
   } catch {}
@@ -345,7 +375,23 @@ export async function getMovimientosCaja(cajaId, limit = 50, offset = 0) {
   if (!cajaId) return [];
   const db = await getDbConnection();
 
-  // 1. Si hay red, consultar movimientos desde Supabase y cachear en SQLite
+  // 1. OFFLINE-FIRST: Leer de inmediato desde SQLite local para respuesta instantánea
+  try {
+    const rows = await getData(
+      db,
+      `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, estadoMovil
+       FROM movimientos
+       WHERE (idCaja = ? OR caja_id = ?)
+       ORDER BY COALESCE(horaDispositivo, fecha) DESC
+       LIMIT ? OFFSET ?`,
+      [String(cajaId), String(cajaId), limit, offset]
+    );
+    if (rows && rows.length > 0) return rows;
+  } catch (err) {
+    console.log('getMovimientosCaja local query error:', err);
+  }
+
+  // 2. Si no había datos locales y hay conexión, consultar Supabase
   try {
     const net = await NetInfo.fetch();
     if (net.isConnected) {
@@ -367,23 +413,5 @@ export async function getMovimientosCaja(cajaId, limit = 50, offset = 0) {
     console.log('getMovimientosCaja: error servidor, usando fallback SQLite:', err);
   }
 
-  // 2. Fallback offline a SQLite local
-  try {
-    const rows = await getData(
-      db,
-      `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, estadoMovil FROM movimientos WHERE (idCaja = ? OR caja_id = ?) ORDER BY COALESCE(horaDispositivo, fecha) DESC LIMIT ? OFFSET ?`,
-      [String(cajaId), String(cajaId), limit, offset]
-    );
-    if (rows && rows.length > 0) return rows;
-  } catch { }
-
-  try {
-    return (await getData(
-      db,
-      `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, estadoMovil FROM movimientos WHERE idCaja = ? ORDER BY COALESCE(horaDispositivo, fecha) DESC LIMIT ? OFFSET ?`,
-      [String(cajaId), limit, offset]
-    )) || [];
-  } catch {
-    return [];
-  }
+  return [];
 }

@@ -45,7 +45,7 @@ function AppContentInner() {
         timeoutId = setTimeout(() => reject(new Error('TIMEOUT_30S')), 30000);
       });
       const syncPromise = new Promise((resolve, reject) => {
-        SyncWithSupabase(true, async (flag) => {
+        SyncWithSupabase(false, async (flag) => {
           clearTimeout(timeoutId);
           try { resolve(flag); } catch (e) { reject(e); }
         });

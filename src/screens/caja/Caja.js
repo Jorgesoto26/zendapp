@@ -1,19 +1,40 @@
 import { getDbConnection, getData } from '../../database/db';
-import React, { useState, useCallback, useEffect } from 'react';
-import { BackHandler, View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Alert, RefreshControl, SafeAreaView } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import {
+  BackHandler,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  TextInput,
+  Alert,
+  RefreshControl,
+  SafeAreaView,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getCajaActual, abrirCaja, cerrarCaja, getMovimientosCaja, getHistorialCajas, getPendingSyncCount } from '../../services/cajaService';
+import {
+  getCajaActual,
+  abrirCaja,
+  cerrarCaja,
+  getMovimientosCaja,
+  getHistorialCajas,
+  getPendingSyncCount,
+} from '../../services/cajaService';
 import { useAuth } from '../../context/AuthContext';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
 import { AppleButton } from '../../components/AppleButton';
 import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
-import { clearOnlyPendingSync, clearAllLocalData } from '../../utils/clearLocal';
+import { clearOnlyPendingSync } from '../../utils/clearLocal';
+import { SyncWithSupabase } from '../../utils/sync';
 
 export default function CajaScreen() {
   const { profile, signOut } = useAuth();
+  const navigation = useNavigation();
   const [caja, setCaja] = useState(null);
   const [movimientos, setMovimientos] = useState([]);
   const [historial, setHistorial] = useState([]);
@@ -22,13 +43,18 @@ export default function CajaScreen() {
   const [saldoInicial, setSaldoInicial] = useState('');
   const [tab, setTab] = useState('actual');
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const hasLoadedOnce = useRef(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (!isRefresh && !hasLoadedOnce.current) setLoading(true);
     try {
       const actual = await getCajaActual();
       setCaja(actual);
-      setMovimientos(actual ? await getMovimientosCaja(actual.id, 50, 0) : []);
-      setHistorial((await getHistorialCajas(20, 0)) || []);
+      const movs = actual ? await getMovimientosCaja(actual.id, 50, 0) : [];
+      setMovimientos(movs || []);
+      const hist = (await getHistorialCajas(20, 0)) || [];
+      setHistorial(hist);
+      hasLoadedOnce.current = true;
     } catch (e) {
       console.log('Caja load error:', e);
     } finally {
@@ -37,13 +63,13 @@ export default function CajaScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => { load(hasLoadedOnce.current); }, [load]));
 
   useEffect(() => {
-    const unsub1 = eventBus.on(EVENTS.CLIENT_CREATED, () => load());
-    const unsub2 = eventBus.on(EVENTS.PAYMENT_REGISTERED, () => load());
-    const unsub3 = eventBus.on(EVENTS.MOVEMENT_CHANGED, () => load());
-    const unsub4 = eventBus.on(EVENTS.SYNC_COMPLETED, () => load());
+    const unsub1 = eventBus.on(EVENTS.CLIENT_CREATED, () => load(true));
+    const unsub2 = eventBus.on(EVENTS.PAYMENT_REGISTERED, () => load(true));
+    const unsub3 = eventBus.on(EVENTS.MOVEMENT_CHANGED, () => load(true));
+    const unsub4 = eventBus.on(EVENTS.SYNC_COMPLETED, () => load(true));
     return () => {
       unsub1();
       unsub2();
@@ -51,7 +77,7 @@ export default function CajaScreen() {
       unsub4();
     };
   }, [load]);
-  const navigation = useNavigation();
+
   useFocusEffect(
     React.useCallback(() => {
       const onBack = () => {
@@ -74,13 +100,58 @@ export default function CajaScreen() {
       };
     }, [navigation])
   );
-  const onRefresh = () => { setRefreshing(true); load(); };
-  const handleClearPending = () =>
-    appAlert('Reiniciar', '¿Borrar solo pendientes que ya están arriba? Usa reinicio total si necesitas borrar todo.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Borrar pendientes', onPress: async () => { await clearOnlyPendingSync(); appAlert('Hecho', 'Pendientes borrados'); load(); } },
-      { text: 'Borrar TODO', style: 'destructive', onPress: async () => { await clearAllLocalData(); appAlert('Hecho', 'Base reiniciada. Cierra y abre la app.'); } },
-    ]);
+
+  const onRefresh = () => { setRefreshing(true); load(true); };
+
+  // Auditoría y protección del botón contra pérdidas destructivas de datos
+  const handleClearPending = async () => {
+    try {
+      const pendingCount = await getPendingSyncCount();
+      if (pendingCount > 0) {
+        Alert.alert(
+          'Atención: Operaciones pendientes',
+          `Tienes ${pendingCount} registro(s) pendiente(s) de sincronizar con el servidor.\n\nSi se borran datos locales ahora, estas ventas o cobros se perderán de manera irreversible. Te recomendamos sincronizar primero.`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Sincronizar ahora',
+              onPress: () => {
+                SyncWithSupabase(true, () => load(true));
+              },
+            },
+            {
+              text: 'Depurar sincronizados',
+              style: 'destructive',
+              onPress: async () => {
+                await clearOnlyPendingSync();
+                appAlert('Completado', 'Registros sincronizados depurados.');
+                load(true);
+              },
+            },
+          ]
+        );
+        return;
+      }
+    } catch (e) {
+      console.log('Error evaluando pendientes para limpieza:', e);
+    }
+
+    Alert.alert(
+      'Mantenimiento de base local',
+      'No tienes operaciones financieras pendientes por subir. ¿Deseas depurar la memoria temporal de registros ya sincronizados?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Depurar memoria',
+          onPress: async () => {
+            await clearOnlyPendingSync();
+            appAlert('Completado', 'Memoria local depurada con éxito.');
+            load(true);
+          },
+        },
+      ]
+    );
+  };
 
   const isAdmin = profile?.rol === 'admin' || profile?.rol === 'superadmin';
 
@@ -90,8 +161,18 @@ export default function CajaScreen() {
     }
     const val = parseMoneyToNumeric(saldoInicial);
     if (val < 0) return appAlert('Error', 'Saldo inicial no puede ser negativo');
-    try { setLoading(true); await abrirCaja(val); await load(); appAlert('Éxito', 'Caja abierta'); } catch (e) { appAlert('Error', e.message); } finally { setLoading(false); }
+    try {
+      setLoading(true);
+      await abrirCaja(val);
+      await load(true);
+      appAlert('Éxito', 'Caja abierta exitosamente.');
+    } catch (e) {
+      appAlert('Error', e.message);
+    } finally {
+      setLoading(false);
+    }
   };
+
   const handleCerrar = async () => {
     try {
       const pendingCount = await getPendingSyncCount();
@@ -129,8 +210,6 @@ export default function CajaScreen() {
           try {
             setLoading(true);
             await cerrarCaja(caja.id, { validateRoute: true });
-            // Borrar datos operativos locales para cerrar la jornada
-            await clearAllLocalData();
             appAlert('¡Jornada finalizada!', 'Tu caja ha sido cerrada exitosamente.', [
               {
                 text: 'Aceptar',
@@ -152,18 +231,38 @@ export default function CajaScreen() {
   const Row = ({ item }) => {
     const isIngreso = item.tipo === 'ingreso' || item.tipo === 'pago';
     const color = isIngreso ? apple.colors.success : '#FF3B30';
+    let cleanDesc = item.descripcion || 'Sin descripción';
+    cleanDesc = cleanDesc.replace(/\s*\[-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\]\s*$/, '').trim();
+
     return (
       <View style={styles.row}>
-        <View style={[styles.badge, { backgroundColor: color + '18' }]}><Icon name={isIngreso ? 'arrow-down' : 'arrow-up'} size={13} color={color} /></View>
+        <View style={[styles.badge, { backgroundColor: color + '18' }]}>
+          <Icon name={isIngreso ? 'arrow-down' : 'arrow-up'} size={13} color={color} />
+        </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.rowTitle}>{item.tipo.toUpperCase()} · {isIngreso ? '+' : '-'}{FormatMoneyDecimales(item.monto)}</Text>
-          <Text style={styles.rowSub} numberOfLines={1}>{item.descripcion || 'Sin descripción'} · {new Date(item.fecha).toLocaleString()}</Text>
+          <Text style={styles.rowTitle}>
+            {item.tipo.toUpperCase()} · {isIngreso ? '+' : '-'}{FormatMoneyDecimales(item.monto != null ? item.monto : item.valor)}
+          </Text>
+          <Text style={styles.rowSub} numberOfLines={1}>
+            {cleanDesc} · {new Date(item.fecha || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
         </View>
       </View>
     );
   };
 
-  if (loading && !caja && movimientos.length === 0 && historial.length === 0) return <View style={styles.center}><ActivityIndicator size="large" color={apple.colors.blue} /></View>;
+  if (loading && !caja && movimientos.length === 0 && historial.length === 0) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={apple.colors.blue} />
+      </View>
+    );
+  }
+
+  // Mostrar solo los últimos 5 movimientos
+  const displayedMovs = (movimientos || []).slice(0, 5);
+  const totalMovsCount = (movimientos || []).length;
+  const hasMoreThan5 = totalMovsCount > 5;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -179,8 +278,23 @@ export default function CajaScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <TouchableOpacity onPress={handleClearPending} style={{ marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: '#FF3B30', borderRadius: apple.radius.m, padding: 10, alignItems: 'center' }}>
-        <Text style={{ color: '#FF3B30', fontWeight: '700', fontSize: 12 }}><Icon name="trash" size={12} color="#FF3B30" /> Reiniciar / Borrar pendientes</Text>
+
+      <TouchableOpacity
+        onPress={handleClearPending}
+        style={{
+          marginHorizontal: 16,
+          marginBottom: 8,
+          borderWidth: 1,
+          borderColor: '#FF3B30',
+          borderRadius: apple.radius.m,
+          padding: 10,
+          alignItems: 'center',
+          backgroundColor: '#FFF5F5',
+        }}
+      >
+        <Text style={{ color: '#FF3B30', fontWeight: '700', fontSize: 12 }}>
+          <Icon name="shield" size={12} color="#FF3B30" />  Verificar / Depurar memoria local
+        </Text>
       </TouchableOpacity>
 
       {tab === 'actual' ? (
@@ -196,7 +310,14 @@ export default function CajaScreen() {
                   <>
                     <Text style={[styles.emptySub, { marginBottom: 16 }]}>Ingresa el saldo inicial para iniciar jornada</Text>
                     <View style={styles.inputRow}>
-                      <TextInput style={styles.input} value={saldoInicial} onChangeText={t => setSaldoInicial(formatMoneyInput(t))} keyboardType="numeric" placeholder="$ 0" placeholderTextColor={apple.colors.tertiaryLabel} />
+                      <TextInput
+                        style={styles.input}
+                        value={saldoInicial}
+                        onChangeText={t => setSaldoInicial(formatMoneyInput(t))}
+                        keyboardType="numeric"
+                        placeholder="$ 0"
+                        placeholderTextColor={apple.colors.tertiaryLabel}
+                      />
                       <AppleButton title="Abrir caja" onPress={handleAbrir} style={{ flex: 1 }} />
                     </View>
                   </>
@@ -217,24 +338,77 @@ export default function CajaScreen() {
                   <Text style={styles.cajaDate}>{caja.fecha_apertura || caja.fecha ? new Date(caja.fecha_apertura || caja.fecha).toLocaleString() : ''}</Text>
                 </View>
                 <View style={styles.saldoRow}>
-                  <View style={styles.saldoBox}><Text style={styles.saldoLabel}>Inicial</Text><Text style={styles.saldoVal}>{FormatMoneyDecimales(caja.saldo_inicial)}</Text></View>
-                  <View style={styles.saldoBox}><Text style={styles.saldoLabel}>Final (calc)</Text><Text style={[styles.saldoVal, { color: apple.colors.blue }]}>{FormatMoneyDecimales(caja.saldo_final || 0)}</Text></View>
+                  <View style={styles.saldoBox}>
+                    <Text style={styles.saldoLabel}>Inicial</Text>
+                    <Text style={styles.saldoVal}>{FormatMoneyDecimales(caja.saldo_inicial)}</Text>
+                  </View>
+                  <View style={styles.saldoBox}>
+                    <Text style={styles.saldoLabel}>Final (calc)</Text>
+                    <Text style={[styles.saldoVal, { color: apple.colors.blue }]}>{FormatMoneyDecimales(caja.saldo_final || 0)}</Text>
+                  </View>
                 </View>
                 <Text style={styles.cajaId}>ID {String(caja.id || '').slice(0, 8)}…</Text>
-                <TouchableOpacity style={styles.closeBtn} onPress={handleCerrar}><Icon name="power-off" size={14} color="#fff" /><Text style={styles.closeText}>  Cerrar caja</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.closeBtn} onPress={handleCerrar}>
+                  <Icon name="power-off" size={14} color="#fff" />
+                  <Text style={styles.closeText}>  Cerrar caja</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            <View style={styles.listHeader}><Text style={styles.listTitle}>Movimientos · {movimientos.length}</Text><TouchableOpacity onPress={load}><Icon name="refresh" size={14} color={apple.colors.blue} /></TouchableOpacity></View>
-            <FlatList data={movimientos} keyExtractor={i => String(i.id)} renderItem={Row} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />} ListEmptyComponent={<Text style={styles.emptySub}>Sin movimientos. Crea uno en Movimientos.</Text>} contentContainerStyle={{ paddingBottom: 20 }} />
+
+            <View style={styles.listHeader}>
+              <Text style={styles.listTitle}>
+                Últimos movimientos · {displayedMovs.length} de {totalMovsCount}
+              </Text>
+              <TouchableOpacity onPress={() => load(true)}>
+                <Icon name="refresh" size={14} color={apple.colors.blue} />
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={displayedMovs}
+              keyExtractor={i => String(i.id)}
+              renderItem={Row}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+              ListEmptyComponent={
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={styles.emptySub}>Sin movimientos. Crea uno en Movimientos.</Text>
+                </View>
+              }
+              ListFooterComponent={
+                hasMoreThan5 ? (
+                  <TouchableOpacity
+                    style={styles.verTodosBtn}
+                    onPress={() => navigation.navigate('Movements')}
+                  >
+                    <Text style={styles.verTodosText}>
+                      Ver todos los movimientos ({totalMovsCount})
+                    </Text>
+                    <Icon name="chevron-right" size={12} color={apple.colors.blue} />
+                  </TouchableOpacity>
+                ) : null
+              }
+              contentContainerStyle={{ paddingBottom: 20 }}
+            />
           </>
         )
       ) : (
         <FlatList
-          data={historial} keyExtractor={i => String(i.id)} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          data={historial}
+          keyExtractor={i => String(i.id)}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           renderItem={({ item }) => (
             <View style={styles.row}>
-              <View style={[styles.badge, { backgroundColor: item.estado === 'abierta' ? apple.colors.success + '18' : apple.colors.fill }]}><Icon name={item.estado === 'abierta' ? 'unlock' : 'lock'} size={13} color={item.estado === 'abierta' ? apple.colors.success : apple.colors.tertiaryLabel} /></View>
-              <View style={{ flex: 1 }}><Text style={styles.rowTitle}>{item.estado.toUpperCase()} · {FormatMoneyDecimales(item.saldo_inicial)} → {FormatMoneyDecimales(item.saldo_final)}</Text><Text style={styles.rowSub}>{new Date(item.fecha_apertura || item.fecha || Date.now()).toLocaleDateString()}{item.fecha_cierre ? ' · ' + new Date(item.fecha_cierre).toLocaleDateString() : ''}</Text></View>
+              <View style={[styles.badge, { backgroundColor: item.estado === 'abierta' ? apple.colors.success + '18' : apple.colors.fill }]}>
+                <Icon name={item.estado === 'abierta' ? 'unlock' : 'lock'} size={13} color={item.estado === 'abierta' ? apple.colors.success : apple.colors.tertiaryLabel} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>
+                  {item.estado.toUpperCase()} · {FormatMoneyDecimales(item.saldo_inicial)} → {FormatMoneyDecimales(item.saldo_final)}
+                </Text>
+                <Text style={styles.rowSub}>
+                  {new Date(item.fecha_apertura || item.fecha || Date.now()).toLocaleDateString()}{item.fecha_cierre ? ' · ' + new Date(item.fecha_cierre).toLocaleDateString() : ''}
+                </Text>
+              </View>
             </View>
           )}
           ListEmptyComponent={<Text style={styles.emptySub}>Sin historial</Text>}
@@ -285,4 +459,22 @@ const styles = StyleSheet.create({
   badge: { width: 32, height: 32, borderRadius: apple.radius.l, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 13, fontWeight: '600', color: apple.colors.label },
   rowSub: { fontSize: 11, color: apple.colors.tertiaryLabel, marginTop: 2 },
+  verTodosBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 6,
+    paddingVertical: 12,
+    borderRadius: apple.radius.m,
+    borderWidth: 1,
+    borderColor: '#E8EAED',
+    gap: 6,
+  },
+  verTodosText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: apple.colors.blue,
+  },
 });

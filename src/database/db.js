@@ -35,7 +35,18 @@ export async function ensureDatabaseIntegrity(db) {
       created_at TEXT
     )`);
 
-    // Asegurar estructura de tablas cajas y movimientos
+    // Asegurar estructura de tablas cuotas, cajas y movimientos
+    await db.executeSql(`CREATE TABLE IF NOT EXISTS cuotas (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT,
+      numero INTEGER,
+      fecha_vencimiento TEXT,
+      monto REAL,
+      estado TEXT,
+      monto_pagado REAL
+    )`);
+    try { await db.executeSql(`CREATE INDEX IF NOT EXISTS idx_cuotas_invoice_id ON cuotas(invoice_id)`); } catch {}
+
     await db.executeSql(`CREATE TABLE IF NOT EXISTS cajas (
       id TEXT PRIMARY KEY,
       estado TEXT,
@@ -80,6 +91,8 @@ export async function ensureDatabaseIntegrity(db) {
     await ensureColumnExists(db, 'movimientos', 'descripcion', 'TEXT');
     await ensureColumnExists(db, 'movimientos', 'idFactura', 'TEXT');
     await ensureColumnExists(db, 'movimientos', 'cliente_nombre', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'latitud', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'longitud', 'TEXT');
 
     // Asegurar columnas en facturas
     await ensureColumnExists(db, 'facturas', 'latitud', 'TEXT');

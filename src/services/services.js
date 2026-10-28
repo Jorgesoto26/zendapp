@@ -16,7 +16,7 @@ import { clearAllLocalData } from '../utils/clearLocal';
 import { EvaluationDataSend } from '../utils/utilities';
 import { setAuthServiceRunning } from '../context/AuthContext';
 
-const SUPABASE_URL = 'https://gwpwntdwogxzmtegaaom.supabase.co';
+import { SUPABASE_URL } from '../config/env';
 
 export function hashOfflinePassword(pwd) {
   if (!pwd) return '';
@@ -192,6 +192,16 @@ export const AuthService = async (db, email, password) => {
         };
       }
       await clearAllLocalData();
+      if (onlineAuthResult?.session) {
+        try {
+          await supabase.auth.setSession({
+            access_token: onlineAuthResult.session.access_token,
+            refresh_token: onlineAuthResult.session.refresh_token,
+          });
+        } catch (eSet) {
+          console.log('Error re-setting session after clearAllLocalData:', eSet);
+        }
+      }
     }
 
     // Guardar credenciales de sesion en parametrizacion (incluyendo login y hash para offline login)

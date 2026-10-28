@@ -1,9 +1,10 @@
 // src/screens/admin/AdminCartera.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   FlatList,
+  TextInput,
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
@@ -29,6 +30,7 @@ export default function AdminCartera() {
   const navigation = useNavigation();
   const { signOut } = useAuth();
   const [summary, setSummary] = useState([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
@@ -36,7 +38,7 @@ export default function AdminCartera() {
   const loadData = useCallback(async () => {
     try {
       const data = await getCarteraSummary();
-      setSummary(data);
+      setSummary(data || []);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudo cargar la cartera');
     } finally {
@@ -57,6 +59,17 @@ export default function AdminCartera() {
   const totalCreditos = summary.reduce((acc, curr) => acc + (parseInt(curr.total_creditos, 10) || 0), 0);
   const totalSaldo = summary.reduce((acc, curr) => acc + (parseFloat(curr.saldo_total) || 0), 0);
   const totalVencido = summary.reduce((acc, curr) => acc + (parseFloat(curr.saldo_vencido) || 0), 0);
+
+  const filteredSummary = useMemo(() => {
+    if (!search.trim()) return summary;
+    const q = search.toLowerCase();
+    return summary.filter(
+      (item) =>
+        item.nombre?.toLowerCase().includes(q) ||
+        item.apellido?.toLowerCase().includes(q) ||
+        `${item.nombre || ''} ${item.apellido || ''}`.toLowerCase().includes(q)
+    );
+  }, [search, summary]);
 
   const handleSelectUser = (user) => {
     navigation.navigate('AdminCarteraDetalle', { user });
@@ -103,6 +116,24 @@ export default function AdminCartera() {
         </View>
       </View>
 
+      {/* Buscador de Vendedor (Requisito 3) */}
+      <View style={styles.searchContainer}>
+        <Icon name="search" size={14} color={apple.colors.tertiaryLabel} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Buscar por nombre de vendedor..."
+          placeholderTextColor={apple.colors.tertiaryLabel}
+          value={search}
+          onChangeText={setSearch}
+          clearButtonMode="while-editing"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Lista por Vendedores */}
       {loading ? (
         <View style={styles.centerContainer}>
@@ -110,8 +141,8 @@ export default function AdminCartera() {
         </View>
       ) : (
         <FlatList
-          data={summary}
-          keyExtractor={(item) => item.usuario_id}
+          data={filteredSummary}
+          keyExtractor={(item) => String(item.usuario_id || item.id)}
           renderItem={({ item }) => (
             <CarteraUserCard item={item} onPress={handleSelectUser} />
           )}
@@ -121,8 +152,14 @@ export default function AdminCartera() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="briefcase" size={48} color={apple.colors.tertiaryLabel} />
-              <Text style={styles.emptyTitle}>Sin créditos registrados</Text>
-              <Text style={styles.emptySubtitle}>No hay cartera registrada en tus subordinados</Text>
+              <Text style={styles.emptyTitle}>
+                {search ? 'Sin coincidencias' : 'Sin créditos registrados'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {search
+                  ? `No se encontraron vendedores que coincidan con "${search}"`
+                  : 'No hay cartera registrada en tus subordinados'}
+              </Text>
             </View>
           }
         />
@@ -173,7 +210,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
     borderRadius: apple.radius.m,
     marginHorizontal: apple.spacing.l,
-    marginVertical: apple.spacing.m,
+    marginTop: apple.spacing.m,
+    marginBottom: apple.spacing.s,
     padding: apple.spacing.l,
     ...apple.shadow.elevated,
   },
@@ -223,6 +261,27 @@ const styles = StyleSheet.create({
   globalSubVal: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: apple.colors.card,
+    borderRadius: apple.radius.s,
+    marginHorizontal: apple.spacing.l,
+    marginVertical: apple.spacing.s,
+    paddingHorizontal: 12,
+    height: 40,
+    ...apple.shadow.subtle,
+    borderWidth: 0.5,
+    borderColor: apple.colors.separator,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: apple.colors.label,
   },
   listContent: {
     paddingHorizontal: apple.spacing.l,

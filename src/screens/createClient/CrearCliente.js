@@ -411,6 +411,7 @@ const CrearCliente = () => {
         latitud: latitudStr,
         longitud: longitudStr,
         previous_invoice_id: previousInvoiceId || null,
+        fecha: nowIso,
       };
 
       // 3. Guardar en ventas_pendientes
@@ -425,6 +426,25 @@ const CrearCliente = () => {
         `INSERT INTO ventas_pendientes (temp_id, payload, estado, created_at) VALUES (?, ?, 'pendiente', ?)`,
         [String(tempId), JSON.stringify(salePayload), nowIso]
       );
+
+      // 3.1 Generar cuotas locales inmediatamente en SQLite
+      try {
+        const cMonto = Math.floor(totalFactura / numCuotas);
+        const cResto = totalFactura - (cMonto * (numCuotas - 1));
+        for (let i = 1; i <= numCuotas; i++) {
+          const valCuota = (i === numCuotas) ? cResto : cMonto;
+          const dVenc = new Date();
+          dVenc.setDate(dVenc.getDate() + i);
+          const fechaVenc = dVenc.toISOString().slice(0, 10);
+          await database.executeSql(
+            `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+             VALUES (?, ?, ?, ?, ?, 'pendiente', 0)`,
+            [`local_cuota_${tempId}_${i}`, String(tempId), i, fechaVenc, valCuota]
+          );
+        }
+      } catch (errCuotasLoc) {
+        console.log('Error generando cuotas locales en SQLite:', errCuotasLoc);
+      }
 
       // 4. Obtener consecutivo tramitado para que nazca en Tramitados (Requisito 6)
       const consecutivo = await getAndIncrementConsecutivo(database);

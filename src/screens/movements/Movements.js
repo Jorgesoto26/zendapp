@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   BackHandler,
   View,
@@ -18,7 +18,12 @@ import {
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getCajaActual } from '../../services/cajaService';
-import { createCashMovement, listMovimientos, getCurrentLocationOrNull } from '../../services/movementsService';
+import {
+  createCashMovement,
+  updateCashMovement,
+  listMovimientos,
+  getCurrentLocationOrNull,
+} from '../../services/movementsService';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, Capitalize } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
@@ -39,31 +44,44 @@ export default function MovementsScreen() {
   const [search, setSearch] = useState('');
   const [filterTipo, setFilterTipo] = useState('todos');
 
-  // Modal Nuevo Movimiento (Requisito 7)
+  // Modal Nuevo Movimiento
   const [modalVisible, setModalVisible] = useState(false);
   const [formTipo, setFormTipo] = useState('ingreso');
   const [formDesc, setFormDesc] = useState('');
   const [formMonto, setFormMonto] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Permisos de administrador asignados al perfil del usuario (Requisito 8)
+  // Modal Edición Movimiento
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editDesc, setEditDesc] = useState('');
+  const [editMonto, setEditMonto] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Permisos de administrador asignados al perfil del usuario
   const permiteBorrarVenta = !!profile?.permite_borrar_venta;
   const permiteModificarPagos = !!profile?.permite_modificar_pagos;
 
+  const hasLoadedOnce = useRef(false);
+
   const load = useCallback(async (isRefresh = false) => {
-    if (!isRefresh) setLoading(true);
+    // Si ya cargó al menos una vez, no bloquear la UI con spinner grande
+    if (!isRefresh && !hasLoadedOnce.current) {
+      setLoading(true);
+    }
     try {
       const actual = await getCajaActual();
       setCaja(actual);
-      const movs = await listMovimientos({ cajaId: actual?.id || null, limit: 50, offset: 0 });
+      const movs = await listMovimientos({ cajaId: actual?.id || null, limit: 50, offset: 0, search: search.trim() });
       setItems(movs || []);
+      hasLoadedOnce.current = true;
     } catch (e) {
       console.log('Movements load error:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [search]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -72,11 +90,11 @@ export default function MovementsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      load(hasLoadedOnce.current);
     }, [load])
   );
 
-  // Escuchar eventos en tiempo real para no requerir sync manual (Requisito 4)
+  // Escuchar eventos en tiempo real
   useEffect(() => {
     const unsub1 = eventBus.on(EVENTS.CLIENT_CREATED, () => load(true));
     const unsub2 = eventBus.on(EVENTS.PAYMENT_REGISTERED, () => load(true));
@@ -122,12 +140,14 @@ export default function MovementsScreen() {
     }
   };
 
+  // Creación limpia: coordenadas en latitud/longitud sin ensuciar la descripción
   const handleCreate = async () => {
     const monto = parseMoneyToNumeric(formMonto);
     if (!monto || monto <= 0) return appAlert('Error', 'Monto inválido');
     if (!formDesc.trim()) return appAlert('Error', 'Descripción requerida');
     if (!caja) return appAlert('Error', 'Debes tener una caja abierta');
-    // Validar limite de gasto / retiro (Requisito 1)
+
+    // Validar límite de gasto / retiro
     const maxGasto = parseFloat(profile?.dinero_max_gasto) || 0;
     if (formTipo === 'retiro' && maxGasto > 0 && monto > maxGasto) {
       return appAlert(
@@ -138,9 +158,14 @@ export default function MovementsScreen() {
     setSaving(true);
     try {
       const loc = await getCurrentLocationOrNull();
-      let desc = formDesc.trim();
-      if (loc.lat && loc.lng) desc += ` [${loc.lat.toFixed(5)},${loc.lng.toFixed(5)}]`;
-      await createCashMovement({ cajaId: caja.id, tipo: formTipo, descripcion: desc, monto });
+      await createCashMovement({
+        cajaId: caja.id,
+        tipo: formTipo,
+        descripcion: formDesc.trim(),
+        monto,
+        latitud: loc?.lat ?? null,
+        longitud: loc?.lng ?? null,
+      });
 
       setModalVisible(false);
       setFormDesc('');
@@ -160,7 +185,54 @@ export default function MovementsScreen() {
     }
   };
 
-  // Reversión / Anulación de Venta según permisos (Requisito 8)
+  // Abrir modal de edición
+  const handleOpenEdit = (item) => {
+    let cleanDesc = item.descripcion || '';
+    cleanDesc = cleanDesc.replace(/\s*\[-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\]\s*$/, '').trim();
+    setEditingItem(item);
+    setEditDesc(cleanDesc);
+    const currMonto = item.monto != null ? item.monto : item.valor;
+    setEditMonto(formatMoneyInput(String(currMonto || '')));
+    setEditModalVisible(true);
+  };
+
+  // Guardar edición offline/online respetando permisos y límites
+  const handleSaveEdit = async () => {
+    if (!editingItem) return;
+    const monto = parseMoneyToNumeric(editMonto);
+    if (!monto || monto <= 0) return appAlert('Error', 'Monto inválido');
+    if (!editDesc.trim()) return appAlert('Error', 'Descripción requerida');
+
+    setSavingEdit(true);
+    try {
+      await updateCashMovement({
+        id: editingItem.id,
+        tipo: editingItem.tipo,
+        descripcion: editDesc.trim(),
+        monto,
+        cajaId: caja?.id,
+        profile,
+      });
+
+      setEditModalVisible(false);
+      setEditingItem(null);
+      setEditDesc('');
+      setEditMonto('');
+
+      eventBus.emit(EVENTS.MOVEMENT_CHANGED);
+      await load(true);
+      Toast.show({
+        text1: 'Movimiento actualizado',
+        text2: 'Cambios guardados correctamente.',
+      });
+    } catch (e) {
+      appAlert('No se pudo actualizar', e.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Reversión / Anulación de Venta según permisos
   const handleDeleteVenta = async (item) => {
     if (!permiteBorrarVenta) {
       return appAlert('Permiso denegado', 'No tienes autorización para eliminar o anular ventas.');
@@ -179,14 +251,12 @@ export default function MovementsScreen() {
               const db = await getDbConnection();
               const monto = Number(item.monto || 0);
 
-              // 1. Extraer idFactura
               let idFactura = item.idFactura || null;
               if (!idFactura && item.descripcion) {
                 const match = item.descripcion.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
                 if (match) idFactura = match[0];
               }
 
-              // 2. Verificar que no tenga pagos registrados
               if (idFactura) {
                 const pagos = await getData(db, `SELECT COUNT(*) as c FROM pagos WHERE idFactura = ?`, [idFactura]);
                 if (pagos?.[0]?.c > 0) {
@@ -194,28 +264,23 @@ export default function MovementsScreen() {
                 }
               }
 
-              // 3. Reversión contable en SQLite: devolver dinero a la caja
               if (caja?.id && monto > 0) {
                 await db.executeSql(
-                  `UPDATE cajas SET saldo_final = COALESCE(saldo_final, 0) + ? WHERE id = ?`,
+                  `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) + ? WHERE id = ?`,
                   [monto, caja.id]
                 );
               }
 
-              // 4. Cancelar factura
               if (idFactura) {
                 await db.executeSql(`UPDATE facturas SET estado = 'cancel', saldo = 0 WHERE id = ?`, [idFactura]);
               }
 
-              // 5. Eliminar o anular movimiento local
               await db.executeSql(`DELETE FROM movimientos WHERE id = ?`, [item.id]);
 
-              // 6. Eliminar venta pendiente si estaba offline
               if (idFactura) {
                 await db.executeSql(`DELETE FROM ventas_pendientes WHERE temp_id = ?`, [idFactura]);
               }
 
-              // 7. Notificar servidor si hay red y no es temporal
               if (idFactura && !String(idFactura).startsWith('-')) {
                 try {
                   await supabase.from('invoice').update({ status: 'cancel', saldo: 0 }).eq('id', idFactura);
@@ -248,7 +313,7 @@ export default function MovementsScreen() {
     );
   };
 
-  // Reversión de Pago según permisos (Requisito 8)
+  // Reversión de Pago según permisos
   const handleRevertPago = async (item) => {
     if (!permiteModificarPagos) {
       return appAlert('Permiso denegado', 'No tienes autorización para modificar o revertir pagos.');
@@ -267,22 +332,19 @@ export default function MovementsScreen() {
               const db = await getDbConnection();
               const monto = Number(item.monto || 0);
 
-              // 1. Extraer idFactura
               let idFactura = item.idFactura || null;
               if (!idFactura && item.descripcion) {
                 const match = item.descripcion.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
                 if (match) idFactura = match[0];
               }
 
-              // 2. Reversión contable en caja: restar dinero ingresado
               if (caja?.id && monto > 0) {
                 await db.executeSql(
-                  `UPDATE cajas SET saldo_final = COALESCE(saldo_final, 0) - ? WHERE id = ?`,
+                  `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) - ? WHERE id = ?`,
                   [monto, caja.id]
                 );
               }
 
-              // 3. Restaurar saldo en la factura
               if (idFactura) {
                 await db.executeSql(
                   `UPDATE facturas SET saldo = saldo + ?, cuotasPagas = MAX(0, cuotasPagas - 1) WHERE id = ?`,
@@ -290,7 +352,6 @@ export default function MovementsScreen() {
                 );
               }
 
-              // 4. Eliminar el pago y el movimiento local
               await db.executeSql(`DELETE FROM pagos WHERE id = ?`, [item.id]);
               await db.executeSql(`DELETE FROM movimientos WHERE id = ?`, [item.id]);
 
@@ -312,32 +373,38 @@ export default function MovementsScreen() {
 
   const filtered = items.filter(i => filterTipo === 'todos' || i.tipo === filterTipo);
 
-  // Renderizador de cada movimiento (Requisitos 8 y 9)
+  // Renderizador de cada movimiento
   const Row = ({ item }) => {
     const isIngreso = item.tipo === 'ingreso' || item.tipo === 'pago';
     const isVenta = item.tipo === 'venta';
     const isPago = item.tipo === 'pago';
     const color = isIngreso ? apple.colors.success : isVenta ? apple.colors.warning : apple.colors.danger;
 
-    // Estado de sincronización (Requisito 9)
+    // Estado de sincronización
     const isPendingSync =
       item.estadoMovil === 'actualizado' ||
       item.estadoMovil === 'enviando' ||
       (typeof item.id === 'number' && item.id < 0) ||
       (typeof item.id === 'string' && (item.id.startsWith('-') || item.id.startsWith('temp-')));
 
-    // Formatear descripcion amigable sin mostrar UUID (Requisito 9)
+    // Formatear descripción amigable sin coordenadas ni UUID sueltos
     let displayDesc = item.descripcion || 'Sin descripción';
+    // Limpiar coordenadas históricas entre corchetes
+    displayDesc = displayDesc.replace(/\s*\[-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\]\s*$/, '').trim();
+
     if (item.cliente_nombre) {
       if (isPago) displayDesc = `Pago: ${item.cliente_nombre}`;
       else if (isVenta) displayDesc = `Venta: ${item.cliente_nombre}`;
       else if (item.tipo === 'nopago') displayDesc = `No pago: ${item.cliente_nombre}`;
     } else {
-      // Reemplazar UUID con texto amigable si no se pudo mapear
       displayDesc = displayDesc.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig, 'Crédito');
       if (displayDesc.toLowerCase().startsWith('pago factura')) displayDesc = 'Pago de crédito';
       if (displayDesc.toLowerCase().startsWith('venta factura')) displayDesc = 'Venta de crédito';
     }
+
+    const canEditManual = item.tipo === 'ingreso' || item.tipo === 'retiro' || item.tipo === 'gasto';
+    const canEditPago = isPago && permiteModificarPagos;
+    const canEdit = canEditManual || canEditPago;
 
     return (
       <View style={styles.row}>
@@ -350,9 +417,9 @@ export default function MovementsScreen() {
         <View style={{ flex: 1 }}>
           <View style={styles.rowTopLine}>
             <Text style={styles.rowTitle}>
-              {item.tipo.toUpperCase()} • {FormatMoneyDecimales(item.monto)}
+              {item.tipo.toUpperCase()} • {FormatMoneyDecimales(item.monto != null ? item.monto : item.valor)}
             </Text>
-            {/* Pill indicador de sincronizacion (Requisito 9) */}
+            {/* Pill indicador de sincronizacion */}
             <View style={[styles.syncPill, isPendingSync ? styles.syncPillPending : styles.syncPillOk]}>
               <Icon
                 name={isPendingSync ? 'cloud-upload' : 'check'}
@@ -369,31 +436,43 @@ export default function MovementsScreen() {
           <Text style={styles.rowDate}>{new Date(item.fecha || Date.now()).toLocaleString()}</Text>
         </View>
 
-        {/* Acciones segun permisos (Requisito 8) */}
-        {isVenta && permiteBorrarVenta && (
-          <TouchableOpacity
-            style={styles.actionBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={() => handleDeleteVenta(item)}
-          >
-            <Icon name="trash-o" size={16} color={apple.colors.danger} />
-          </TouchableOpacity>
-        )}
+        {/* Acciones */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {canEdit && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => handleOpenEdit(item)}
+            >
+              <Icon name="pencil" size={14} color={apple.colors.blue} />
+            </TouchableOpacity>
+          )}
 
-        {isPago && permiteModificarPagos && (
-          <TouchableOpacity
-            style={styles.actionBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={() => handleRevertPago(item)}
-          >
-            <Icon name="undo" size={15} color={apple.colors.warning} />
-          </TouchableOpacity>
-        )}
+          {isVenta && permiteBorrarVenta && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => handleDeleteVenta(item)}
+            >
+              <Icon name="trash-o" size={16} color={apple.colors.danger} />
+            </TouchableOpacity>
+          )}
+
+          {isPago && permiteModificarPagos && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => handleRevertPago(item)}
+            >
+              <Icon name="undo" size={15} color={apple.colors.warning} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
 
-  if (loading) {
+  if (loading && items.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={apple.colors.blue} />
@@ -473,7 +552,7 @@ export default function MovementsScreen() {
         <Icon name="plus" size={18} color="#fff" />
       </TouchableOpacity>
 
-      {/* Modal de Nuevo Movimiento (Requisito 7: Centrado, fondo oscuro semitransparente, boton X, cierre exterior) */}
+      {/* Modal de Nuevo Movimiento */}
       <Modal
         visible={modalVisible}
         animationType="fade"
@@ -490,7 +569,6 @@ export default function MovementsScreen() {
             onPress={(e) => e.stopPropagation?.()}
             style={styles.modalCard}
           >
-            {/* Header del Modal */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nuevo movimiento</Text>
               <TouchableOpacity
@@ -546,13 +624,73 @@ export default function MovementsScreen() {
               placeholderTextColor={apple.colors.tertiaryLabel}
             />
 
-            {/* Acciones */}
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtn} onPress={handleCreate} disabled={saving}>
                 {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Guardar</Text>}
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de Edición de Movimiento */}
+      <Modal
+        visible={editModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setEditModalVisible(false)}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation?.()}
+            style={styles.modalCard}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Editar {editingItem ? Capitalize(editingItem.tipo) : 'Movimiento'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setEditModalVisible(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={styles.modalCloseBtn}
+              >
+                <Icon name="times" size={18} color={apple.colors.secondaryLabel} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.label}>Descripción *</Text>
+            <TextInput
+              style={styles.input}
+              value={editDesc}
+              onChangeText={setEditDesc}
+              placeholder="Descripción del movimiento"
+              placeholderTextColor={apple.colors.tertiaryLabel}
+            />
+
+            <Text style={styles.label}>Monto *</Text>
+            <TextInput
+              style={styles.input}
+              value={editMonto}
+              onChangeText={t => setEditMonto(formatMoneyInput(t))}
+              keyboardType="numeric"
+              placeholder="$ 0"
+              placeholderTextColor={apple.colors.tertiaryLabel}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.cancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={savingEdit}>
+                {savingEdit ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Actualizar</Text>}
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -618,7 +756,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '600', color: apple.colors.secondaryLabel, textTransform: 'capitalize' },
   chipTextActive: { color: '#fff' },
 
-  // Fila de Movimiento
   row: {
     flexDirection: 'row',
     backgroundColor: apple.colors.card,
@@ -637,7 +774,6 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 13, color: apple.colors.secondaryLabel, marginTop: 3, fontWeight: '500' },
   rowDate: { fontSize: 11, color: apple.colors.tertiaryLabel, marginTop: 4 },
 
-  // Sincronizacion Pill (Requisito 9)
   syncPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -652,11 +788,10 @@ const styles = StyleSheet.create({
   syncPillTextOk: { color: '#047857' },
   syncPillTextPending: { color: '#B45309' },
 
-  // Acciones en la fila (Requisito 8)
   actionBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: apple.colors.fill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -683,7 +818,6 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  // Modal Nuevo Movimiento (Requisito 7)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',

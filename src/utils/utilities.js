@@ -119,20 +119,7 @@ export const getDateOdoo = () => {
 }
 
 export const getDateOdooMilisec = () => {
-    const d = new Date();
-
-    let month = (d.getMonth() + 1).toString().padStart(2, '0');
-    let day = d.getDate().toString().padStart(2, '0');
-    let horas = d.getHours().toString().padStart(2, '0');
-    let min = d.getMinutes().toString().padStart(2, '0');
-    let seg = d.getSeconds().toString().padStart(2, '0');
-    let milisec = d.getMilliseconds().toString().padStart(3, '0'); // Asegura 3 dígitos
-
-    let fecha = `${d.getFullYear()}-${month}-${day}`;
-    let hora = `${horas}:${min}:${seg}.${milisec}`;
-    let date = `${fecha} ${hora}`;
-
-    return date;
+    return new Date().toISOString();
 };
 
 export const getDate = () => {
@@ -298,9 +285,9 @@ export const EvaluationDataSend = async () => {
         pagos,
         usersCliente,
     ] = await Promise.all([
-        getData(db, `SELECT COUNT(*) as count FROM movimientos WHERE id < 0 AND estadoMovil = 'actualizado'`),
-        getData(db, `SELECT COUNT(*) as count FROM pagos WHERE id < 0 AND estadoMovil = 'actualizado'`),
-        getData(db, `SELECT COUNT(*) as count FROM users WHERE id < 0 AND estadoMovil = 'actualizado'`),
+        getData(db, `SELECT COUNT(*) as count FROM movimientos WHERE estadoMovil IN ('actualizado', 'enviando')`),
+        getData(db, `SELECT COUNT(*) as count FROM pagos WHERE estadoMovil IN ('actualizado', 'enviando')`),
+        getData(db, `SELECT COUNT(*) as count FROM users WHERE estadoMovil IN ('actualizado', 'enviando')`),
     ]);
 
     // Convertir a booleano los resultados
@@ -405,28 +392,27 @@ export const FormatDateSinHora = function (fecha) {
 
 
 export const FormatDateConHora = function (fecha) {
-    if (!fecha) return null; // Manejo de caso nulo o indefinido
-
-    // Convertir la fecha a un objeto Date
-    const fechaObj = new Date(fecha.replace(" ", "T"));
-
-    // Verificar si la fecha es válida
-    if (isNaN(fechaObj.getTime())) {
-        console.error("Fecha inválida:", fecha);
-        return null;
+    if (!fecha) return '';
+    let s = String(fecha);
+    if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(s)) {
+        s = s.replace(" ", "T") + "Z";
     }
-
-    // Obtener componentes de la fecha y hora
-    const año = fechaObj.getFullYear();
-    const mes = (fechaObj.getMonth() + 1).toString().padStart(2, '0'); // Asegura dos dígitos
-    const dia = fechaObj.getDate().toString().padStart(2, '0');
-
-    const horas = fechaObj.getHours().toString().padStart(2, '0');
-    const minutos = fechaObj.getMinutes().toString().padStart(2, '0');
-    const segundos = fechaObj.getSeconds().toString().padStart(2, '0');
-
-    // Formatear la fecha con hora
-    return `${año}-${mes}-${dia} ${horas}:${minutos}:${segundos}`;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return String(fecha);
+    try {
+        return d.toLocaleString('es-CO', {
+            timeZone: 'America/Bogota',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+        });
+    } catch {
+        return d.toLocaleString();
+    }
 };
 
 
