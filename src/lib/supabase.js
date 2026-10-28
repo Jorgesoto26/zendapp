@@ -22,6 +22,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
  */
 export async function ensureAuthenticatedSession() {
   try {
+    const isLoggedOut = await AsyncStorage.getItem('app_logged_out');
+    if (isLoggedOut === 'true') {
+      return null;
+    }
+
     const { data: { session }, error } = await supabase.auth.getSession();
     if (session) {
       const nowSec = Math.floor(Date.now() / 1000);

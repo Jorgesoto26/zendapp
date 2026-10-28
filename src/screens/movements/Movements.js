@@ -23,6 +23,8 @@ import {
   updateCashMovement,
   listMovimientos,
   getCurrentLocationOrNull,
+  getMovementAudits,
+  cancelInvoiceSale,
 } from '../../services/movementsService';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, Capitalize } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
@@ -57,6 +59,12 @@ export default function MovementsScreen() {
   const [editDesc, setEditDesc] = useState('');
   const [editMonto, setEditMonto] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Modal Auditoría / Trazabilidad (Requisito 6)
+  const [auditModalVisible, setAuditModalVisible] = useState(false);
+  const [auditItem, setAuditItem] = useState(null);
+  const [auditList, setAuditList] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // Permisos de administrador asignados al perfil del usuario
   const permiteBorrarVenta = !!profile?.permite_borrar_venta;
@@ -185,33 +193,74 @@ export default function MovementsScreen() {
     }
   };
 
-  // Abrir modal de edición
+  // Abrir modal de edición con validación de sincronización (Requisito 3.1)
   const handleOpenEdit = (item) => {
+    const isPendingSync =
+      item.estadoMovil === 'actualizado' ||
+      item.estadoMovil === 'enviando' ||
+      (typeof item.id === 'number' && item.id < 0) ||
+      (typeof item.id === 'string' && (item.id.startsWith('-') || item.id.startsWith('temp-')));
+
+    if (isPendingSync) {
+      return appAlert(
+        'Movimiento pendiente',
+        'Solo se pueden editar movimientos que ya hayan sido sincronizados con el servidor. Sincroniza antes de editar.'
+      );
+    }
+
     let cleanDesc = item.descripcion || '';
     cleanDesc = cleanDesc.replace(/\s*\[-?\d+(?:\.\d+)?,\s*-?\d+(?:\.\d+)?\]\s*$/, '').trim();
     setEditingItem(item);
     setEditDesc(cleanDesc);
     const currMonto = item.monto != null ? item.monto : item.valor;
-    setEditMonto(formatMoneyInput(String(currMonto || '')));
+    setEditMonto(formatMoneyInput(String(currMonto != null ? currMonto : '')));
     setEditModalVisible(true);
   };
 
-  // Guardar edición offline/online respetando permisos y límites
+  // Abrir modal de auditoría / trazabilidad (Requisito 6)
+  const handleOpenAudit = async (item) => {
+    setAuditItem(item);
+    setAuditModalVisible(true);
+    setAuditLoading(true);
+    try {
+      const audits = await getMovementAudits(item.id);
+      setAuditList(audits || []);
+    } catch (e) {
+      console.log('Error cargando auditoría:', e);
+      setAuditList([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  // Guardar edición offline/online respetando permisos y límites (Requisitos 3.3, 3.4, 3.5)
   const handleSaveEdit = async () => {
     if (!editingItem) return;
     const monto = parseMoneyToNumeric(editMonto);
-    if (!monto || monto <= 0) return appAlert('Error', 'Monto inválido');
-    if (!editDesc.trim()) return appAlert('Error', 'Descripción requerida');
+    if (monto === null || monto === undefined || isNaN(monto) || monto < 0) {
+      return appAlert('Error', 'Monto inválido');
+    }
+
+    if (editingItem.tipo === 'gasto' && monto <= 0) {
+      return appAlert('Error', 'El monto de un gasto debe ser mayor que 0');
+    }
+
+    const maxGasto = parseFloat(profile?.dinero_max_gasto) || 0;
+    if (editingItem.tipo === 'gasto' && maxGasto > 0 && monto > maxGasto) {
+      return appAlert(
+        'Límite de gasto excedido',
+        `El monto (${FormatMoneyDecimales(monto)}) excede tu límite máximo permitido por gasto (${FormatMoneyDecimales(maxGasto)}).`
+      );
+    }
 
     setSavingEdit(true);
     try {
       await updateCashMovement({
         id: editingItem.id,
-        tipo: editingItem.tipo,
-        descripcion: editDesc.trim(),
         monto,
         cajaId: caja?.id,
         profile,
+        motivo: 'Edición desde aplicación móvil',
       });
 
       setEditModalVisible(false);
@@ -232,10 +281,24 @@ export default function MovementsScreen() {
     }
   };
 
-  // Reversión / Anulación de Venta según permisos
+  // Reversión / Anulación de Venta según permisos (Requisito 4)
   const handleDeleteVenta = async (item) => {
     if (!permiteBorrarVenta) {
       return appAlert('Permiso denegado', 'No tienes autorización para eliminar o anular ventas.');
+    }
+
+    let idFactura = item.idFactura || null;
+    if (!idFactura && item.descripcion) {
+      const match = item.descripcion.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (match) idFactura = match[0];
+    }
+
+    const db = await getDbConnection();
+    if (idFactura) {
+      const pagos = await getData(db, `SELECT COUNT(*) as c FROM pagos WHERE idFactura = ?`, [idFactura]);
+      if (pagos?.[0]?.c > 0) {
+        return appAlert('Operación rechazada', 'Esta venta ya tiene pagos o abonos registrados. No puede ser anulada.');
+      }
     }
 
     Alert.alert(
@@ -248,22 +311,19 @@ export default function MovementsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const db = await getDbConnection();
               const monto = Number(item.monto || 0);
 
-              let idFactura = item.idFactura || null;
-              if (!idFactura && item.descripcion) {
-                const match = item.descripcion.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-                if (match) idFactura = match[0];
-              }
-
-              if (idFactura) {
-                const pagos = await getData(db, `SELECT COUNT(*) as c FROM pagos WHERE idFactura = ?`, [idFactura]);
-                if (pagos?.[0]?.c > 0) {
-                  return appAlert('Operación rechazada', 'Esta venta ya tiene pagos o abonos registrados. No puede ser anulada.');
+              // 1. Si no es temporal, ejecutar RPC remota con validación estricta de permisos
+              if (idFactura && !String(idFactura).startsWith('-')) {
+                try {
+                  await cancelInvoiceSale(idFactura, 'Anulación solicitada por vendedor');
+                } catch (eRemote) {
+                  console.log('Error cancelInvoiceSale:', eRemote);
+                  return appAlert('Error', eRemote.message || 'No se pudo anular la venta en el servidor');
                 }
               }
 
+              // 2. Revertir saldo de caja local
               if (caja?.id && monto > 0) {
                 await db.executeSql(
                   `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) + ? WHERE id = ?`,
@@ -271,31 +331,14 @@ export default function MovementsScreen() {
                 );
               }
 
+              // 3. Marcar factura como cancelada localmente
               if (idFactura) {
                 await db.executeSql(`UPDATE facturas SET estado = 'cancel', saldo = 0 WHERE id = ?`, [idFactura]);
-              }
-
-              await db.executeSql(`DELETE FROM movimientos WHERE id = ?`, [item.id]);
-
-              if (idFactura) {
                 await db.executeSql(`DELETE FROM ventas_pendientes WHERE temp_id = ?`, [idFactura]);
               }
 
-              if (idFactura && !String(idFactura).startsWith('-')) {
-                try {
-                  await supabase.from('invoice').update({ status: 'cancel', saldo: 0 }).eq('id', idFactura);
-                  if (caja?.id) {
-                    await supabase.rpc('rpc_create_cash_movement', {
-                      p_caja_id: caja.id,
-                      p_tipo: 'ingreso',
-                      p_descripcion: `Reversión anulación venta #${idFactura.slice(0, 8)}`,
-                      p_monto: monto,
-                    });
-                  }
-                } catch (eRemote) {
-                  console.log('Error sincronizando anulación venta con Supabase:', eRemote);
-                }
-              }
+              // 4. Eliminar movimiento de venta local
+              await db.executeSql(`DELETE FROM movimientos WHERE id = ?`, [item.id]);
 
               eventBus.emit(EVENTS.MOVEMENT_CHANGED);
               await load(true);
@@ -402,9 +445,10 @@ export default function MovementsScreen() {
       if (displayDesc.toLowerCase().startsWith('venta factura')) displayDesc = 'Venta de crédito';
     }
 
-    const canEditManual = item.tipo === 'ingreso' || item.tipo === 'retiro' || item.tipo === 'gasto';
-    const canEditPago = isPago && permiteModificarPagos;
-    const canEdit = canEditManual || canEditPago;
+    // REGLA 3.2: PROHIBIDO EDITAR INGRESO Y RETIRO. Solo gasto, y pago/nopago si tiene permiso
+    const canEditGasto = item.tipo === 'gasto';
+    const canEditPago = (item.tipo === 'pago' || item.tipo === 'nopago') && permiteModificarPagos;
+    const canEdit = canEditGasto || canEditPago;
 
     return (
       <View style={styles.row}>
@@ -438,6 +482,16 @@ export default function MovementsScreen() {
 
         {/* Acciones */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* Botón de Auditoría / Historial de Cambios (Requisito 6) */}
+          <TouchableOpacity
+            style={styles.actionBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={() => handleOpenAudit(item)}
+          >
+            <Icon name="history" size={13} color={apple.colors.secondaryLabel} />
+          </TouchableOpacity>
+
+          {/* Botón de Edición (Solo para gasto, pago y nopago; no ingreso ni retiro) */}
           {canEdit && (
             <TouchableOpacity
               style={styles.actionBtn}
@@ -636,7 +690,7 @@ export default function MovementsScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Modal de Edición de Movimiento */}
+      {/* Modal de Edición de Movimiento (Requisitos 3.3, 3.4, 3.5) */}
       <Modal
         visible={editModalVisible}
         animationType="fade"
@@ -666,16 +720,31 @@ export default function MovementsScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Descripción *</Text>
-            <TextInput
-              style={styles.input}
-              value={editDesc}
-              onChangeText={setEditDesc}
-              placeholder="Descripción del movimiento"
-              placeholderTextColor={apple.colors.tertiaryLabel}
-            />
+            {/* Información del movimiento (Solo lectura - Requisito 3.5) */}
+            <View style={styles.readOnlyCard}>
+              <Text style={styles.readOnlyLabel}>DETALLE DEL MOVIMIENTO</Text>
+              <Text style={styles.readOnlyText} numberOfLines={2}>
+                {editDesc || editingItem?.descripcion || 'Sin descripción'}
+              </Text>
+              {editingItem?.tipo === 'gasto' && Number(profile?.dinero_max_gasto || 0) > 0 && (
+                <Text style={styles.readOnlyHint}>
+                  Límite máximo por gasto: {FormatMoneyDecimales(profile.dinero_max_gasto)}
+                </Text>
+              )}
+              {editingItem?.tipo === 'pago' && (
+                <Text style={styles.readOnlyHint}>
+                  Si ingresas $0, este pago se convertirá automáticamente en No Pago.
+                </Text>
+              )}
+              {editingItem?.tipo === 'nopago' && (
+                <Text style={styles.readOnlyHint}>
+                  Ingresa un monto mayor a $0 para registrarlo como Pago.
+                </Text>
+              )}
+            </View>
 
-            <Text style={styles.label}>Monto *</Text>
+            {/* Input de Monto Únicamente */}
+            <Text style={styles.label}>Nuevo Monto *</Text>
             <TextInput
               style={styles.input}
               value={editMonto}
@@ -693,6 +762,109 @@ export default function MovementsScreen() {
                 {savingEdit ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Actualizar</Text>}
               </TouchableOpacity>
             </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal de Auditoría / Historial de Cambios (Requisito 6) */}
+      <Modal
+        visible={auditModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setAuditModalVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setAuditModalVisible(false)}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation?.()}
+            style={[styles.modalCard, { maxHeight: '80%' }]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icon name="history" size={16} color={apple.colors.blue} />
+                <Text style={styles.modalTitle}>Historial de Cambios</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setAuditModalVisible(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={styles.modalCloseBtn}
+              >
+                <Icon name="times" size={18} color={apple.colors.secondaryLabel} />
+              </TouchableOpacity>
+            </View>
+
+            {auditItem && (
+              <View style={[styles.readOnlyCard, { marginBottom: 12 }]}>
+                <Text style={styles.readOnlyLabel}>MOVIMIENTO SELECCIONADO</Text>
+                <Text style={styles.readOnlyText} numberOfLines={1}>
+                  {Capitalize(auditItem.tipo)} • {FormatMoneyDecimales(auditItem.monto != null ? auditItem.monto : auditItem.valor)}
+                </Text>
+                <Text style={styles.readOnlyHint} numberOfLines={1}>
+                  {auditItem.descripcion || 'Sin descripción'}
+                </Text>
+              </View>
+            )}
+
+            {auditLoading ? (
+              <View style={{ padding: 30, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={apple.colors.blue} />
+                <Text style={{ marginTop: 8, fontSize: 13, color: apple.colors.secondaryLabel }}>Cargando auditoría...</Text>
+              </View>
+            ) : auditList.length === 0 ? (
+              <View style={{ padding: 30, alignItems: 'center' }}>
+                <Icon name="check-circle" size={28} color={apple.colors.tertiaryLabel} />
+                <Text style={{ marginTop: 8, fontSize: 14, fontWeight: '600', color: apple.colors.secondaryLabel }}>
+                  Sin modificaciones
+                </Text>
+                <Text style={{ marginTop: 2, fontSize: 12, color: apple.colors.tertiaryLabel, textAlign: 'center' }}>
+                  Este movimiento conserva su estado original desde su registro.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 10 }}>
+                {auditList.map((aud, idx) => (
+                  <View key={String(aud.id || idx)} style={styles.auditRow}>
+                    <View style={styles.auditRowHeader}>
+                      <Text style={styles.auditUser}>
+                        {aud.user_nombre || 'Usuario'} • {aud.origen || 'app_movil'}
+                      </Text>
+                      <Text style={styles.auditDate}>
+                        {new Date(aud.created_at || aud.fecha || Date.now()).toLocaleString()}
+                      </Text>
+                    </View>
+                    <View style={styles.auditChangeRow}>
+                      <View style={styles.auditChangeBox}>
+                        <Text style={styles.auditChangeLabel}>ANTERIOR</Text>
+                        <Text style={styles.auditChangeVal}>
+                          {Capitalize(aud.tipo_anterior || '—')} • {FormatMoneyDecimales(aud.monto_anterior || 0)}
+                        </Text>
+                      </View>
+                      <Icon name="arrow-right" size={12} color={apple.colors.secondaryLabel} />
+                      <View style={styles.auditChangeBox}>
+                        <Text style={styles.auditChangeLabel}>NUEVO</Text>
+                        <Text style={[styles.auditChangeVal, { color: apple.colors.blue }]}>
+                          {Capitalize(aud.tipo_nuevo || '—')} • {FormatMoneyDecimales(aud.monto_nuevo || 0)}
+                        </Text>
+                      </View>
+                    </View>
+                    {aud.motivo ? (
+                      <Text style={styles.auditMotivo}>Motivo: {aud.motivo}</Text>
+                    ) : null}
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={[styles.saveBtn, { marginTop: 12, backgroundColor: apple.colors.fill }]}
+              onPress={() => setAuditModalVisible(false)}
+            >
+              <Text style={[styles.saveText, { color: apple.colors.label }]}>Cerrar</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -824,6 +996,80 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  readOnlyCard: {
+    backgroundColor: apple.colors.fill,
+    borderRadius: apple.radius.m,
+    padding: 12,
+    marginBottom: 14,
+  },
+  readOnlyLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: apple.colors.secondaryLabel,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  readOnlyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  readOnlyHint: {
+    fontSize: 11,
+    color: apple.colors.blue,
+    marginTop: 4,
+  },
+  auditRow: {
+    backgroundColor: apple.colors.fill,
+    borderRadius: apple.radius.m,
+    padding: 12,
+    marginBottom: 8,
+  },
+  auditRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  auditUser: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: apple.colors.label,
+  },
+  auditDate: {
+    fontSize: 10,
+    color: apple.colors.tertiaryLabel,
+  },
+  auditChangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 4,
+  },
+  auditChangeBox: {
+    flex: 1,
+    backgroundColor: apple.colors.card,
+    padding: 8,
+    borderRadius: 6,
+  },
+  auditChangeLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: apple.colors.secondaryLabel,
+  },
+  auditChangeVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: apple.colors.label,
+    marginTop: 2,
+  },
+  auditMotivo: {
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+    fontStyle: 'italic',
+    marginTop: 6,
   },
   modalCard: {
     width: '100%',

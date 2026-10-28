@@ -71,65 +71,221 @@ export async function createCashMovement({ cajaId, tipo, descripcion, monto, lat
   return { id: tempId, caja_id: cajaId, tipo, descripcion: cleanDesc, monto: val, fecha: nowIso, estadoMovil: 'actualizado', latitud: latStr, longitud: lngStr };
 }
 
-export async function updateCashMovement({ id, tipo, descripcion, monto, cajaId, profile }) {
+export async function updateCashMovement({ id, monto, cajaId, profile, motivo }) {
   const val = Number(monto);
-  if (!val || val <= 0) throw new Error('Monto debe ser mayor que 0');
+  if (isNaN(val)) throw new Error('Monto inválido');
 
   const db = await getDbConnection();
   const rows = await getData(db, `SELECT * FROM movimientos WHERE id = ?`, [id]);
   if (!rows || rows.length === 0) throw new Error('Movimiento no encontrado');
   const current = rows[0];
-  const oldVal = Number(current.monto != null ? current.monto : current.valor) || 0;
-  const delta = val - oldVal;
-  const targetTipo = tipo || current.tipo;
 
-  // Validaciones de negocio según tipo y perfil
-  if (targetTipo === 'retiro' || targetTipo === 'gasto') {
+  // REGLA 3.1: Solo movimientos ya sincronizados con id positivo / persistido en el servidor
+  const isPending =
+    current.estadoMovil !== 'sincronizado' ||
+    (typeof current.id === 'number' && current.id < 0) ||
+    (typeof current.id === 'string' && (current.id.startsWith('-') || current.id.startsWith('temp-')));
+
+  if (isPending) {
+    throw new Error('Solo se pueden editar movimientos que ya hayan sido sincronizados con el servidor. Sincroniza antes de editar.');
+  }
+
+  // REGLA 3.2: PROHIBIDO EDITAR INGRESO O RETIRO
+  if (current.tipo === 'ingreso' || current.tipo === 'retiro') {
+    throw new Error('Los movimientos de ingreso y retiro no pueden ser modificados.');
+  }
+
+  // REGLA VENTA: Inmutable directamente
+  if (current.tipo === 'venta') {
+    throw new Error('El monto de una venta no puede modificarse directamente. Debe anularse la venta si cuenta con autorización.');
+  }
+
+  const oldVal = Number(current.monto != null ? current.monto : current.valor) || 0;
+  let targetTipo = current.tipo;
+  let cleanDesc = current.descripcion || '';
+  let delta = 0;
+  const cid = cajaId || current.caja_id || current.idCaja;
+
+  // REGLA 3.3: Límite máximo para gastos (dinero_max_gasto)
+  if (current.tipo === 'gasto') {
+    if (val <= 0) throw new Error('El monto del gasto debe ser mayor que 0');
     const maxGasto = parseFloat(profile?.dinero_max_gasto) || 0;
     if (maxGasto > 0 && val > maxGasto) {
       throw new Error(`El monto ($${val.toLocaleString('es-CO')}) excede tu límite máximo permitido por gasto ($${maxGasto.toLocaleString('es-CO')}).`);
     }
-  } else if (targetTipo === 'pago') {
+
+    targetTipo = 'gasto';
+    delta = val - oldVal;
+
+    // Actualizar en SQLite
+    await db.executeSql(
+      `UPDATE movimientos SET monto = ?, estadoMovil = 'actualizado' WHERE id = ?`,
+      [val, id]
+    );
+
+    // Ajustar caja (gastos restan de la caja)
+    if (cid && delta !== 0) {
+      try {
+        await db.executeSql(
+          `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) - ? WHERE id = ?`,
+          [delta, cid]
+        );
+      } catch {}
+    }
+  }
+
+  // REGLA 3.4: Edición de pagos y no pagos con validación de saldo y conversión automática
+  else if (current.tipo === 'pago' || current.tipo === 'nopago') {
     if (!profile?.permite_modificar_pagos) {
       throw new Error('No tienes autorización para modificar pagos.');
     }
-  } else if (targetTipo === 'venta') {
-    throw new Error('El monto de una venta no puede modificarse directamente. Debe anularse si tiene autorización.');
-  }
+    if (val < 0) {
+      throw new Error('El monto no puede ser negativo.');
+    }
 
-  const cleanDesc = descripcion?.trim() || current.descripcion || '';
+    // Localizar idFactura
+    let idFactura = current.idFactura || null;
+    if (!idFactura && current.descripcion) {
+      const match = current.descripcion.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (match) idFactura = match[0];
+    }
 
-  // Actualizar en SQLite
-  await db.executeSql(
-    `UPDATE movimientos
-     SET descripcion = ?, monto = ?, estadoMovil = 'actualizado'
-     WHERE id = ?`,
-    [cleanDesc, val, id]
-  );
+    let facturaRow = null;
+    if (idFactura) {
+      try {
+        const fRows = await getData(db, `SELECT * FROM facturas WHERE id = ?`, [idFactura]);
+        if (fRows && fRows.length > 0) facturaRow = fRows[0];
+      } catch {}
+    }
 
-  // Si es un pago, actualizar también tabla pagos y saldo de factura
-  if (targetTipo === 'pago' && current.idFactura) {
-    try {
-      await db.executeSql(`UPDATE pagos SET valor = ?, estadoMovil = 'actualizado' WHERE id = ?`, [val, id]);
+    const saldoPendiente = facturaRow ? Number(facturaRow.saldo || 0) : 0;
+    const maxPermitido = saldoPendiente + oldVal;
+
+    if (facturaRow && val > maxPermitido) {
+      throw new Error(`El monto ($${val.toLocaleString('es-CO')}) supera el saldo pendiente del crédito ($${maxPermitido.toLocaleString('es-CO')}).`);
+    }
+
+    // Caso A: Pago editado a monto 0 -> Se convierte automáticamente a 'nopago'
+    if (current.tipo === 'pago' && val === 0) {
+      targetTipo = 'nopago';
+      delta = -oldVal;
+      cleanDesc = (current.descripcion || 'No pago').replace(/pago/i, 'No pago');
+
       await db.executeSql(
-        `UPDATE facturas SET saldo = MAX(0, saldo - ?) WHERE id = ?`,
-        [delta, current.idFactura]
+        `UPDATE movimientos SET tipo = 'nopago', monto = 0, descripcion = ?, estadoMovil = 'actualizado' WHERE id = ?`,
+        [cleanDesc, id]
       );
-    } catch (ePay) {
-      console.log('Error actualizando pago asociado:', ePay);
+      try {
+        await db.executeSql(`DELETE FROM pagos WHERE id = ?`, [id]);
+      } catch {}
+
+      if (idFactura) {
+        try {
+          await db.executeSql(
+            `UPDATE facturas SET saldo = saldo + ?, cuotasPagas = MAX(0, cuotasPagas - 1), estado = 'pendiente' WHERE id = ?`,
+            [oldVal, idFactura]
+          );
+        } catch {}
+      }
+
+      if (cid && delta !== 0) {
+        try {
+          await db.executeSql(
+            `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) + ? WHERE id = ?`,
+            [delta, cid]
+          );
+        } catch {}
+      }
+    }
+
+    // Caso B: No pago editado a monto > 0 -> Se convierte automáticamente a 'pago'
+    else if (current.tipo === 'nopago' && val > 0) {
+      targetTipo = 'pago';
+      delta = val;
+      cleanDesc = (current.descripcion || 'Pago').replace(/no\s*pago/i, 'Pago');
+
+      await db.executeSql(
+        `UPDATE movimientos SET tipo = 'pago', monto = ?, descripcion = ?, estadoMovil = 'actualizado' WHERE id = ?`,
+        [val, cleanDesc, id]
+      );
+
+      try {
+        await db.executeSql(
+          `INSERT OR REPLACE INTO pagos (id, idFactura, valor, horaDispositivo, tipo, estadoMovil) VALUES (?, ?, ?, ?, 'efectivo', 'actualizado')`,
+          [id, idFactura, val, new Date().toISOString()]
+        );
+      } catch {}
+
+      if (idFactura) {
+        try {
+          const nuevoSaldo = Math.max(0, saldoPendiente - val);
+          const nuevoEstado = nuevoSaldo <= 0 ? 'pagada' : 'abonada';
+          await db.executeSql(
+            `UPDATE facturas SET saldo = ?, cuotasPagas = cuotasPagas + 1, estado = ? WHERE id = ?`,
+            [nuevoSaldo, nuevoEstado, idFactura]
+          );
+        } catch {}
+      }
+
+      if (cid && delta !== 0) {
+        try {
+          await db.executeSql(
+            `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) + ? WHERE id = ?`,
+            [delta, cid]
+          );
+        } catch {}
+      }
+    }
+
+    // Caso C: Pago editado a otro monto > 0
+    else {
+      targetTipo = 'pago';
+      delta = val - oldVal;
+
+      await db.executeSql(
+        `UPDATE movimientos SET monto = ?, estadoMovil = 'actualizado' WHERE id = ?`,
+        [val, id]
+      );
+
+      try {
+        await db.executeSql(
+          `UPDATE pagos SET valor = ?, estadoMovil = 'actualizado' WHERE id = ?`,
+          [val, id]
+        );
+      } catch {}
+
+      if (idFactura) {
+        try {
+          const nuevoSaldo = Math.max(0, saldoPendiente - delta);
+          const nuevoEstado = nuevoSaldo <= 0 ? 'pagada' : 'abonada';
+          await db.executeSql(
+            `UPDATE facturas SET saldo = ?, estado = ? WHERE id = ?`,
+            [nuevoSaldo, nuevoEstado, idFactura]
+          );
+        } catch {}
+      }
+
+      if (cid && delta !== 0) {
+        try {
+          await db.executeSql(
+            `UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) + ? WHERE id = ?`,
+            [delta, cid]
+          );
+        } catch {}
+      }
     }
   }
 
-  // Actualizar saldo de caja según tipo
-  const cid = cajaId || current.caja_id || current.idCaja;
-  if (cid && delta !== 0) {
-    try {
-      if (targetTipo === 'ingreso' || targetTipo === 'pago') {
-        await db.executeSql(`UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) + ? WHERE id = ?`, [delta, cid]);
-      } else if (targetTipo === 'retiro' || targetTipo === 'gasto') {
-        await db.executeSql(`UPDATE cajas SET saldo_final = COALESCE(saldo_final, saldo_inicial, 0) - ? WHERE id = ?`, [delta, cid]);
-      }
-    } catch {}
+  // REGLA 6: Registro de trazabilidad y auditoría local
+  try {
+    const nowIso = new Date().toISOString();
+    await db.executeSql(
+      `INSERT INTO movimientos_audit (movement_id, user_id, tipo_anterior, tipo_nuevo, monto_anterior, monto_nuevo, motivo, origen, fecha, estadoMovil)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'app_movil', ?, 'pendiente')`,
+      [String(id), profile?.id || null, current.tipo, targetTipo, oldVal, val, motivo || 'Edición de movimiento', nowIso]
+    );
+  } catch (errAudit) {
+    console.log('Error registrando auditoria local:', errAudit);
   }
 
   // Sincronizar en segundo plano
@@ -294,10 +450,57 @@ export async function transferBetweenBoxes({ sourceCajaId, destCajaId, monto, de
  */
 export async function cancelInvoiceSale(invoiceId, motivo = '') {
   if (!invoiceId) throw new Error('ID de factura requerido');
-  const { data, error } = await supabase.rpc('rpc_cancel_sale', {
+  let result = null;
+  // Llamar rpc_delete_sale con verificación estricta de permisos y sin pagos (Requisito 4)
+  const { data, error } = await supabase.rpc('rpc_delete_sale', {
     p_invoice_id: invoiceId,
     p_motivo: motivo,
   });
-  if (error) throw new Error(error.message || 'Error al cancelar la venta');
-  return data;
+  if (error) {
+    const { data: dataFallback, error: errFallback } = await supabase.rpc('rpc_cancel_sale', {
+      p_invoice_id: invoiceId,
+      p_motivo: motivo,
+    });
+    if (errFallback) throw new Error(errFallback.message || 'Error al anular la venta');
+    result = dataFallback;
+  } else {
+    result = data;
+  }
+  return result;
+}
+
+/**
+ * Consulta la trazabilidad / historial de cambios de un movimiento (Requisito 6)
+ */
+export async function getMovementAudits(movementId) {
+  if (!movementId) return [];
+  const db = await getDbConnection();
+  let localAudits = [];
+  try {
+    localAudits = await getData(
+      db,
+      `SELECT id, movement_id, user_id, tipo_anterior, tipo_nuevo, monto_anterior, monto_nuevo, motivo, origen, fecha AS created_at, estadoMovil
+       FROM movimientos_audit WHERE movement_id = ? ORDER BY fecha DESC`,
+      [String(movementId)]
+    );
+  } catch (err) {
+    console.log('Error consultando auditoría local:', err);
+  }
+
+  // Si hay red y el ID está en Supabase, consultar auditoría remota
+  try {
+    const net = await NetInfo.fetch();
+    if (net.isConnected && !String(movementId).startsWith('-')) {
+      const { data: serverAudits, error } = await supabase.rpc('rpc_get_movement_audit', {
+        p_movement_id: movementId,
+      });
+      if (!error && Array.isArray(serverAudits) && serverAudits.length > 0) {
+        return serverAudits;
+      }
+    }
+  } catch (errNet) {
+    console.log('Error consultando auditoría remota:', errNet);
+  }
+
+  return localAudits || [];
 }

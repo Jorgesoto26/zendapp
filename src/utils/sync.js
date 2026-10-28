@@ -146,6 +146,13 @@ const executeSyncRun = async (toas) => {
     // 3. Enviar movimientos locales de caja
     await SendMovimientos();
 
+    // 3.1. Enviar trazabilidad y auditorías de movimientos pendientes (Requisito 6)
+    try {
+      await SendMovementAudits();
+    } catch (eAudit) {
+      console.log('SendMovementAudits error:', eAudit);
+    }
+
     // 4. Enviar lote recolectado
     const collectedResult = await sendCollectedItems(session);
 
@@ -498,11 +505,13 @@ const sendCollectedItems = async (sessionParam = null) => {
             if (error) throw error;
             results.push({ idv: item.id, idn: mv?.id || item.id, ok: true });
           } else {
-            // Edición de movimiento existente sin crear duplicados (Requisito 9)
+            // Edición de movimiento existente sin crear duplicados (Requisitos 3, 6)
             const { data: mv, error } = await supabase.rpc('rpc_update_cash_movement', {
               p_movement_id: item.id,
               p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
               p_monto: valNum,
+              p_tipo: item.detalle.tipo || null,
+              p_motivo: 'Sincronización de edición offline',
             });
             if (error) throw error;
             results.push({ idv: item.id, idn: item.id, ok: true });
@@ -628,6 +637,45 @@ const processResponseAndUpdateTables = async (response) => {
 /**
  * Descarga y sincroniza la caja activa del usuario y su historial
  */
+/**
+ * Sincroniza registros de auditoría de movimientos pendientes generados offline (Requisito 6)
+ */
+const SendMovementAudits = async () => {
+  try {
+    const db = await getDbConnection();
+    const audits = await getData(
+      db,
+      `SELECT * FROM movimientos_audit WHERE estadoMovil = 'pendiente' ORDER BY id ASC LIMIT 50`
+    );
+    if (!audits || audits.length === 0) return;
+
+    for (const a of audits) {
+      if (!a.movement_id || String(a.movement_id).startsWith('-')) {
+        continue;
+      }
+      try {
+        const { error } = await supabase.rpc('rpc_sync_movement_audit', {
+          p_movement_id: a.movement_id,
+          p_tipo_anterior: a.tipo_anterior,
+          p_tipo_nuevo: a.tipo_nuevo,
+          p_monto_anterior: Number(a.monto_anterior || 0),
+          p_monto_nuevo: Number(a.monto_nuevo || 0),
+          p_motivo: a.motivo || 'Auditoría offline sincronizada',
+          p_origen: a.origen || 'app_movil',
+          p_created_at: a.fecha || null,
+        });
+        if (!error) {
+          await db.executeSql(`UPDATE movimientos_audit SET estadoMovil = 'sincronizado' WHERE id = ?`, [a.id]);
+        }
+      } catch (errSyncAudit) {
+        console.log('Error sincronizando auditoria individual:', errSyncAudit);
+      }
+    }
+  } catch (err) {
+    console.log('SendMovementAudits error:', err);
+  }
+};
+
 export const SyncCajaAndMovimientos = async () => {
   try {
     const session = await ensureAuthenticatedSession();

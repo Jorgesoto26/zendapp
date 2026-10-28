@@ -10,7 +10,9 @@ import {
   FlatList,
   Linking,
   Platform,
+  BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { supabase } from '../../lib/supabase';
 import { getDbConnection, getData } from '../../database/db';
@@ -177,6 +179,20 @@ export default function CreditDetail({ route, navigation }) {
     };
   }, [load]);
 
+  // Manejador del botón físico de retroceso para volver directamente a Pagos (Requisito 2)
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        navigation.goBack();
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => {
+        sub.remove();
+      };
+    }, [navigation])
+  );
+
   // Comprobar si hay coordenadas validas (Requisito 2)
   const hasCoords = coords.lat != null && coords.lng != null &&
     !isNaN(Number(coords.lat)) && !isNaN(Number(coords.lng)) &&
@@ -241,193 +257,264 @@ export default function CreditDetail({ route, navigation }) {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* Banner de Renovacion si el credito esta pagado (Requisito 10) */}
-        {isCreditCompleted && (
-          <View style={styles.renewalCard}>
-            <View style={styles.renewalCardHeader}>
-              <View style={styles.renewalCardIcon}>
-                <Icon name="check-circle" size={18} color={apple.colors.success} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.renewalCardTitle}>Crédito Completado</Text>
-                <Text style={styles.renewalCardSub}>
-                  El cliente terminó de pagar este crédito. Puedes otorgarle una renovación conservando su historial.
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.renewalBtn} onPress={handleRenewPress} activeOpacity={0.8}>
-              <Icon name="refresh" size={14} color="#fff" />
-              <Text style={styles.renewalBtnText}>Renovar crédito a este cliente</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Resumen cliente */}
-        <AppleCard bordered={false} shadow={false} style={{ padding: 14, borderWidth: 0 }}>
-          <View style={styles.clientHeader}>
-            <View style={styles.avatar}>
-              <Icon name="user" size={18} color="#fff" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.clientName}>
-                {client ? `${client.nombre || ''} ${client.apellido || ''}`.trim() : clientName || 'Cliente'}
-              </Text>
-              <Text style={styles.clientSub} numberOfLines={1}>
-                {client?.direccion || address || 'Sin dirección'} {client?.telefono ? `• ${client.telefono}` : telefono ? `• ${telefono}` : ''}
-              </Text>
-            </View>
-            {/* Boton GPS (Requisito 2) */}
-            <TouchableOpacity
-              onPress={openMap}
-              style={[
-                styles.gpsBtn,
-                !hasCoords && { borderColor: apple.colors.tertiaryLabel, opacity: 0.5 },
-              ]}
-            >
-              <Icon name="map-marker" size={14} color={hasCoords ? apple.colors.blue : apple.colors.tertiaryLabel} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>PRÉSTAMO</Text>
-              <Text style={styles.summaryVal}>
-                {invoice ? FormatMoneyDecimales(invoice.amount) : '—'}
-              </Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>SALDO</Text>
-              <Text
-                style={[
-                  styles.summaryVal,
-                  { color: saldoActual > 0 ? apple.colors.danger : apple.colors.success },
-                ]}
-              >
-                {FormatMoneyDecimales(saldoActual)}
-              </Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryLabel}>ESTADO</Text>
-              <Text
-                style={[
-                  styles.summaryVal,
-                  {
-                    fontSize: 12,
-                    color: isCreditCompleted ? apple.colors.success : apple.colors.warning,
-                  },
-                ]}
-              >
-                {(invoice?.status || (isCreditCompleted ? 'pagado' : 'pendiente')).toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          {/* Banner de previsualizacion de mapa si hay coordenadas */}
-          {hasCoords ? (
-            <TouchableOpacity onPress={openMap} style={styles.mapPreview}>
-              <Icon name="map" size={14} color={apple.colors.blue} />
-              <Text style={styles.mapText}>
-                Ver ubicación de venta ({Number(coords.lat).toFixed(4)}, {Number(coords.lng).toFixed(4)})
-              </Text>
-              <Icon name="external-link" size={12} color={apple.colors.blue} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.mapEmptyPreview}>
-              <Icon name="map-marker" size={13} color={apple.colors.tertiaryLabel} />
-              <Text style={styles.mapEmptyText}>Sin coordenadas GPS registradas</Text>
-            </View>
-          )}
-
-          <View style={styles.clientMeta}>
-            <Text style={styles.metaText}>
-              Doc: {client?.documento || '—'} • Alias: {client?.alias || '—'} • Cuotas: {cuotas.length} • Pagos: {pagos.length}
-            </Text>
-          </View>
-        </AppleCard>
-
-        {/* Tabla cuotas */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>CUOTAS</Text>
-          <Text style={styles.sectionCount}>{cuotas.length}</Text>
-        </View>
-        <AppleCard bordered={false} shadow={false} style={{ padding: 0, overflow: 'hidden', borderWidth: 0 }}>
-          <View style={styles.tableHead}>
-            <Text style={[styles.th, { flex: 0.6 }]}>#</Text>
-            <Text style={[styles.th, { flex: 1.4 }]}>VENCIMIENTO</Text>
-            <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>MONTO</Text>
-            <Text style={[styles.th, { flex: 1.2, textAlign: 'center' }]}>ESTADO</Text>
-          </View>
-          {cuotas.length === 0 ? (
-            <Text style={styles.emptyTable}>Sin cuotas registradas</Text>
-          ) : (
-            <FlatList
-              data={cuotas}
-              scrollEnabled={false}
-              keyExtractor={i => String(i.id)}
-              renderItem={({ item }) => (
-                <View style={styles.tr}>
-                  <Text style={[styles.td, { flex: 0.6, fontWeight: '700' }]}>{item.numero ?? '—'}</Text>
-                  <Text style={[styles.td, { flex: 1.4 }]}>
-                    {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString() : '—'}
-                  </Text>
-                  <Text style={[styles.td, { flex: 1.2, textAlign: 'right', fontWeight: '600' }]}>
-                    {FormatMoneyDecimales(item.monto)}
-                  </Text>
-                  <View style={{ flex: 1.2, alignItems: 'center' }}>
-                    <StatusBadge estado={item.estado} />
+      {/* Vista dividida en 2 bloques con scroll vertical independiente (Requisito 7) */}
+      <View style={styles.twoBlockContainer}>
+        {/* BLOQUE 1: Información del cliente y detalles del crédito (Scroll independiente) */}
+        <View style={styles.blockOneWrapper}>
+          <ScrollView
+            style={styles.blockOneScroll}
+            contentContainerStyle={styles.blockOneContent}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
+          >
+            {/* Banner de Renovacion si el credito esta pagado */}
+            {isCreditCompleted && (
+              <View style={styles.renewalCard}>
+                <View style={styles.renewalCardHeader}>
+                  <View style={styles.renewalCardIcon}>
+                    <Icon name="check-circle" size={18} color={apple.colors.success} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.renewalCardTitle}>Crédito Completado</Text>
+                    <Text style={styles.renewalCardSub}>
+                      El cliente terminó de pagar este crédito. Puedes otorgarle una renovación conservando su historial.
+                    </Text>
                   </View>
                 </View>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.sep} />}
-            />
-          )}
-        </AppleCard>
+                <TouchableOpacity style={styles.renewalBtn} onPress={handleRenewPress} activeOpacity={0.8}>
+                  <Icon name="refresh" size={14} color="#fff" />
+                  <Text style={styles.renewalBtnText}>Renovar crédito a este cliente</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-        {/* Tabla pagos */}
-        <View style={[styles.sectionHeader, { marginTop: 16 }]}>
-          <Text style={styles.sectionTitle}>PAGOS</Text>
-          <Text style={styles.sectionCount}>
-            {pagos.length} • {FormatMoneyDecimales(totalPagado)}
-          </Text>
-        </View>
-        <AppleCard bordered={false} shadow={false} style={{ padding: 0, overflow: 'hidden', borderWidth: 0 }}>
-          <View style={styles.tableHead}>
-            <Text style={[styles.th, { flex: 1 }]}>FECHA</Text>
-            <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>MONTO</Text>
-            <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>MÉTODO</Text>
-          </View>
-          {pagos.length === 0 ? (
-            <Text style={styles.emptyTable}>Sin pagos aún</Text>
-          ) : (
-            <FlatList
-              data={pagos}
-              scrollEnabled={false}
-              keyExtractor={i => String(i.id)}
-              renderItem={({ item }) => (
-                <View style={styles.tr}>
-                  <Text style={[styles.td, { flex: 1 }]}>
-                    {item.payment_date ? new Date(item.payment_date).toLocaleDateString() : new Date(item.created_at || Date.now()).toLocaleDateString()}
+            {/* Resumen cliente */}
+            <AppleCard bordered={false} shadow={false} style={{ padding: 14, borderWidth: 0 }}>
+              <View style={styles.clientHeader}>
+                <View style={styles.avatar}>
+                  <Icon name="user" size={18} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.clientName}>
+                    {client ? `${client.nombre || ''} ${client.apellido || ''}`.trim() : clientName || 'Cliente'}
                   </Text>
-                  <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: '700', color: apple.colors.success }]}>
-                    {FormatMoneyDecimales(item.amount)}
-                  </Text>
-                  <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>
-                    {(item.method || '—').toUpperCase()}
+                  <Text style={styles.clientSub} numberOfLines={1}>
+                    {client?.direccion || address || 'Sin dirección'} {client?.telefono ? `• ${client.telefono}` : telefono ? `• ${telefono}` : ''}
                   </Text>
                 </View>
+                {/* Boton GPS */}
+                <TouchableOpacity
+                  onPress={openMap}
+                  style={[
+                    styles.gpsBtn,
+                    !hasCoords && { borderColor: apple.colors.tertiaryLabel, opacity: 0.5 },
+                  ]}
+                >
+                  <Icon name="map-marker" size={14} color={hasCoords ? apple.colors.blue : apple.colors.tertiaryLabel} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>PRÉSTAMO</Text>
+                  <Text style={styles.summaryVal}>
+                    {invoice ? FormatMoneyDecimales(invoice.amount) : '—'}
+                  </Text>
+                </View>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>SALDO</Text>
+                  <Text
+                    style={[
+                      styles.summaryVal,
+                      { color: saldoActual > 0 ? apple.colors.danger : apple.colors.success },
+                    ]}
+                  >
+                    {FormatMoneyDecimales(saldoActual)}
+                  </Text>
+                </View>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryLabel}>ESTADO</Text>
+                  <Text
+                    style={[
+                      styles.summaryVal,
+                      {
+                        fontSize: 12,
+                        color: isCreditCompleted ? apple.colors.success : apple.colors.warning,
+                      },
+                    ]}
+                  >
+                    {(invoice?.status || (isCreditCompleted ? 'pagado' : 'pendiente')).toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Banner de previsualizacion de mapa si hay coordenadas */}
+              {hasCoords ? (
+                <TouchableOpacity onPress={openMap} style={styles.mapPreview}>
+                  <Icon name="map" size={14} color={apple.colors.blue} />
+                  <Text style={styles.mapText}>
+                    Ver ubicación de venta ({Number(coords.lat).toFixed(4)}, {Number(coords.lng).toFixed(4)})
+                  </Text>
+                  <Icon name="external-link" size={12} color={apple.colors.blue} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.mapEmptyPreview}>
+                  <Icon name="map-marker" size={13} color={apple.colors.tertiaryLabel} />
+                  <Text style={styles.mapEmptyText}>Sin coordenadas GPS registradas</Text>
+                </View>
               )}
-              ItemSeparatorComponent={() => <View style={styles.sep} />}
-            />
-          )}
-        </AppleCard>
-      </ScrollView>
+
+              <View style={styles.clientMeta}>
+                <Text style={styles.metaText}>
+                  Doc: {client?.documento || '—'} • Alias: {client?.alias || '—'} • Cuotas: {cuotas.length}
+                </Text>
+              </View>
+            </AppleCard>
+
+            {/* Tabla cuotas */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>CUOTAS</Text>
+              <Text style={styles.sectionCount}>{cuotas.length}</Text>
+            </View>
+            <AppleCard bordered={false} shadow={false} style={{ padding: 0, overflow: 'hidden', borderWidth: 0 }}>
+              <View style={styles.tableHead}>
+                <Text style={[styles.th, { flex: 0.6 }]}>#</Text>
+                <Text style={[styles.th, { flex: 1.4 }]}>VENCIMIENTO</Text>
+                <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>MONTO</Text>
+                <Text style={[styles.th, { flex: 1.2, textAlign: 'center' }]}>ESTADO</Text>
+              </View>
+              {cuotas.length === 0 ? (
+                <Text style={styles.emptyTable}>Sin cuotas registradas</Text>
+              ) : (
+                <FlatList
+                  data={cuotas}
+                  scrollEnabled={false}
+                  keyExtractor={i => String(i.id)}
+                  renderItem={({ item }) => (
+                    <View style={styles.tr}>
+                      <Text style={[styles.td, { flex: 0.6, fontWeight: '700' }]}>{item.numero ?? '—'}</Text>
+                      <Text style={[styles.td, { flex: 1.4 }]}>
+                        {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString() : '—'}
+                      </Text>
+                      <Text style={[styles.td, { flex: 1.2, textAlign: 'right', fontWeight: '600' }]}>
+                        {FormatMoneyDecimales(item.monto)}
+                      </Text>
+                      <View style={{ flex: 1.2, alignItems: 'center' }}>
+                        <StatusBadge estado={item.estado} />
+                      </View>
+                    </View>
+                  )}
+                  ItemSeparatorComponent={() => <View style={styles.sep} />}
+                />
+              )}
+            </AppleCard>
+          </ScrollView>
+        </View>
+
+        {/* Separador entre bloques con barra visual */}
+        <View style={styles.blockDivider}>
+          <View style={styles.blockDividerHandle} />
+        </View>
+
+        {/* BLOQUE 2: Historial de pagos asociados (Scroll independiente) */}
+        <View style={styles.blockTwoWrapper}>
+          <View style={styles.blockTwoHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="history" size={13} color={apple.colors.blue} />
+              <Text style={styles.sectionTitle}>HISTORIAL DE PAGOS</Text>
+            </View>
+            <Text style={styles.sectionCount}>
+              {pagos.length} • {FormatMoneyDecimales(totalPagado)}
+            </Text>
+          </View>
+          <AppleCard bordered={false} shadow={false} style={{ flex: 1, padding: 0, overflow: 'hidden', borderWidth: 0 }}>
+            <View style={styles.tableHead}>
+              <Text style={[styles.th, { flex: 1 }]}>FECHA</Text>
+              <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>MONTO</Text>
+              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>MÉTODO</Text>
+            </View>
+            {pagos.length === 0 ? (
+              <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="money" size={24} color={apple.colors.tertiaryLabel} />
+                <Text style={styles.emptyTable}>Sin pagos registrados aún</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={pagos}
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+                keyExtractor={i => String(i.id)}
+                renderItem={({ item }) => (
+                  <View style={styles.tr}>
+                    <Text style={[styles.td, { flex: 1 }]}>
+                      {item.payment_date ? new Date(item.payment_date).toLocaleDateString() : new Date(item.created_at || Date.now()).toLocaleDateString()}
+                    </Text>
+                    <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: '700', color: apple.colors.success }]}>
+                      {FormatMoneyDecimales(item.amount)}
+                    </Text>
+                    <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>
+                      {(item.method || '—').toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                ItemSeparatorComponent={() => <View style={styles.sep} />}
+                contentContainerStyle={{ paddingBottom: 16 }}
+              />
+            )}
+          </AppleCard>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: apple.colors.bgGrouped },
+  twoBlockContainer: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  blockOneWrapper: {
+    flex: 1.15,
+    backgroundColor: apple.colors.bgGrouped,
+  },
+  blockOneScroll: {
+    flex: 1,
+  },
+  blockOneContent: {
+    padding: 16,
+    paddingBottom: 20,
+  },
+  blockDivider: {
+    height: 12,
+    backgroundColor: '#E5E5EA',
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderColor: apple.colors.separator,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blockDividerHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#C7C7CC',
+  },
+  blockTwoWrapper: {
+    flex: 1,
+    backgroundColor: apple.colors.bgGrouped,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  blockTwoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 8, color: apple.colors.secondaryLabel },
   header: {

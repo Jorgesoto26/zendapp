@@ -103,6 +103,22 @@ export async function ensureDatabaseIntegrity(db) {
     await ensureColumnExists(db, 'pagos', 'latitud', 'TEXT');
     await ensureColumnExists(db, 'pagos', 'longitud', 'TEXT');
 
+    // Tabla de auditoría local de movimientos (Trazabilidad offline-first)
+    await db.executeSql(`CREATE TABLE IF NOT EXISTS movimientos_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      movement_id TEXT,
+      user_id TEXT,
+      tipo_anterior TEXT,
+      tipo_nuevo TEXT,
+      monto_anterior REAL,
+      monto_nuevo REAL,
+      motivo TEXT,
+      origen TEXT DEFAULT 'app_movil',
+      fecha TEXT,
+      estadoMovil TEXT DEFAULT 'pendiente'
+    )`);
+    try { await db.executeSql(`CREATE INDEX IF NOT EXISTS idx_mov_audit_movement ON movimientos_audit(movement_id)`); } catch {}
+
     // Eliminar índices únicos restrictivos que impiden pagos parciales o múltiples pagos por factura
     try { await db.executeSql(`DROP INDEX IF EXISTS index_pago`); } catch {}
     try { await db.executeSql(`DROP INDEX IF EXISTS index_detalles`); } catch {}

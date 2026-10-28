@@ -157,6 +157,10 @@ export const AuthService = async (db, email, password) => {
         isOffline: true,
       };
 
+      try {
+        await AsyncStorage.removeItem('app_logged_out');
+      } catch {}
+
       return {
         success: true,
         user: offlineSession.user,
@@ -224,6 +228,20 @@ export const AuthService = async (db, email, password) => {
     const result = await response.json();
     let { profile, concepts, caja, movimientos } = result;
 
+    // Refrescar permisos actualizados directamente desde la tabla profiles (Requisito 5)
+    try {
+      const { data: dbProf, error: dbProfErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (!dbProfErr && dbProf) {
+        profile = { ...profile, ...dbProf };
+      }
+    } catch (eProf) {
+      console.log('Error refrescando permisos directo de profiles:', eProf);
+    }
+
     if (profile && profile.activo === false) {
       await supabase.auth.signOut();
       return {
@@ -288,6 +306,9 @@ export const AuthService = async (db, email, password) => {
     }
     const invoicesOk = await getInvoice(userId, access_token);
     console.log('Facturas cargadas:', invoicesOk);
+    try {
+      await AsyncStorage.removeItem('app_logged_out');
+    } catch {}
     return { success: true, user: onlineAuthResult.user, session: onlineAuthResult.session, profile, isOffline: false };
   } catch (err) {
     console.error('Error en AuthService:', err);

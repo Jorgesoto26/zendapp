@@ -20,20 +20,48 @@ export function AuthProvider({ children }) {
 
   const fetchUserData = useCallback(async (userId, accessToken) => {
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/get-user-profile`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+      let p = null;
+      let c = null;
+
+      // 1. Consultar perfil directamente en Supabase para obtener permisos siempre frescos (Requisito 5)
+      try {
+        const { data: dbProfile, error: pErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        if (!pErr && dbProfile) {
+          p = dbProfile;
+        }
+      } catch (eProf) {
+        console.log('Error consultando profile directo:', eProf);
+      }
+
+      // 2. Consultar edge function para caja y conceptos
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/functions/v1/get-user-profile`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ id: userId }),
           },
-          body: JSON.stringify({ id: userId }),
-        },
-      );
-      if (!response.ok) return { profile: null, caja: null };
-      const result = await response.json();
-      return { profile: result.profile || null, caja: result.caja || null };
+        );
+        if (response.ok) {
+          const result = await response.json();
+          if (!p && result.profile) {
+            p = result.profile;
+          } else if (p && result.profile) {
+            p = { ...result.profile, ...p };
+          }
+          c = result.caja || null;
+        }
+      } catch {}
+
+      return { profile: p, caja: c };
     } catch {
       return { profile: null, caja: null };
     }
@@ -162,12 +190,28 @@ export function AuthProvider({ children }) {
       }
     };
 
-    ensureAuthenticatedSession().then((sess) => {
+    const initSession = async () => {
+      try {
+        const isLoggedOut = await AsyncStorage.getItem('app_logged_out');
+        if (isLoggedOut === 'true') {
+          if (mounted) {
+            setSession(null);
+            setProfile(null);
+            setLoading(false);
+          }
+          return;
+        }
+      } catch {}
+
+      const sess = await ensureAuthenticatedSession();
       if (mounted) checkSessionAndCaja(sess, true);
-    });
+    };
+
+    initSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (event === 'SIGNED_OUT') {
+        AsyncStorage.setItem('app_logged_out', 'true').catch(() => {});
         if (mounted) {
           setSession(null);
           setProfile(null);
@@ -190,6 +234,7 @@ export function AuthProvider({ children }) {
   }, [fetchUserData]);
 
   const setAuthSession = useCallback((sess, p) => {
+    AsyncStorage.removeItem('app_logged_out').catch(() => {});
     setProfile(p || null);
     setSession(sess || null);
     setLoading(false);
@@ -213,12 +258,28 @@ export function AuthProvider({ children }) {
       console.log('Error verificando pendientes en signOut:', e);
     }
 
+    // 1. Marcar cierre de sesion persistente para evitar restauracion en offline
+    try { await AsyncStorage.setItem('app_logged_out', 'true'); } catch {}
+
+    // 2. Cerrar sesion en cliente Supabase tanto local como remoto
+    try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
     try { await supabase.auth.signOut(); } catch (e) { console.log("offline signOut:", e); }
-    try { await AsyncStorage.removeItem('cached_profile'); } catch {}
+
+    // 3. Limpiar tokens de sesion en AsyncStorage
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const authKeys = allKeys.filter(k => k.startsWith('sb-') || k.includes('auth-token') || k === 'cached_profile');
+      if (authKeys.length > 0) {
+        await AsyncStorage.multiRemove(authKeys);
+      }
+    } catch {}
+
+    // 4. Limpiar token activo en parametrizacion (fila 2), preservando datos contables locales
     try {
       const db = await getDbConnection();
-      await db.executeSql(`UPDATE parametrizacion SET valor = NULL WHERE id IN (2, 3, 4, 5, 6, 7, 8)`);
+      await db.executeSql(`UPDATE parametrizacion SET valor = NULL WHERE id = 2`);
     } catch {}
+
     setSession(null);
     setProfile(null);
     return true;

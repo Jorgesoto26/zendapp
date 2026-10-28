@@ -259,20 +259,28 @@ export default function Payments() {
     }
   };
 
-  useFocusEffect(useCallback(() => {
-    const onBack = () => {
-      if (showLogout) { setShowLogout(false); return true; }
-      setShowLogout(true);
-      return true;
-    };
-    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
-    const beforeRemove = navigation.addListener('beforeRemove', (e) => {
-      if (e.data.action.type === 'GO_BACK' && !showLogout) {
-        e.preventDefault();
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => {
+        // Si hay pantallas secundarias apiladas en el stack, permitir navegación natural
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+          return true;
+        }
+        // Solo abrir diálogo de confirmación de salida si estamos en la raíz de Pagos
+        if (showLogout) {
+          setShowLogout(false);
+          return true;
+        }
         setShowLogout(true);
-      }
-    });
-  }, [navigation, showLogout]));
+        return true;
+      };
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => {
+        sub.remove();
+      };
+    }, [navigation, showLogout])
+  );
 
   return (
     <SafeAreaView style={styles.root}>
