@@ -38,9 +38,9 @@ const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
     } else {
       tipoTramitado = 'PAGO';
     }
-    // Si estadoMovil es 'sincronizado', pendienteSync es false (2 chulitos).
-    // Si estadoMovil !== 'sincronizado' y tiene id negativo local, pendienteSync es true (1 chulito).
-    pendienteSync = (p.estadoMovil !== 'sincronizado' && Number(p.id) < 0);
+    // Si estadoMovil es 'sincronizado', pendienteSync es false (2 chulitos azules).
+    // Si estadoMovil !== 'sincronizado', pendienteSync es true (1 chulito gris).
+    pendienteSync = (p.estadoMovil !== 'sincronizado');
   } else if (isActualizado) {
     tipoTramitado = 'PAGO';
     pendienteSync = false;
@@ -393,6 +393,7 @@ export default function Payments() {
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: 16, paddingTop: 6 }}
             data={filteredClients}
+            extraData={clients}
             keyExtractor={i => i.id.toString()}
             initialNumToRender={10}
             maxToRenderPerBatch={10}

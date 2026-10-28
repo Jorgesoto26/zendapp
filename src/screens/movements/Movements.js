@@ -260,7 +260,7 @@ export default function MovementsScreen() {
         monto,
         cajaId: caja?.id,
         profile,
-        motivo: 'Edición desde aplicación móvil',
+        motivo: 'Edición de movimiento',
       });
 
       setEditModalVisible(false);

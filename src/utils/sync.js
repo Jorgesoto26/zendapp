@@ -506,14 +506,42 @@ const sendCollectedItems = async (sessionParam = null) => {
             results.push({ idv: item.id, idn: mv?.id || item.id, ok: true });
           } else {
             // Edición de movimiento existente sin crear duplicados (Requisitos 3, 6)
+            let pendingAudit = null;
+            try {
+              const auditRows = await getData(
+                db,
+                `SELECT * FROM movimientos_audit WHERE movement_id = ? AND estadoMovil = 'pendiente' ORDER BY id DESC LIMIT 1`,
+                [String(item.id)]
+              );
+              if (auditRows && auditRows.length > 0) {
+                pendingAudit = auditRows[0];
+              }
+            } catch {}
+
+            const auditId = pendingAudit?.audit_uuid || null;
+            const auditMotivo = pendingAudit?.motivo || 'Edición de movimiento';
+            const auditFecha = pendingAudit?.fecha || null;
+
             const { data: mv, error } = await supabase.rpc('rpc_update_cash_movement', {
               p_movement_id: item.id,
               p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
               p_monto: valNum,
               p_tipo: item.detalle.tipo || null,
-              p_motivo: 'Sincronización de edición offline',
+              p_motivo: auditMotivo,
+              p_audit_id: auditId,
+              p_created_at: auditFecha,
             });
             if (error) throw error;
+
+            if (pendingAudit?.id) {
+              try {
+                await db.executeSql(
+                  `UPDATE movimientos_audit SET estadoMovil = 'sincronizado' WHERE id = ?`,
+                  [pendingAudit.id]
+                );
+              } catch {}
+            }
+
             results.push({ idv: item.id, idn: item.id, ok: true });
           }
         }
@@ -660,9 +688,10 @@ const SendMovementAudits = async () => {
           p_tipo_nuevo: a.tipo_nuevo,
           p_monto_anterior: Number(a.monto_anterior || 0),
           p_monto_nuevo: Number(a.monto_nuevo || 0),
-          p_motivo: a.motivo || 'Auditoría offline sincronizada',
+          p_motivo: a.motivo || 'Edición de movimiento',
           p_origen: a.origen || 'app_movil',
           p_created_at: a.fecha || null,
+          p_audit_id: a.audit_uuid || null,
         });
         if (!error) {
           await db.executeSql(`UPDATE movimientos_audit SET estadoMovil = 'sincronizado' WHERE id = ?`, [a.id]);

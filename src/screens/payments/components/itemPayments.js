@@ -91,7 +91,7 @@ const getUltimoTramite = async (db, idFactura) => {
   if (!r || !r.length) return { tipo: null, valorPagado: 0, syncId: null, pendiente: false };
   const v = Number(r[0].valor) || 0;
   const syncId = r[0].id;
-  const pendiente = r[0].estadoMovil !== 'sincronizado' && Number(syncId) < 0;
+  const pendiente = r[0].estadoMovil !== 'sincronizado';
   if (r[0].tipo === 'nopago' || (r[0].tipo === 'pago' && v === 0)) return { tipo: 'NO PAGO', valorPagado: v, syncId, pendiente };
   if (r[0].tipo === 'parcial') return { tipo: 'PARCIAL', valorPagado: v, syncId, pendiente };
   return { tipo: 'PAGO', valorPagado: v, syncId, pendiente };
@@ -118,8 +118,9 @@ const ItemPayments = memo(({
   useEffect(() => {
     if (propTipoTramitado !== undefined) setTipoTramitado(propTipoTramitado);
     if (propValorPagado !== undefined) setValorPagado(propValorPagado);
-    if (propPendienteSync !== undefined) setPendienteSync(propPendienteSync);
-    else if (estadoMovil === 'actualizado') {
+    if (propPendienteSync !== undefined) {
+      setPendienteSync(propPendienteSync);
+    } else if (estadoMovil === 'actualizado') {
       (async () => {
         try {
           const db = await getDbConnection();
@@ -131,6 +132,20 @@ const ItemPayments = memo(({
       })();
     }
   }, [propTipoTramitado, propValorPagado, propPendienteSync, estadoMovil, id]);
+
+  // Actualización inmediata al completarse la sincronización (Problema 2)
+  useEffect(() => {
+    const unsub = eventBus.on(EVENTS.SYNC_COMPLETED, async () => {
+      try {
+        const db = await getDbConnection();
+        const { tipo, valorPagado: vp, pendiente } = await getUltimoTramite(db, id);
+        if (tipo) setTipoTramitado(tipo);
+        if (vp !== undefined) setValorPagado(vp);
+        setPendienteSync(!!pendiente);
+      } catch {}
+    });
+    return () => unsub();
+  }, [id]);
 
   const pressIn = () => Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, speed: 30 }).start();
   const pressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30 }).start();
@@ -270,7 +285,7 @@ const ItemPayments = memo(({
                 <Text style={[styles.amount, { color: amountColor }]}>{FormatMoneyDecimales(valorAMostrar)}</Text>
                 {!isPending && tipoTramitado && (
                   <View style={styles.syncBadge}>
-                    {pendienteSync ? (
+                    {(propPendienteSync !== undefined ? propPendienteSync : pendienteSync) ? (
                       <Icon name="check" size={11} color={apple.colors.tertiaryLabel} />
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -358,7 +373,15 @@ const ItemPayments = memo(({
       </Modal>
     </Animated.View>
   );
-}, (a,b)=> a.id===b.id && a.status===b.status && a.saldo===b.saldo && a.estadoMovil===b.estadoMovil);
+}, (a, b) =>
+  a.id === b.id &&
+  a.status === b.status &&
+  a.saldo === b.saldo &&
+  a.estadoMovil === b.estadoMovil &&
+  a.pendienteSync === b.pendienteSync &&
+  a.tipoTramitado === b.tipoTramitado &&
+  a.valorPagado === b.valorPagado
+);
 
 export default ItemPayments;
 

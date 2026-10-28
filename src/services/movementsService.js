@@ -276,13 +276,20 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
     }
   }
 
-  // REGLA 6: Registro de trazabilidad y auditoría local
+  // REGLA 6: Registro de trazabilidad y auditoría local con identificador único e idempotente
   try {
     const nowIso = new Date().toISOString();
+    const auditUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+      const r = (Math.random() * 16) | 0;
+      const v = char === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+    const cleanMotivo = motivo?.trim() || 'Edición de movimiento';
+
     await db.executeSql(
-      `INSERT INTO movimientos_audit (movement_id, user_id, tipo_anterior, tipo_nuevo, monto_anterior, monto_nuevo, motivo, origen, fecha, estadoMovil)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'app_movil', ?, 'pendiente')`,
-      [String(id), profile?.id || null, current.tipo, targetTipo, oldVal, val, motivo || 'Edición de movimiento', nowIso]
+      `INSERT INTO movimientos_audit (audit_uuid, movement_id, user_id, tipo_anterior, tipo_nuevo, monto_anterior, monto_nuevo, motivo, origen, fecha, estadoMovil)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'app_movil', ?, 'pendiente')`,
+      [auditUuid, String(id), profile?.id || null, current.tipo, targetTipo, oldVal, val, cleanMotivo, nowIso]
     );
   } catch (errAudit) {
     console.log('Error registrando auditoria local:', errAudit);
