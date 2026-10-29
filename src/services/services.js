@@ -77,7 +77,7 @@ export const AuthService = async (db, email, password) => {
     if (isOfflineLogin) {
       console.log('Iniciando sesion en modo OFFLINE para:', cleanEmail);
 
-      const params = await getData(db, `SELECT id, valor FROM parametrizacion WHERE id IN (2, 3, 4, 5, 6, 7, 8)`);
+      const params = await getData(db, `SELECT id, valor FROM parametrizacion WHERE id IN (2, 3, 4, 5, 6, 7, 8, 10)`);
       const pMap = {};
       params?.forEach(p => { pMap[p.id] = p.valor; });
 
@@ -88,6 +88,7 @@ export const AuthService = async (db, email, password) => {
       const cachedRol = pMap[6] || 'vendedor';
       const cachedNombre = pMap[7] || 'Usuario';
       const cachedSuperiorId = pMap[8];
+      const cachedModoApertura = pMap[10] || 'admin_masivo';
 
       if (!cachedUserId || !cachedEmail) {
         return {
@@ -127,7 +128,7 @@ export const AuthService = async (db, email, password) => {
         console.log('Error verificando caja local offline:', e);
       }
 
-      if (!isAdmin && !tieneCajaAbierta) {
+      if (!isAdmin && !tieneCajaAbierta && cachedModoApertura !== 'vendedor_dia') {
         return {
           success: false,
           message: 'No tienes una caja abierta en este telefono para trabajar sin conexion. Conectate a internet para que tu administrador realice la apertura de tu caja.',
@@ -273,11 +274,29 @@ export const AuthService = async (db, email, password) => {
     }
 
     if (!isAdmin && !tieneCajaAbierta) {
-      await supabase.auth.signOut();
-      return {
-        success: false,
-        message: 'No puedes iniciar sesion porque no tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas comenzar a trabajar.',
-      };
+      // Si el modo de apertura es 'vendedor_dia', intentar auto-apertura del día
+      if (profile?.modo_apertura_caja === 'vendedor_dia') {
+        try {
+          const { data: autoRes, error: autoErr } = await supabase.rpc('rpc_check_or_open_vendedor_caja', {
+            p_vendedor_id: userId,
+          });
+          if (!autoErr && autoRes?.success && autoRes?.caja) {
+            tieneCajaAbierta = true;
+            caja = autoRes.caja;
+          }
+        } catch (eAuto) {
+          console.log('Error en rpc_check_or_open_vendedor_caja durante login:', eAuto);
+        }
+      }
+
+      // Si sigue sin caja y no está en modo 'vendedor_dia', exigir apertura del admin
+      if (!tieneCajaAbierta && profile?.modo_apertura_caja !== 'vendedor_dia') {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          message: 'No puedes iniciar sesion porque no tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas comenzar a trabajar.',
+        };
+      }
     }
 
     if (profile) {
@@ -285,6 +304,7 @@ export const AuthService = async (db, email, password) => {
         updateData(db, 'parametrizacion', { id: 6, valor: profile.rol }),
         updateData(db, 'parametrizacion', { id: 7, valor: profile.nombre }),
         updateData(db, 'parametrizacion', { id: 8, valor: profile.superior_id }),
+        updateData(db, 'parametrizacion', { id: 10, valor: profile.modo_apertura_caja || 'admin_masivo' }),
       ]);
       try {
         await AsyncStorage.setItem('cached_profile', JSON.stringify(profile));
@@ -470,6 +490,10 @@ export const saveInvoice = async (invoices) => {
       alias: element.aliasCliente || null,
       documento: element.documentoCliente || null,
       num_cuotas: element.num_cuotas != null ? String(element.num_cuotas) : null,
+      periodicidad: element.periodicidad || 'diario',
+      tasa_interes: Number(element.tasa_interes) || 0,
+      pago_adelantado: element.pago_adelantado ? 1 : 0,
+      foto_documento_path: element.foto_documento_path || null,
       ultimo_pago: ultimoPago,
       consecutivoTramitado: isTramitada ? (localConsecutivos[invoiceIdStr] || 1) : 0,
     };

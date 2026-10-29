@@ -14,6 +14,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import Modal from 'react-native-modal';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   getCajaActual,
@@ -22,6 +23,7 @@ import {
   getMovimientosCaja,
   getHistorialCajas,
   getPendingSyncCount,
+  registrarNoPagosMasivos,
 } from '../../services/cajaService';
 import { useAuth } from '../../context/AuthContext';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
@@ -42,8 +44,38 @@ export default function CajaScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [saldoInicial, setSaldoInicial] = useState('');
   const [tab, setTab] = useState('actual');
+  const [modalNoPagos, setModalNoPagos] = useState(false);
+  const [pendingClients, setPendingClients] = useState([]);
+  const [selectedPendingIds, setSelectedPendingIds] = useState([]);
+  const [processingNoPagos, setProcessingNoPagos] = useState(false);
 
   const hasLoadedOnce = useRef(false);
+
+  const loadPendingClients = useCallback(async () => {
+    try {
+      const db = await getDbConnection();
+      const rows = await getData(
+        db,
+        `SELECT id,
+                CASE 
+                  WHEN alias IS NOT NULL AND TRIM(alias) != '' THEN alias
+                  ELSE TRIM(COALESCE(nombreUno, '') || ' ' || COALESCE(apellidoUno, ''))
+                END AS name,
+                nombreUno,
+                apellidoUno,
+                alias,
+                direccion,
+                COALESCE(valorCuota, valorInicial, 0) AS amount,
+                saldo
+         FROM facturas
+         WHERE estadoMovil = 'pendiente' AND saldo > 0`
+      );
+      setPendingClients(rows || []);
+      setSelectedPendingIds((rows || []).map(r => String(r.id)));
+    } catch (e) {
+      console.log('Error cargando clientes pendientes para Caja:', e);
+    }
+  }, []);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!isRefresh && !hasLoadedOnce.current) setLoading(true);
@@ -54,6 +86,7 @@ export default function CajaScreen() {
       setMovimientos(movs || []);
       const hist = (await getHistorialCajas(20, 0)) || [];
       setHistorial(hist);
+      await loadPendingClients();
       hasLoadedOnce.current = true;
     } catch (e) {
       console.log('Caja load error:', e);
@@ -154,13 +187,22 @@ export default function CajaScreen() {
   };
 
   const isAdmin = profile?.rol === 'admin' || profile?.rol === 'superadmin';
+  const modoApertura = profile?.modo_apertura_caja || 'admin_masivo';
+  const canOpenCaja = isAdmin || modoApertura === 'vendedor_dia';
 
   const handleAbrir = async () => {
-    if (!isAdmin) {
-      return appAlert('Acceso restringido', 'Solo el administrador puede realizar la apertura de cajas.');
+    if (!canOpenCaja) {
+      return appAlert('Acceso restringido', 'Tu organización opera bajo Modalidad A: Solo el administrador puede realizar la apertura de cajas.');
     }
     const val = parseMoneyToNumeric(saldoInicial);
     if (val < 0) return appAlert('Error', 'Saldo inicial no puede ser negativo');
+    const maxCaja = Number(profile?.dinero_max_caja || 0);
+    if (!isAdmin && maxCaja > 0 && val > maxCaja) {
+      return appAlert(
+        'Límite de caja excedido',
+        `El saldo inicial ($${val.toLocaleString('es-CO')}) excede el límite asignado a tu perfil ($${maxCaja.toLocaleString('es-CO')}).`
+      );
+    }
     try {
       setLoading(true);
       await abrirCaja(val);
@@ -171,6 +213,42 @@ export default function CajaScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmNoPagosMasivos = async () => {
+    if (selectedPendingIds.length === 0) {
+      return appAlert('Selección requerida', 'Debes seleccionar al menos un cliente para registrar no pago.');
+    }
+
+    Alert.alert(
+      'Confirmar no pagos masivos',
+      `¿Deseas registrar ${selectedPendingIds.length} cliente(s) como 'No pago'?\n\n• Monto registrado: $0 por cliente.\n• No altera el saldo de caja ni crea ingresos ficticios.\n• La ruta quedará completada para poder cerrar caja.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar No Pagos',
+          style: 'destructive',
+          onPress: async () => {
+            setProcessingNoPagos(true);
+            try {
+              const res = await registrarNoPagosMasivos(selectedPendingIds);
+              eventBus.emit(EVENTS.MOVEMENT_CHANGED);
+              eventBus.emit(EVENTS.PAYMENT_REGISTERED);
+              setModalNoPagos(false);
+              await load(true);
+              appAlert(
+                'Operación exitosa',
+                `Se registraron ${res.count} clientes como 'No pago'. Ya puedes cerrar la caja del día.`
+              );
+            } catch (err) {
+              appAlert('Error', err.message || 'No se pudieron registrar los no pagos');
+            } finally {
+              setProcessingNoPagos(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleCerrar = async () => {
@@ -191,6 +269,23 @@ export default function CajaScreen() {
       const pend = await getData(db, `SELECT COUNT(*) as c FROM facturas WHERE estadoMovil = 'pendiente' AND saldo > 0`);
       const pendCount = Number(pend?.[0]?.c || 0);
       if (pendCount > 0) {
+        Alert.alert(
+          'Ruta con clientes pendientes',
+          `Aún tienes ${pendCount} cliente(s) por visitar hoy.\n\nPara cerrar la caja debes completar la ruta o registrar los no pagos masivos.`,
+          [
+            { text: 'Volver', style: 'cancel' },
+            {
+              text: 'Gestionar no pagos',
+              onPress: () => {
+                loadPendingClients();
+                setModalNoPagos(true);
+              },
+            },
+          ]
+        );
+        return;
+      }
+      if (false && pendCount > 0) {
         appAlert(
           'Ruta pendiente',
           `Aún tienes ${pendCount} cliente(s) por visitar hoy. Termina tu recorrido o registra los cobros antes de cerrar la caja.`
@@ -306,7 +401,7 @@ export default function CajaScreen() {
                   <Icon name="lock" size={26} color={apple.colors.tertiaryLabel} />
                 </View>
                 <Text style={[styles.emptyTitle, { fontSize: 18, marginTop: 10 }]}>Caja cerrada</Text>
-                {isAdmin ? (
+                {canOpenCaja ? (
                   <>
                     <Text style={[styles.emptySub, { marginBottom: 16 }]}>Ingresa el saldo inicial para iniciar jornada</Text>
                     <View style={styles.inputRow}>
@@ -323,7 +418,7 @@ export default function CajaScreen() {
                   </>
                 ) : (
                   <Text style={[styles.emptySub, { marginTop: 8, lineHeight: 20, maxWidth: 290, textAlign: 'center' }]}>
-                    Tu caja del día se encuentra cerrada. Solo tu administrador puede realizar la apertura de cajas para que puedas operar.
+                    Tu caja del día se encuentra cerrada. Tu organización opera bajo Modalidad A: Solo tu administrador puede realizar la apertura de cajas.
                   </Text>
                 )}
               </View>
@@ -348,6 +443,21 @@ export default function CajaScreen() {
                   </View>
                 </View>
                 <Text style={styles.cajaId}>ID {String(caja.id || '').slice(0, 8)}…</Text>
+                {pendingClients.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.noPagosActionBtn}
+                    onPress={() => {
+                      loadPendingClients();
+                      setModalNoPagos(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Icon name="users" size={13} color="#D97706" />
+                    <Text style={styles.noPagosActionText}>
+                      No pagos masivos ({pendingClients.length} pendientes)
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity style={styles.closeBtn} onPress={handleCerrar}>
                   <Icon name="power-off" size={14} color="#fff" />
                   <Text style={styles.closeText}>  Cerrar caja</Text>
@@ -415,6 +525,108 @@ export default function CajaScreen() {
           contentContainerStyle={{ padding: 16, paddingTop: 8 }}
         />
       )}
+      {/* Modal No Pagos Masivos */}
+      <Modal
+        isVisible={modalNoPagos}
+        onBackdropPress={() => !processingNoPagos && setModalNoPagos(false)}
+        animationIn="slideInUp"
+        animationOut="slideOutDown"
+        backdropOpacity={0.4}
+        style={{ margin: 0, justifyContent: 'flex-end' }}
+      >
+        <View style={styles.sheetNoPagos}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeaderRow}>
+            <View>
+              <Text style={styles.sheetTitle}>No Pagos Masivos</Text>
+              <Text style={styles.sheetSub}>
+                Ruta pendiente ({pendingClients.length} clientes sin visitar)
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                if (selectedPendingIds.length === pendingClients.length) {
+                  setSelectedPendingIds([]);
+                } else {
+                  setSelectedPendingIds(pendingClients.map(c => String(c.id)));
+                }
+              }}
+              style={styles.toggleAllBtn}
+            >
+              <Text style={styles.toggleAllText}>
+                {selectedPendingIds.length === pendingClients.length ? 'Desmarcar todos' : 'Marcar todos'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={pendingClients}
+            keyExtractor={item => String(item.id)}
+            style={{ maxHeight: 300, marginVertical: 12 }}
+            renderItem={({ item }) => {
+              const isSelected = selectedPendingIds.includes(String(item.id));
+              const clientLabel = item.name || `${item.nombreUno || ''} ${item.apellidoUno || ''}`.trim() || 'Cliente';
+              return (
+                <TouchableOpacity
+                  style={[styles.clientCheckRow, isSelected && styles.clientCheckRowSelected]}
+                  onPress={() => {
+                    const sid = String(item.id);
+                    if (isSelected) {
+                      setSelectedPendingIds(prev => prev.filter(x => x !== sid));
+                    } else {
+                      setSelectedPendingIds(prev => [...prev, sid]);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.checkCircle, isSelected && styles.checkCircleSelected]}>
+                    {isSelected && <Icon name="check" size={12} color="#fff" />}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.clientCheckName} numberOfLines={1}>{clientLabel}</Text>
+                    <Text style={styles.clientCheckSub} numberOfLines={1}>
+                      Saldo: {FormatMoneyDecimales(item.saldo)} • Cuota: {FormatMoneyDecimales(item.amount)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            ListEmptyComponent={
+              <Text style={styles.emptySub}>No hay clientes pendientes en la ruta.</Text>
+            }
+          />
+
+          <View style={styles.noPagosNoticeBox}>
+            <Icon name="info-circle" size={13} color={apple.colors.secondaryLabel} />
+            <Text style={styles.noPagosNoticeText}>
+              Se registrarán {selectedPendingIds.length} cliente(s) como 'No pago' ($0). No afecta el saldo de caja ni genera ingresos ficticios.
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TouchableOpacity
+              style={[styles.modalSheetBtn, { backgroundColor: apple.colors.fill }]}
+              onPress={() => setModalNoPagos(false)}
+              disabled={processingNoPagos}
+            >
+              <Text style={{ fontWeight: '600', color: apple.colors.label }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalSheetBtn, { backgroundColor: '#D97706' }]}
+              onPress={handleConfirmNoPagosMasivos}
+              disabled={processingNoPagos || selectedPendingIds.length === 0}
+            >
+              {processingNoPagos ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={{ fontWeight: '700', color: '#fff' }}>
+                  Confirmar ({selectedPendingIds.length})
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -476,5 +688,124 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: apple.colors.blue,
+  },
+  noPagosActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: apple.radius.s,
+    height: 42,
+    marginTop: 10,
+  },
+  noPagosActionText: {
+    color: '#92400E',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  sheetNoPagos: {
+    backgroundColor: apple.colors.card,
+    borderTopLeftRadius: apple.radius.xl,
+    borderTopRightRadius: apple.radius.xl,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  sheetHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: apple.colors.separator,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  sheetHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: apple.colors.label,
+  },
+  sheetSub: {
+    fontSize: 12,
+    color: apple.colors.secondaryLabel,
+    marginTop: 2,
+  },
+  toggleAllBtn: {
+    backgroundColor: apple.colors.fill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: apple.radius.m,
+  },
+  toggleAllText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: apple.colors.blue,
+  },
+  clientCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: apple.radius.m,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+    marginBottom: 6,
+    backgroundColor: apple.colors.card,
+  },
+  clientCheckRowSelected: {
+    borderColor: '#F59E0B',
+    backgroundColor: '#FFFBEB',
+  },
+  checkCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: apple.colors.tertiaryLabel,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCircleSelected: {
+    borderColor: '#D97706',
+    backgroundColor: '#D97706',
+  },
+  clientCheckName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: apple.colors.label,
+  },
+  clientCheckSub: {
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+    marginTop: 1,
+  },
+  noPagosNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: apple.colors.fill,
+    padding: 10,
+    borderRadius: apple.radius.m,
+    marginTop: 4,
+  },
+  noPagosNoticeText: {
+    flex: 1,
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+    lineHeight: 15,
+  },
+  modalSheetBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: apple.radius.m,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

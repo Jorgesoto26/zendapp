@@ -34,7 +34,17 @@ export async function getCurrentLocationOrNull() {
   }
 }
 
-export async function createCashMovement({ cajaId, tipo, descripcion, monto, latitud, longitud }) {
+export async function createCashMovement({
+  cajaId,
+  tipo,
+  descripcion,
+  monto,
+  latitud,
+  longitud,
+  conceptoId = null,
+  conceptoNombre = null,
+  evidenciaPath = null,
+}) {
   if (!['ingreso', 'retiro', 'gasto'].includes(tipo)) throw new Error('Tipo debe ser ingreso, retiro o gasto');
   const val = Number(monto);
   if (!val || val <= 0) throw new Error('Monto debe ser > 0');
@@ -49,9 +59,11 @@ export async function createCashMovement({ cajaId, tipo, descripcion, monto, lat
 
   // Guardar en SQLite local inmediatamente (Offline-First)
   await db.executeSql(
-    `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, caja_id, fecha, latitud, longitud)
-     VALUES (?, ?, ?, ?, ?, 'actualizado', ?, ?, ?, ?, ?)`,
-    [tempId, cleanDesc, val, nowIso, tipo, cajaId, cajaId, nowIso, latStr, lngStr]
+    `INSERT INTO movimientos (
+      id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, caja_id, fecha, latitud, longitud,
+      concepto_id, concepto_nombre, evidencia_path
+    ) VALUES (?, ?, ?, ?, ?, 'actualizado', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [tempId, cleanDesc, val, nowIso, tipo, cajaId, cajaId, nowIso, latStr, lngStr, conceptoId, conceptoNombre, evidenciaPath]
   );
 
   // Actualizar saldo_final local de la caja
@@ -68,7 +80,20 @@ export async function createCashMovement({ cajaId, tipo, descripcion, monto, lat
     SyncWithSupabase(false, () => {});
   } catch {}
 
-  return { id: tempId, caja_id: cajaId, tipo, descripcion: cleanDesc, monto: val, fecha: nowIso, estadoMovil: 'actualizado', latitud: latStr, longitud: lngStr };
+  return {
+    id: tempId,
+    caja_id: cajaId,
+    tipo,
+    descripcion: cleanDesc,
+    monto: val,
+    fecha: nowIso,
+    estadoMovil: 'actualizado',
+    latitud: latStr,
+    longitud: lngStr,
+    concepto_id: conceptoId,
+    concepto_nombre: conceptoNombre,
+    evidencia_path: evidenciaPath,
+  };
 }
 
 export async function updateCashMovement({ id, monto, cajaId, profile, motivo }) {
@@ -342,7 +367,7 @@ export async function listMovimientos({ cajaId, limit = 50, offset = 0, search =
   // 1. OFFLINE-FIRST: Leer inmediatamente desde SQLite local (latencia < 15ms)
   let localRows = [];
   try {
-    let sql = `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, COALESCE(caja_id, idCaja) AS caja_id, estadoMovil, latitud, longitud, idFactura, cliente_nombre FROM movimientos WHERE 1=1`;
+    let sql = `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, COALESCE(caja_id, idCaja) AS caja_id, estadoMovil, latitud, longitud, idFactura, cliente_nombre, concepto_id, concepto_nombre, evidencia_path FROM movimientos WHERE 1=1`;
     const params = [];
     if (targetCajaId) {
       sql += ` AND (idCaja = ? OR caja_id = ?)`;

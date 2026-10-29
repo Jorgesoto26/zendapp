@@ -13,11 +13,12 @@ import {
   Animated,
   Modal,
   FlatList,
+  Image,
+  Switch,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { getData, getDbConnection } from '../../database/db';
-import CustomPicker from './CustomPicker';
 import { apple } from '../../theme/appleTheme';
 import { AppleButton } from '../../components/AppleButton';
 import { appAlert } from '../../components/AppAlert';
@@ -32,6 +33,26 @@ import {
   getAndIncrementConsecutivo,
 } from '../../utils/utilities';
 import { eventBus, EVENTS } from '../../utils/eventBus';
+import {
+  capturePhotoFromCamera,
+  pickPhotoFromGallery,
+  uploadEvidence,
+} from '../../services/multimediaService';
+import EvidencePreviewModal from '../../components/EvidencePreviewModal';
+
+/**
+ * Agrega meses a una fecha respetando la cantidad de días de cada mes (ej. 31 de enero -> 28/29 feb)
+ */
+function addMonths(date, months) {
+  const d = new Date(date);
+  const targetMonth = d.getMonth() + months;
+  const targetYear = d.getFullYear() + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const originalDay = d.getDate();
+  const daysInTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+  const day = Math.min(originalDay, daysInTargetMonth);
+  return new Date(targetYear, normalizedMonth, day);
+}
 
 const FormField = React.memo(({
   label,
@@ -82,15 +103,18 @@ const CrearCliente = () => {
     genero: 'masculino',
     documento: '',
     valor: '',
-    plazo: '',
-    interes: '',
+    numCuotas: '30',
+    tasaInteres: '20',
   });
-  const [formDataLabels, setFormDataLabels] = useState({ plazo: '', interes: '' });
+
+  const [periodicidad, setPeriodicidad] = useState('diario'); // 'diario' | 'semanal' | 'mensual'
+  const [pagoAdelantado, setPagoAdelantado] = useState(false);
+  const [fotoDocumento, setFotoDocumento] = useState(null);
+  const [previewDocModal, setPreviewDocModal] = useState(false);
+
   const [isFormValid, setIsFormValid] = useState(false);
   const [conceptosInteres, setConceptosInteres] = useState([]);
   const [conceptosPlazo, setConceptosPlazo] = useState([]);
-  const [showPlazoModal, setShowPlazoModal] = useState(false);
-  const [showInteresModal, setShowInteresModal] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Renovacion de credito
@@ -184,14 +208,28 @@ const CrearCliente = () => {
     return null;
   }, [formData.documento, cleanDoc]);
 
+  const cuotasError = useMemo(() => {
+    if (!formData.numCuotas) return 'Ingresa la cantidad de cuotas';
+    const n = parseInt(formData.numCuotas, 10);
+    if (isNaN(n) || n < 1 || n > 90) return 'La cantidad debe ser entre 1 y 90';
+    return null;
+  }, [formData.numCuotas]);
+
+  const interesError = useMemo(() => {
+    if (!formData.tasaInteres) return 'Ingresa el porcentaje de interés';
+    const n = parseFloat(formData.tasaInteres);
+    if (isNaN(n) || n < 0 || n > 100) return 'El interés debe ser entre 0% y 100%';
+    return null;
+  }, [formData.tasaInteres]);
+
   useEffect(() => {
     const isTelValid = cleanTel.length >= 10 && cleanTel.length <= 12;
     const isDocValid = cleanDoc.length >= 6 && cleanDoc.length <= 12;
     const isValorValid = parseMoneyToNumeric(formData.valor) > 0;
     const isNombreValid = (formData.nombre || '').trim() !== '';
     const isDireccionValid = (formData.direccion || '').trim() !== '';
-    const isPlazoValid = !!formData.plazo;
-    const isInteresValid = !!formData.interes;
+    const isCuotasValid = !cuotasError;
+    const isInteresValid = !interesError;
 
     setIsFormValid(
       isTelValid &&
@@ -199,50 +237,52 @@ const CrearCliente = () => {
       isValorValid &&
       isNombreValid &&
       isDireccionValid &&
-      isPlazoValid &&
+      isCuotasValid &&
       isInteresValid
     );
-  }, [formData, cleanTel, cleanDoc]);
+  }, [formData, cleanTel, cleanDoc, cuotasError, interesError]);
 
-  // Calculo de la Cuota Estimada (Requisito 3)
+  // Calculo de la Cuota Estimada
   const quoteSummary = useMemo(() => {
     const montoNum = parseMoneyToNumeric(formData.valor);
     if (!montoNum || montoNum <= 0) return null;
 
-    const plazoObj = conceptosPlazo.find(c => String(c.id) === String(formData.plazo));
-    let numCuotas = 1;
-    if (plazoObj?.valor) {
-      const match = plazoObj.valor.match(/\d+/);
-      if (match) numCuotas = parseInt(match[0], 10) || 1;
-    }
+    const cuotasNum = parseInt(formData.numCuotas, 10);
+    if (isNaN(cuotasNum) || cuotasNum < 1 || cuotasNum > 90) return null;
 
-    const interesObj = conceptosInteres.find(c => String(c.id) === String(formData.interes));
-    let tasaNum = 0;
-    let tasaPorcentaje = 0;
-    if (interesObj?.valor) {
-      const matchInt = interesObj.valor.match(/([0-9]+(?:\.[0-9]+)?)/);
-      if (matchInt) {
-        const rawVal = parseFloat(matchInt[0]);
-        tasaNum = rawVal < 1 ? rawVal : rawVal / 100.0;
-        tasaPorcentaje = rawVal < 1 ? Math.round(rawVal * 100) : rawVal;
-      }
-    }
+    const tasaNum = parseFloat(formData.tasaInteres);
+    if (isNaN(tasaNum) || tasaNum < 0) return null;
 
-    const montoInteres = Math.round(montoNum * tasaNum);
+    const tasaFrac = tasaNum > 1 ? tasaNum / 100.0 : tasaNum;
+    const montoInteres = Math.round(montoNum * tasaFrac);
     const totalFactura = montoNum + montoInteres;
-    const valorCuota = Math.round(totalFactura / numCuotas);
+    const valorCuota = Math.round(totalFactura / cuotasNum);
+
+    // Calcular fecha del próximo día de recaudo
+    const now = new Date();
+    let proximoRecaudoDate = new Date();
+    if (periodicidad === 'semanal') {
+      proximoRecaudoDate.setDate(now.getDate() + 7);
+    } else if (periodicidad === 'mensual') {
+      proximoRecaudoDate = addMonths(now, 1);
+    } else {
+      proximoRecaudoDate.setDate(now.getDate() + 1);
+    }
+    const proximoRecaudoStr = proximoRecaudoDate.toISOString().slice(0, 10);
 
     return {
       capital: montoNum,
-      tasaPorcentaje,
+      tasaPorcentaje: tasaNum,
       montoInteres,
       totalFactura,
-      numCuotas,
+      numCuotas: cuotasNum,
       valorCuota,
-      plazoLabel: formDataLabels.plazo || `${numCuotas} cuotas`,
-      interesLabel: formDataLabels.interes || `${tasaPorcentaje}%`,
+      periodicidad,
+      proximoRecaudoStr,
+      pagoAdelantado,
+      saldoInicial: pagoAdelantado ? totalFactura - valorCuota : totalFactura,
     };
-  }, [formData.valor, formData.plazo, formData.interes, conceptosPlazo, conceptosInteres, formDataLabels]);
+  }, [formData.valor, formData.numCuotas, formData.tasaInteres, periodicidad, pagoAdelantado]);
 
   const handleChange = useCallback((name, value) => {
     if (name === 'valor') {
@@ -251,25 +291,59 @@ const CrearCliente = () => {
       return;
     }
     if (name === 'telefono') {
-      // Filtrar solo digitos y recortar a maximo 12
       const digitsOnly = (value || '').replace(/\D/g, '').slice(0, 12);
       setFormData(p => ({ ...p, [name]: digitsOnly }));
       return;
     }
     if (name === 'documento') {
-      // Limitar a 12 caracteres maximo
       setFormData(p => ({ ...p, [name]: (value || '').slice(0, 12) }));
+      return;
+    }
+    if (name === 'numCuotas') {
+      const cleanInt = (value || '').replace(/\D/g, '').slice(0, 2);
+      setFormData(p => ({ ...p, numCuotas: cleanInt }));
+      return;
+    }
+    if (name === 'tasaInteres') {
+      const cleanRate = (value || '').replace(/[^0-9.]/g, '').slice(0, 5);
+      setFormData(p => ({ ...p, tasaInteres: cleanRate }));
       return;
     }
     setFormData(p => ({ ...p, [name]: value }));
   }, []);
 
-  const handlePickerSelect = (name, value, label) => {
-    setFormData(p => ({ ...p, [name]: value }));
-    setFormDataLabels(p => ({ ...p, [name]: label }));
+  const handleSelectQuickCuotas = (cuotas) => {
+    setFormData(p => ({ ...p, numCuotas: String(cuotas) }));
+  };
+
+  const handleSelectQuickInteres = (tasa) => {
+    setFormData(p => ({ ...p, tasaInteres: String(tasa) }));
   };
 
   const handleGeneroChange = g => setFormData(p => ({ ...p, genero: g }));
+
+  // Capturar o seleccionar foto del documento
+  const handleTakeDocPhoto = async () => {
+    try {
+      const photo = await capturePhotoFromCamera('DOCUMENT');
+      if (!photo.cancelled && photo.uri) {
+        setFotoDocumento(photo);
+      }
+    } catch (e) {
+      appAlert('Cámara', e.message);
+    }
+  };
+
+  const handlePickDocGallery = async () => {
+    try {
+      const photo = await pickPhotoFromGallery('DOCUMENT');
+      if (!photo.cancelled && photo.uri) {
+        setFotoDocumento(photo);
+      }
+    } catch (e) {
+      appAlert('Galería', e.message);
+    }
+  };
 
   // Seleccionar cliente para renovacion
   const handleSelectRenewalClient = (client) => {
@@ -299,51 +373,42 @@ const CrearCliente = () => {
       genero: 'masculino',
       documento: '',
       valor: '',
-      plazo: '',
-      interes: '',
+      numCuotas: '30',
+      tasaInteres: '20',
     });
-    setFormDataLabels({ plazo: '', interes: '' });
+    setFotoDocumento(null);
+    setPagoAdelantado(false);
   };
 
   const handleSubmit = async () => {
     if (!userId) {
-      console.log("Error no existe usuario logueado ", userId);
-
       appAlert('Error', 'Sesión no válida. Por favor inicia sesión nuevamente.');
       return;
     }
 
-    // Validaciones estrictas con mensajes claros
     if (cleanTel.length < 10 || cleanTel.length > 12) {
-      console.log("telefono invalido ", cleanTel.length);
-
       appAlert('Teléfono inválido', `El teléfono debe tener entre 10 y 12 dígitos. Actualmente tiene ${cleanTel.length}.`);
       return;
     }
     if (cleanDoc.length < 6 || cleanDoc.length > 12) {
-      console.log("documento invalido ", cleanDoc.length);
       appAlert('Documento inválido', `El documento debe tener entre 6 y 12 caracteres. Actualmente tiene ${cleanDoc.length}.`);
       return;
     }
 
     const montoNum = parseMoneyToNumeric(formData.valor);
     if (!montoNum || montoNum <= 0) {
-      console.log("valor invalido ", montoNum);
       appAlert('Valor inválido', 'El monto del crédito debe ser mayor a 0');
       return;
     }
 
     if (!quoteSummary) {
-      console.log("Faltan datos del prestamo ");
-
-      appAlert('Faltan datos', 'Por favor selecciona el plazo y el interés del crédito.');
+      appAlert('Faltan datos', 'Por favor verifica la cantidad de cuotas y el interés del crédito.');
       return;
     }
 
-    // Validacion de limite maximo de venta por usuario (Requisito 1)
+    // Validacion de limite maximo de venta por usuario
     const maxVenta = parseFloat(profile?.dinero_max_venta) || 0;
     if (maxVenta > 0 && montoNum > maxVenta) {
-      console.log("limite de venta excedido ", montoNum);
       appAlert(
         'Límite de venta excedido',
         `El monto ($${montoNum.toLocaleString('es-CO')}) excede tu límite máximo permitido por venta ($${maxVenta.toLocaleString('es-CO')}).`
@@ -351,10 +416,9 @@ const CrearCliente = () => {
       return;
     }
 
-    // Validacion de limite maximo de cuotas por usuario (Requisito 1)
+    // Validacion de limite maximo de cuotas por usuario
     const maxCuotas = parseInt(profile?.max_cuotas, 10) || 0;
     if (maxCuotas > 0 && quoteSummary && quoteSummary.numCuotas > maxCuotas) {
-      console.log("limite de cuotas excedido ", quoteSummary.numCuotas);
       appAlert(
         'Límite de cuotas excedido',
         `La cantidad de cuotas (${quoteSummary.numCuotas}) supera el máximo permitido para tu usuario (${maxCuotas} cuotas).`
@@ -364,20 +428,56 @@ const CrearCliente = () => {
 
     setSaving(true);
     try {
-      // 1. Obtener caja abierta
       const cajaAbierta = await getCajaActual();
       if (!cajaAbierta) {
-        console.log("no tienes caja abierta ");
         appAlert('Sin caja abierta', 'No tienes una caja abierta. Ve a la sección Caja y abre una antes de registrar ventas.');
         setSaving(false);
         return;
       }
 
       const database = await getDbConnection();
-      const { nombre, apellido, alias, direccion, genero, plazo, interes } = formData;
-      const { numCuotas, totalFactura, valorCuota } = quoteSummary;
+      const { nombre, apellido, alias, direccion, genero } = formData;
+      const { numCuotas, totalFactura, valorCuota, tasaPorcentaje, proximoRecaudoStr } = quoteSummary;
 
-      // 2. Captura segura de ubicacion (Requisito 2)
+      // 1. Subir fotografía del documento a Storage si se adjuntó
+      let uploadedDocPath = null;
+      if (fotoDocumento?.uri) {
+        try {
+          const upDoc = await uploadEvidence({
+            uri: fotoDocumento.uri,
+            base64: fotoDocumento.base64,
+            tipoEvidencia: 'documento_identidad',
+            tablaRelacionada: 'clients',
+            registroId: cleanDoc,
+            originalName: fotoDocumento.fileName || `documento_${cleanDoc}.jpg`,
+            mimeType: fotoDocumento.type || 'image/jpeg',
+            originalSize: fotoDocumento.fileSize || 0,
+            compressedSize: fotoDocumento.fileSize || 0,
+          });
+          uploadedDocPath = upDoc?.filePath || fotoDocumento.uri;
+        } catch (errUpDoc) {
+          console.log('Error subiendo foto de documento a Storage:', errUpDoc);
+          uploadedDocPath = fotoDocumento.uri;
+        }
+      }
+
+      // 2. Mapear conceptos para compatibilidad con foreign keys
+      let matchingInteresId = 9; // 10% por defecto
+      if (conceptosInteres.length > 0) {
+        const foundInt = conceptosInteres.find(c =>
+          c.valor === `${Math.round(tasaPorcentaje)}%` ||
+          c.valor.startsWith(String(Math.round(tasaPorcentaje)))
+        );
+        if (foundInt) matchingInteresId = foundInt.id;
+      }
+
+      let matchingPlazoId = 103; // 30 días por defecto
+      if (conceptosPlazo.length > 0) {
+        const foundPlazo = conceptosPlazo.find(c => c.valor.startsWith(String(numCuotas)));
+        if (foundPlazo) matchingPlazoId = foundPlazo.id;
+      }
+
+      // 3. Captura segura de ubicacion
       let latitudStr = null;
       let longitudStr = null;
       try {
@@ -406,15 +506,20 @@ const CrearCliente = () => {
         monto: montoNum,
         vendedor_id: userId,
         caja_id: cajaAbierta.id,
-        plazo_id: parseInt(plazo, 10),
-        interes_id: parseInt(interes, 10),
+        plazo_id: matchingPlazoId,
+        interes_id: matchingInteresId,
         latitud: latitudStr,
         longitud: longitudStr,
         previous_invoice_id: previousInvoiceId || null,
         fecha: nowIso,
+        periodicidad,
+        num_cuotas: numCuotas,
+        tasa_interes: tasaPorcentaje,
+        pago_adelantado: pagoAdelantado,
+        foto_documento: uploadedDocPath,
       };
 
-      // 3. Guardar en ventas_pendientes
+      // 4. Guardar en ventas_pendientes
       await database.executeSql(`CREATE TABLE IF NOT EXISTS ventas_pendientes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         temp_id TEXT UNIQUE,
@@ -427,36 +532,51 @@ const CrearCliente = () => {
         [String(tempId), JSON.stringify(salePayload), nowIso]
       );
 
-      // 3.1 Generar cuotas locales inmediatamente en SQLite
-      try {
-        const cMonto = Math.floor(totalFactura / numCuotas);
-        const cResto = totalFactura - (cMonto * (numCuotas - 1));
-        for (let i = 1; i <= numCuotas; i++) {
-          const valCuota = (i === numCuotas) ? cResto : cMonto;
-          const dVenc = new Date();
+      // 5. Generar cuotas locales según la periodicidad
+      const cMonto = Math.floor(totalFactura / numCuotas);
+      const cResto = totalFactura - (cMonto * (numCuotas - 1));
+
+      for (let i = 1; i <= numCuotas; i++) {
+        const valCuota = (i === numCuotas) ? cResto : cMonto;
+        let dVenc = new Date();
+        if (periodicidad === 'semanal') {
+          dVenc.setDate(dVenc.getDate() + (i * 7));
+        } else if (periodicidad === 'mensual') {
+          dVenc = addMonths(new Date(), i);
+        } else {
           dVenc.setDate(dVenc.getDate() + i);
-          const fechaVenc = dVenc.toISOString().slice(0, 10);
-          await database.executeSql(
-            `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
-             VALUES (?, ?, ?, ?, ?, 'pendiente', 0)`,
-            [`local_cuota_${tempId}_${i}`, String(tempId), i, fechaVenc, valCuota]
-          );
         }
-      } catch (errCuotasLoc) {
-        console.log('Error generando cuotas locales en SQLite:', errCuotasLoc);
+        const fechaVenc = dVenc.toISOString().slice(0, 10);
+        const isPagadaAdelantada = (i === 1 && pagoAdelantado);
+
+        await database.executeSql(
+          `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            `local_cuota_${tempId}_${i}`,
+            String(tempId),
+            i,
+            fechaVenc,
+            valCuota,
+            isPagadaAdelantada ? 'pagada' : 'pendiente',
+            isPagadaAdelantada ? valCuota : 0,
+          ]
+        );
       }
 
-      // 4. Obtener consecutivo tramitado para que nazca en Tramitados (Requisito 6)
+      // 6. Obtener consecutivo tramitado
       const consecutivo = await getAndIncrementConsecutivo(database);
+      const saldoInicialFactura = pagoAdelantado ? Math.max(0, totalFactura - valorCuota) : totalFactura;
 
-      // 5. Guardar en SQLite facturas con estadoMovil = 'actualizado' (Tramitado de hoy)
+      // 7. Guardar en SQLite facturas
       await database.executeSql(
         `INSERT OR REPLACE INTO facturas (
           id, nombreUno, apellidoUno, alias, documento, celular, direccion,
           saldo, valorInicial, valorCuota, num_cuotas, cuotasPagas, cuotasVencidas,
           estado, estadoMovil, fecha, idVendedor, usuarioId, paymentTermId, detalles,
-          consecutivoTramitado, latitud, longitud, previous_invoice_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'pendiente', 'actualizado', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          consecutivoTramitado, latitud, longitud, previous_invoice_id,
+          periodicidad, tasa_interes, pago_adelantado, foto_documento_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pendiente', 'actualizado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           String(tempId),
           nombre.trim(),
@@ -465,23 +585,28 @@ const CrearCliente = () => {
           cleanDoc,
           cleanTel,
           (direccion || '').trim(),
-          totalFactura,
+          saldoInicialFactura,
           totalFactura,
           valorCuota,
           String(numCuotas),
+          pagoAdelantado ? 1 : 0,
           todayDate,
           userId,
           userId,
-          plazo,
+          matchingPlazoId,
           JSON.stringify(salePayload),
           consecutivo,
           latitudStr,
           longitudStr,
           previousInvoiceId || null,
+          periodicidad,
+          tasaPorcentaje,
+          pagoAdelantado ? 1 : 0,
+          uploadedDocPath,
         ]
       );
 
-      // 6. Registrar movimiento local de venta con id negativo para coherencia contable inmediata
+      // 8. Registrar movimiento de venta (egreso de capital prestado)
       const clienteDesc = `${nombre.trim()} ${apellido.trim()}`.trim();
       await database.executeSql(
         `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre)
@@ -498,36 +623,76 @@ const CrearCliente = () => {
         ]
       );
 
-      // 7. Descontar saldo_final de la caja localmente
+      // Descontar capital prestado de la caja
       try {
         await database.executeSql(
           `UPDATE cajas SET saldo_final = COALESCE(saldo_final, 0) - ? WHERE id = ?`,
           [montoNum, cajaAbierta.id]
         );
       } catch (err) {
-        console.log("error actualizando caja ", err);
+        console.log('Error actualizando saldo de caja:', err);
       }
 
-      // 8. Notificar a las demas vistas via EventBus (Requisito 4)
+      // 9. Si hay Pago Adelantado: asociar movimiento y pago al próximo día de recaudo
+      if (pagoAdelantado && valorCuota > 0) {
+        const advPagoId = tempId - 2;
+        const advDateIso = `${proximoRecaudoStr}T08:00:00.000Z`;
+
+        // Registrar pago imputado al próximo día de recaudo
+        await database.executeSql(
+          `INSERT OR REPLACE INTO pagos (
+            id, tipo, valor, horaDispositivo, idFactura, valorFactura, estadoMovil, nombre, secuencia_pago, idCaja
+          ) VALUES (?, 'pago', ?, ?, ?, ?, 'actualizado', ?, ?, ?)`,
+          [
+            advPagoId,
+            valorCuota,
+            advDateIso,
+            String(tempId),
+            valorCuota,
+            clienteDesc,
+            consecutivo,
+            cajaAbierta.id,
+          ]
+        );
+
+        // Movimiento informativo con fecha del próximo día de recaudo
+        await database.executeSql(
+          `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre)
+           VALUES (?, ?, ?, ?, 'pago', 'actualizado', ?, ?, ?, ?)`,
+          [
+            advPagoId,
+            `Pago adelantado cuota 1: ${clienteDesc}`,
+            valorCuota,
+            advDateIso,
+            cajaAbierta.id,
+            advDateIso,
+            String(tempId),
+            clienteDesc,
+          ]
+        );
+      }
+
+      // 10. Notificar a las demás vistas
       eventBus.emit(EVENTS.CLIENT_CREATED, {
         id: tempId,
         nombre: clienteDesc,
         monto: totalFactura,
       });
 
-      // 9. Sincronizar en background si hay red
+      // 11. Sincronizar en segundo plano si hay red
       try {
-        SyncWithSupabase(false, () => { });
+        SyncWithSupabase(false, () => {});
       } catch (err) {
-        console.log("error actualizando caja ", err);
+        console.log('Error disparando sync:', err);
       }
 
-      appAlert(
-        '¡Venta registrada exitosamente!',
-        previousInvoiceId
-          ? `La renovación de crédito para ${clienteDesc} quedó registrada y lista en tu lista de tramitados.`
-          : `El crédito para ${clienteDesc} quedó registrado y visible en tu lista de tramitados.`
-      );
+      const mensajeConfirmacion = pagoAdelantado
+        ? `El crédito para ${clienteDesc} quedó registrado con la 1ª cuota abonada para el próximo día de recaudo (${proximoRecaudoStr}). Saldo a cobrar: ${FormatMoneyDecimales(saldoInicialFactura)}.`
+        : previousInvoiceId
+        ? `La renovación de crédito para ${clienteDesc} quedó registrada exitosamente.`
+        : `El crédito para ${clienteDesc} quedó registrado exitosamente.`;
+
+      appAlert('¡Venta registrada exitosamente!', mensajeConfirmacion);
 
       setFormData({
         nombre: '',
@@ -538,10 +703,11 @@ const CrearCliente = () => {
         genero: 'masculino',
         documento: '',
         valor: '',
-        plazo: '',
-        interes: '',
+        numCuotas: '30',
+        tasaInteres: '20',
       });
-      setFormDataLabels({ plazo: '', interes: '' });
+      setFotoDocumento(null);
+      setPagoAdelantado(false);
       setPreviousInvoiceId(null);
       setRenewalClientName(null);
 
@@ -558,44 +724,43 @@ const CrearCliente = () => {
     if (!searchRenewText.trim()) return paidClientsList;
     const q = searchRenewText.toLowerCase();
     return paidClientsList.filter(c =>
-      (c.nombreUno || '').toLowerCase().includes(q) ||
-      (c.apellidoUno || '').toLowerCase().includes(q) ||
-      (c.documento || '').includes(q) ||
-      (c.alias || '').toLowerCase().includes(q)
+      (c.nombreUno?.toLowerCase() || '').includes(q) ||
+      (c.apellidoUno?.toLowerCase() || '').includes(q) ||
+      (c.documento?.toLowerCase() || '').includes(q)
     );
   }, [paidClientsList, searchRenewText]);
 
+  // Cuota label según periodicidad
+  const cuotasLabel = useMemo(() => {
+    if (periodicidad === 'semanal') return 'Cantidad de cuotas (Semanas) *';
+    if (periodicidad === 'mensual') return 'Cantidad de cuotas (Meses) *';
+    return 'Cantidad de cuotas (Días) *';
+  }, [periodicidad]);
+
   return (
     <SafeAreaView style={styles.root}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={styles.headerBtn}
-        >
-          <Icon name="chevron-left" size={16} color={apple.colors.blue} />
-          <Text style={styles.headerBack}>Atrás</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{previousInvoiceId ? 'Renovar Crédito' : 'Nueva Venta'}</Text>
-        <TouchableOpacity
-          onPress={() => setShowRenewModal(true)}
-          style={styles.headerRenewBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Icon name="history" size={14} color={apple.colors.blue} />
-          <Text style={styles.headerRenewText}>Renovar</Text>
-        </TouchableOpacity>
-      </View>
-
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <Animated.View style={{ opacity: fade }}>
-            {/* Banner de Renovacion si aplica */}
+            {/* Header / Boton Renovacion */}
+            <View style={styles.topBar}>
+              <TouchableOpacity
+                style={styles.renewBtn}
+                onPress={() => setShowRenewModal(true)}
+              >
+                <Icon name="history" size={13} color={apple.colors.blue} />
+                <Text style={styles.renewBtnText}>Renovar crédito saldado</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Banner si esta renovando */}
             {previousInvoiceId && (
               <View style={styles.renewalBanner}>
                 <View style={styles.renewalBannerIcon}>
@@ -667,7 +832,7 @@ const CrearCliente = () => {
               </View>
             </View>
 
-            {/* Seccion 2: Contacto y Documento */}
+            {/* Seccion 2: Contacto, Documento y Fotografía */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <View style={[styles.sectionIcon, { backgroundColor: '#E8F5E9' }]}>
@@ -706,6 +871,62 @@ const CrearCliente = () => {
                 error={docError}
                 editable={!previousInvoiceId}
               />
+
+              {/* Fotografía del Documento de Identidad (Requisito 7) */}
+              <Text style={[styles.fieldLabel, { marginTop: 4 }]}>Fotografía del documento de identidad</Text>
+              <View style={styles.photoContainer}>
+                {fotoDocumento?.uri ? (
+                  <View style={styles.photoPreviewRow}>
+                    <TouchableOpacity
+                      onPress={() => setPreviewDocModal(true)}
+                      style={styles.photoThumbnailWrap}
+                    >
+                      <Image source={{ uri: fotoDocumento.uri }} style={styles.photoThumbnail} />
+                      <View style={styles.zoomBadge}>
+                        <Icon name="search-plus" size={12} color="#fff" />
+                      </View>
+                    </TouchableOpacity>
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <Text style={styles.photoFileName} numberOfLines={1}>
+                        {fotoDocumento.fileName || 'Foto documento adjunta'}
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={styles.photoActionBtn}
+                          onPress={handleTakeDocPhoto}
+                        >
+                          <Icon name="camera" size={12} color={apple.colors.blue} />
+                          <Text style={styles.photoActionText}>Cambiar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.photoActionBtn, { borderColor: apple.colors.danger }]}
+                          onPress={() => setFotoDocumento(null)}
+                        >
+                          <Icon name="trash" size={12} color={apple.colors.danger} />
+                          <Text style={[styles.photoActionText, { color: apple.colors.danger }]}>Quitar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.photoEmptyRow}>
+                    <TouchableOpacity
+                      style={styles.photoPickerBtn}
+                      onPress={handleTakeDocPhoto}
+                    >
+                      <Icon name="camera" size={18} color={apple.colors.blue} />
+                      <Text style={styles.photoPickerBtnText}>Tomar foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.photoPickerBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                      onPress={handlePickDocGallery}
+                    >
+                      <Icon name="image" size={18} color="#16A34A" />
+                      <Text style={[styles.photoPickerBtnText, { color: '#16A34A' }]}>Galería</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </View>
 
             {/* Seccion 3: Condiciones del Credito */}
@@ -725,24 +946,119 @@ const CrearCliente = () => {
                 keyboardType="numeric"
               />
 
-              <Text style={styles.fieldLabel}>Plazo *</Text>
-              <TouchableOpacity style={styles.picker} onPress={() => setShowPlazoModal(true)}>
-                <Text style={[styles.pickerText, !formDataLabels.plazo && { color: apple.colors.tertiaryLabel }]}>
-                  {formDataLabels.plazo || 'Selecciona plazo'}
-                </Text>
-                <Icon name="chevron-down" size={12} color={apple.colors.tertiaryLabel} />
-              </TouchableOpacity>
+              {/* Selector de Periodicidad (Requisito 5.1: Diario por defecto) */}
+              <Text style={styles.fieldLabel}>Periodicidad del cobro *</Text>
+              <View style={styles.segment}>
+                {[
+                  { key: 'diario', label: 'Diario' },
+                  { key: 'semanal', label: 'Semanal' },
+                  { key: 'mensual', label: 'Mensual' },
+                ].map(p => (
+                  <TouchableOpacity
+                    key={p.key}
+                    onPress={() => setPeriodicidad(p.key)}
+                    style={[styles.segmentOpt, periodicidad === p.key && styles.segmentOptActive]}
+                  >
+                    <Text style={[styles.segmentText, periodicidad === p.key && styles.segmentTextActive]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-              <Text style={styles.fieldLabel}>Interés *</Text>
-              <TouchableOpacity style={styles.picker} onPress={() => setShowInteresModal(true)}>
-                <Text style={[styles.pickerText, !formDataLabels.interes && { color: apple.colors.tertiaryLabel }]}>
-                  {formDataLabels.interes || 'Selecciona interés'}
-                </Text>
-                <Icon name="chevron-down" size={12} color={apple.colors.tertiaryLabel} />
-              </TouchableOpacity>
+              {/* Accesos rápidos para Plazo (Requisito 4.1: 24, 30, 45) */}
+              <View style={styles.quickLabelRow}>
+                <Text style={styles.fieldLabel}>{cuotasLabel}</Text>
+                <View style={styles.quickButtonsRow}>
+                  {[24, 30, 45].map(q => {
+                    const isSelected = String(formData.numCuotas) === String(q);
+                    return (
+                      <TouchableOpacity
+                        key={q}
+                        style={[styles.quickBtn, isSelected && styles.quickBtnActive]}
+                        onPress={() => handleSelectQuickCuotas(q)}
+                      >
+                        <Text style={[styles.quickBtnText, isSelected && styles.quickBtnTextActive]}>
+                          {q}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Campo numérico editable para cantidad de pagos (1 a 90) */}
+              <View style={[styles.inputWrap, cuotasError ? styles.inputWrapError : null]}>
+                <Icon name="calendar" size={14} color={apple.colors.tertiaryLabel} style={{ marginRight: 8 }} />
+                <TextInput
+                  value={formData.numCuotas}
+                  onChangeText={t => handleChange('numCuotas', t)}
+                  placeholder="1 a 90 cuotas"
+                  placeholderTextColor={apple.colors.tertiaryLabel}
+                  style={styles.input}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+              </View>
+              {cuotasError ? <Text style={styles.errorText}>{cuotasError}</Text> : null}
+
+              {/* Accesos rápidos para Interés (Requisito 4.1 y 6: 10%, 15%, 20%) */}
+              <View style={[styles.quickLabelRow, { marginTop: 14 }]}>
+                <Text style={styles.fieldLabel}>Tasa de interés (%) *</Text>
+                <View style={styles.quickButtonsRow}>
+                  {[10, 15, 20].map(intVal => {
+                    const isSelected = String(formData.tasaInteres) === String(intVal);
+                    return (
+                      <TouchableOpacity
+                        key={intVal}
+                        style={[styles.quickBtn, isSelected && styles.quickBtnActive]}
+                        onPress={() => handleSelectQuickInteres(intVal)}
+                      >
+                        <Text style={[styles.quickBtnText, isSelected && styles.quickBtnTextActive]}>
+                          {intVal}%
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Campo numérico editable para tasa de interés */}
+              <View style={[styles.inputWrap, interesError ? styles.inputWrapError : null]}>
+                <Icon name="percent" size={14} color={apple.colors.tertiaryLabel} style={{ marginRight: 8 }} />
+                <TextInput
+                  value={formData.tasaInteres}
+                  onChangeText={t => handleChange('tasaInteres', t)}
+                  placeholder="Ej. 20"
+                  placeholderTextColor={apple.colors.tertiaryLabel}
+                  style={styles.input}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+              </View>
+              {interesError ? <Text style={styles.errorText}>{interesError}</Text> : null}
+
+              {/* Switch de Pago Adelantado (Requisito 8: Off por defecto) */}
+              <View style={styles.advanceRow}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Icon name="check-square-o" size={15} color={pagoAdelantado ? apple.colors.blue : apple.colors.secondaryLabel} />
+                    <Text style={styles.advanceTitle}>Pago adelantado (Primera cuota)</Text>
+                  </View>
+                  <Text style={styles.advanceSub}>
+                    Abona inmediatamente la 1ª cuota y la asocia al próximo día de recaudo.
+                  </Text>
+                </View>
+                <Switch
+                  value={pagoAdelantado}
+                  onValueChange={setPagoAdelantado}
+                  trackColor={{ false: apple.colors.separator, true: apple.colors.blue }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
             </View>
 
-            {/* Resumen de la Cuota Estimada (Requisito 3) */}
+            {/* Resumen de la Cuota Estimada */}
             {quoteSummary ? (
               <View style={styles.quoteCard}>
                 <View style={styles.quoteHeader}>
@@ -751,7 +1067,7 @@ const CrearCliente = () => {
                     <Text style={styles.quoteTitle}>Vista previa de la cuota</Text>
                   </View>
                   <View style={styles.estimateBadge}>
-                    <Text style={styles.estimateBadgeText}>Estimación</Text>
+                    <Text style={styles.estimateBadgeText}>{periodicidad.toUpperCase()}</Text>
                   </View>
                 </View>
 
@@ -762,7 +1078,7 @@ const CrearCliente = () => {
                   <Text style={styles.quoteValue}>{FormatMoneyDecimales(quoteSummary.capital)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Interés estimado ({quoteSummary.interesLabel}):</Text>
+                  <Text style={styles.quoteLabel}>Interés estimado ({quoteSummary.tasaPorcentaje}%):</Text>
                   <Text style={styles.quoteValue}>+ {FormatMoneyDecimales(quoteSummary.montoInteres)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
@@ -770,12 +1086,24 @@ const CrearCliente = () => {
                   <Text style={[styles.quoteValue, { fontWeight: '700' }]}>{FormatMoneyDecimales(quoteSummary.totalFactura)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Plazo seleccionado:</Text>
-                  <Text style={styles.quoteValue}>{quoteSummary.plazoLabel}</Text>
+                  <Text style={styles.quoteLabel}>Plazo y periodicidad:</Text>
+                  <Text style={styles.quoteValue}>{quoteSummary.numCuotas} cuotas ({periodicidad})</Text>
                 </View>
 
+                {pagoAdelantado && (
+                  <View style={styles.quoteAdvanceBox}>
+                    <Icon name="info-circle" size={13} color="#B45309" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.quoteAdvanceTitle}>Pago adelantado activo</Text>
+                      <Text style={styles.quoteAdvanceSub}>
+                        Se cobrará la 1ª cuota de {FormatMoneyDecimales(quoteSummary.valorCuota)} asignada al próximo día de recaudo ({quoteSummary.proximoRecaudoStr}). Saldo a deber: {FormatMoneyDecimales(quoteSummary.saldoInicial)}.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 <View style={styles.quoteResultBox}>
-                  <Text style={styles.quoteResultLabel}>Cuota aproximada a pagar:</Text>
+                  <Text style={styles.quoteResultLabel}>Cuota {periodicidad} a pagar:</Text>
                   <Text style={styles.quoteResultAmount}>{FormatMoneyDecimales(quoteSummary.valorCuota)}</Text>
                   <Text style={styles.quoteResultSub}>{quoteSummary.numCuotas} cuota(s) calculada(s)</Text>
                 </View>
@@ -798,42 +1126,42 @@ const CrearCliente = () => {
             {!isFormValid && (
               <Text style={styles.hint}>
                 {!cleanTel || cleanTel.length < 10
-                  ? 'Ingresa un teléfono válido de 10 a 12 dígitos.'
+                  ? 'Ingresa un teléfono válido de 10 a 12 dígitos'
                   : !cleanDoc || cleanDoc.length < 6
-                    ? 'Ingresa un documento válido de 6 a 12 caracteres.'
-                    : 'Completa todos los campos obligatorios para habilitar el guardado.'}
+                  ? 'Ingresa un documento válido de 6 a 12 caracteres'
+                  : !parseMoneyToNumeric(formData.valor)
+                  ? 'Ingresa el capital a prestar'
+                  : cuotasError
+                  ? cuotasError
+                  : interesError
+                  ? interesError
+                  : 'Completa todos los campos obligatorios (*) para continuar'}
               </Text>
             )}
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Selector de Plazo */}
-      <CustomPicker
-        data={conceptosPlazo}
-        selectedValue={formData.plazo}
-        onSelect={(v, l) => handlePickerSelect('plazo', v, l)}
-        placeholder="Seleccionar Plazo"
-        visible={showPlazoModal}
-        onClose={() => setShowPlazoModal(false)}
+      {/* Modal Preview Documento */}
+      <EvidencePreviewModal
+        visible={previewDocModal}
+        onClose={() => setPreviewDocModal(false)}
+        title="Documento de Identidad"
+        imageUri={fotoDocumento?.uri}
+        onTakePhoto={handleTakeDocPhoto}
+        onPickGallery={handlePickDocGallery}
+        onRemovePhoto={() => {
+          setFotoDocumento(null);
+          setPreviewDocModal(false);
+        }}
       />
 
-      {/* Selector de Interes */}
-      <CustomPicker
-        data={conceptosInteres}
-        selectedValue={formData.interes}
-        onSelect={(v, l) => handlePickerSelect('interes', v, l)}
-        placeholder="Seleccionar Interés"
-        visible={showInteresModal}
-        onClose={() => setShowInteresModal(false)}
-      />
-
-      {/* Modal de Renovacion de Clientes (Requisito 10) */}
+      {/* Modal Clientes para Renovacion */}
       <Modal visible={showRenewModal} animationType="slide" transparent onRequestClose={() => setShowRenewModal(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Renovar cliente pagado</Text>
+              <Text style={styles.modalTitle}>Seleccionar cliente para renovación</Text>
               <TouchableOpacity onPress={() => setShowRenewModal(false)} style={styles.modalCloseBtn}>
                 <Icon name="times" size={16} color={apple.colors.secondaryLabel} />
               </TouchableOpacity>
@@ -842,39 +1170,38 @@ const CrearCliente = () => {
             <View style={styles.searchWrapModal}>
               <Icon name="search" size={13} color={apple.colors.tertiaryLabel} />
               <TextInput
+                style={styles.searchInputModal}
+                placeholder="Buscar por nombre o documento..."
+                placeholderTextColor={apple.colors.tertiaryLabel}
                 value={searchRenewText}
                 onChangeText={setSearchRenewText}
-                placeholder="Buscar por nombre o cédula..."
-                placeholderTextColor={apple.colors.tertiaryLabel}
-                style={styles.searchInputModal}
               />
             </View>
 
             <FlatList
               data={filteredPaidClients}
               keyExtractor={item => String(item.id)}
-              contentContainerStyle={{ paddingVertical: 8 }}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.paidClientItem}
                   onPress={() => handleSelectRenewalClient(item)}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.paidClientName}>{item.nombreUno} {item.apellidoUno || ''}</Text>
-                    <Text style={styles.paidClientSub}>Doc: {item.documento || 'S/D'} • Tel: {item.celular || 'S/T'}</Text>
+                    <Text style={styles.paidClientName}>{item.nombreUno} {item.apellidoUno}</Text>
+                    <Text style={styles.paidClientSub}>Doc: {item.documento} · Tel: {item.celular || 'Sin teléfono'}</Text>
                     {item.direccion ? <Text style={styles.paidClientDir}>{item.direccion}</Text> : null}
                   </View>
                   <View style={styles.paidClientAction}>
-                    <Text style={styles.paidClientActionText}>Seleccionar</Text>
-                    <Icon name="chevron-right" size={12} color={apple.colors.blue} />
+                    <Text style={styles.paidClientActionText}>Renovar</Text>
+                    <Icon name="chevron-right" size={11} color={apple.colors.blue} />
                   </View>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
                 <View style={styles.emptyRenewWrap}>
-                  <Icon name="users" size={32} color={apple.colors.tertiaryLabel} />
-                  <Text style={styles.emptyRenewTitle}>No se encontraron clientes pagados</Text>
-                  <Text style={styles.emptyRenewSub}>Solo los clientes con saldo $0 o finalizados pueden renovarse.</Text>
+                  <Icon name="check-circle" size={32} color={apple.colors.tertiaryLabel} />
+                  <Text style={styles.emptyRenewTitle}>Sin clientes saldados</Text>
+                  <Text style={styles.emptyRenewSub}>No hay clientes con saldo en cero disponibles para renovación.</Text>
                 </View>
               }
             />
@@ -887,65 +1214,46 @@ const CrearCliente = () => {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: apple.colors.bgGrouped },
-  header: {
+  scroll: { padding: 16, paddingBottom: 40 },
+  topBar: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
+  renewBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: apple.colors.card,
-    borderBottomWidth: 0.5,
-    borderColor: apple.colors.separator,
-  },
-  headerBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  headerBack: { fontSize: 16, color: apple.colors.blue },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: apple.colors.label },
-  headerRenewBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: apple.radius.s,
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: apple.radius.m,
     backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
   },
-  headerRenewText: { fontSize: 13, fontWeight: '600', color: apple.colors.blue },
+  renewBtnText: { fontSize: 13, fontWeight: '600', color: apple.colors.blue },
   renewalBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: apple.radius.m,
     padding: 12,
-    marginBottom: 16,
+    borderRadius: apple.radius.m,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
     gap: 10,
   },
-  renewalBannerIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  renewalBannerIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
   renewalBannerTitle: { fontSize: 13, fontWeight: '700', color: apple.colors.blue },
   renewalBannerSub: { fontSize: 12, color: apple.colors.secondaryLabel, marginTop: 1 },
   renewalClearBtn: { padding: 6 },
-  pageTitle: { fontSize: 24, fontWeight: '700', color: apple.colors.label, marginBottom: 4 },
-  pageSub: { fontSize: 14, color: apple.colors.secondaryLabel, marginBottom: 20 },
+  pageTitle: { fontSize: 24, fontWeight: '800', color: apple.colors.label, letterSpacing: 0.3 },
+  pageSub: { fontSize: 13, color: apple.colors.secondaryLabel, marginTop: 4, marginBottom: 16 },
   section: {
     backgroundColor: apple.colors.card,
     borderRadius: apple.radius.l,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E8EAED',
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   sectionIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontSize: 15, fontWeight: '600', color: apple.colors.label },
   field: { marginBottom: 14 },
@@ -972,35 +1280,155 @@ const styles = StyleSheet.create({
     borderRadius: apple.radius.m,
     padding: 3,
     gap: 4,
+    marginBottom: 12,
   },
   segmentOpt: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: apple.radius.s },
   segmentOptActive: { backgroundColor: apple.colors.card, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 3, elevation: 1 },
   segmentText: { fontSize: 13, fontWeight: '500', color: apple.colors.secondaryLabel },
   segmentTextActive: { color: apple.colors.label, fontWeight: '600' },
-  picker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.m,
-    borderWidth: 1,
-    borderColor: apple.colors.separator,
-    paddingHorizontal: 12,
-    height: 44,
-    marginBottom: 14,
-  },
-  pickerText: { fontSize: 15, color: apple.colors.label },
   hint: { fontSize: 12, color: apple.colors.secondaryLabel, textAlign: 'center', marginTop: 10 },
 
-  // Tarjeta Resumen de Cuota (Requisito 3)
+  // Quick access buttons (Requisito 4)
+  quickLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickButtonsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  quickBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickBtnActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: apple.colors.blue,
+  },
+  quickBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: apple.colors.secondaryLabel,
+  },
+  quickBtnTextActive: {
+    color: apple.colors.blue,
+    fontWeight: '700',
+  },
+
+  // Document photo styles (Requisito 7)
+  photoContainer: {
+    marginTop: 6,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+    borderRadius: apple.radius.m,
+    padding: 12,
+    backgroundColor: '#FAFAFA',
+  },
+  photoEmptyRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  photoPickerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: apple.radius.s,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  photoPickerBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: apple.colors.blue,
+  },
+  photoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  photoThumbnailWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+  },
+  photoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  zoomBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 6,
+    padding: 2,
+  },
+  photoFileName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  photoActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: apple.colors.blue,
+  },
+  photoActionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: apple.colors.blue,
+  },
+
+  // Advance Payment Switch (Requisito 8)
+  advanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  advanceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  advanceSub: {
+    fontSize: 12,
+    color: apple.colors.secondaryLabel,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+
+  // Quote preview card
   quoteCard: {
-    backgroundColor: apple.colors.card,
+    backgroundColor: '#F8FAFC',
     borderRadius: apple.radius.l,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1.5,
     borderColor: '#93C5FD',
-    backgroundColor: '#F8FAFC',
   },
   quoteHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   quoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1016,6 +1444,27 @@ const styles = StyleSheet.create({
   quoteRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   quoteLabel: { fontSize: 13, color: apple.colors.secondaryLabel },
   quoteValue: { fontSize: 13, fontWeight: '600', color: apple.colors.label },
+  quoteAdvanceBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    padding: 10,
+    borderRadius: apple.radius.s,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  quoteAdvanceTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  quoteAdvanceSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 1,
+    lineHeight: 15,
+  },
   quoteResultBox: {
     backgroundColor: '#ECFDF5',
     borderWidth: 1,

@@ -5,6 +5,7 @@ import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { appAlert } from '../components/AppAlert';
 import { saveCajaLocal, saveMovimientoLocal } from '../services/cajaService';
+import { syncPendingEvidencias } from '../services/multimediaService';
 import { eventBus, EVENTS } from './eventBus';
 import { EvaluationDataSend } from './utilities';
 
@@ -163,6 +164,20 @@ const executeSyncRun = async (toas) => {
       console.log('SyncCajaAndMovimientos error en SyncWithSupabase:', eCaja);
     }
 
+    // 5.1 Sincronizar archivos multimedia y evidencias pendientes
+    try {
+      await syncPendingEvidencias();
+    } catch (eEvi) {
+      console.log('syncPendingEvidencias error:', eEvi);
+    }
+
+    // 5.2 Sincronizar conceptos parametrizados desde la base de datos
+    try {
+      await syncConcepts();
+    } catch (eCon) {
+      console.log('syncConcepts error:', eCon);
+    }
+
     // Evaluación veraz de resultados para Toast (Requisito 3)
     const totalSynced = (ventasResult.syncedCount || 0) + (collectedResult.syncedCount || 0);
     const allErrors = [...(ventasResult.errors || []), ...(collectedResult.errors || [])];
@@ -243,7 +258,7 @@ const SendVentas = async () => {
       const localSaleUuid = `00000000-0000-4000-7000-${Math.abs(Number(item.temp_id) || item.id || 1).toString(16).padStart(12, '0')}`;
 
       try {
-        const { data: result, error: rpcError } = await supabase.rpc('create_sale', {
+        let rpcRes = await supabase.rpc('create_sale', {
           nombre: payload.nombre,
           apellido: payload.apellido || '',
           alias: payload.alias || '',
@@ -261,9 +276,39 @@ const SendVentas = async () => {
           longitud: payload.longitud != null ? parseFloat(payload.longitud) : null,
           previous_invoice_id: payload.previous_invoice_id || null,
           fecha: payload.fecha || payload.created_at || null,
+          periodicidad: payload.periodicidad || 'diario',
+          num_cuotas: payload.num_cuotas ? parseInt(payload.num_cuotas, 10) : null,
+          tasa_interes: payload.tasa_interes != null ? parseFloat(payload.tasa_interes) : null,
+          pago_adelantado: !!payload.pago_adelantado,
+          foto_documento: payload.foto_documento || null,
         });
 
-        if (rpcError) throw rpcError;
+        // Compatibilidad retroactiva si la base de datos remota aún tiene la versión previa de RPC (PGRST202)
+        if (rpcRes.error && rpcRes.error.code === 'PGRST202') {
+          console.log('create_sale: Firma extendida no encontrada en Supabase (PGRST202). Reintentando con firma estándar de 17 parámetros.');
+          rpcRes = await supabase.rpc('create_sale', {
+            nombre: payload.nombre,
+            apellido: payload.apellido || '',
+            alias: payload.alias || '',
+            email: payload.email || '',
+            telefono: payload.telefono || '',
+            direccion: payload.direccion || '',
+            documento: payload.documento || '',
+            monto: parseFloat(payload.monto),
+            vendedor_id: payload.vendedor_id,
+            caja_id: payload.caja_id,
+            plazo_id: parseInt(payload.plazo_id, 10),
+            interes_id: parseInt(payload.interes_id, 10),
+            client_uuid: localSaleUuid,
+            latitud: payload.latitud != null ? parseFloat(payload.latitud) : null,
+            longitud: payload.longitud != null ? parseFloat(payload.longitud) : null,
+            previous_invoice_id: payload.previous_invoice_id || null,
+            fecha: payload.fecha || payload.created_at || null,
+          });
+        }
+
+        if (rpcRes.error) throw rpcRes.error;
+        const result = rpcRes.data;
 
         const remoteInvoiceId = result.id_factura;
         console.log("Venta offline sincronizada con éxito. Factura remota:", remoteInvoiceId);
@@ -382,6 +427,8 @@ const SendMovimientos = async () => {
         longitud: m.longitud,
         descripcion: m.descripcion || '',
         idCaja: m.idCaja || m.caja_id,
+        concepto_id: m.concepto_id || null,
+        evidencia_path: m.evidencia_path || null,
       },
     };
     addToSyncCollection(payload, m.id, 'movimiento');
@@ -494,14 +541,32 @@ const sendCollectedItems = async (sessionParam = null) => {
 
           if (isNegativeTemp) {
             const localMovUuid = `00000000-0000-4000-9000-${Math.abs(Number(item.id) || 1).toString(16).padStart(12, '0')}`;
-            const { data: mv, error } = await supabase.rpc('rpc_create_cash_movement', {
+            let { data: mv, error } = await supabase.rpc('rpc_create_cash_movement', {
               p_caja_id: targetCajaId,
               p_tipo: item.detalle.tipo,
               p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
               p_monto: valNum,
               p_client_uuid: localMovUuid,
               p_fecha: item.detalle.hora_dispositivo || null,
+              p_concepto_id: item.detalle.concepto_id || null,
+              p_evidencia_path: item.detalle.evidencia_path || null,
             });
+
+            // Compatibilidad retroactiva si la base de datos remota aún tiene la versión previa de RPC (PGRST202)
+            if (error && error.code === 'PGRST202') {
+              console.log('rpc_create_cash_movement: Firma con concepto/evidencia no encontrada en Supabase (PGRST202). Reintentando con firma estándar de 6 parámetros.');
+              const legacyRes = await supabase.rpc('rpc_create_cash_movement', {
+                p_caja_id: targetCajaId,
+                p_tipo: item.detalle.tipo,
+                p_descripcion: item.detalle.descripcion || 'Movimiento de caja',
+                p_monto: valNum,
+                p_client_uuid: localMovUuid,
+                p_fecha: item.detalle.hora_dispositivo || null,
+              });
+              mv = legacyRes.data;
+              error = legacyRes.error;
+            }
+
             if (error) throw error;
             results.push({ idv: item.id, idn: mv?.id || item.id, ok: true });
           } else {
@@ -772,5 +837,50 @@ export const SyncCajaAndMovimientos = async () => {
     }
   } catch (err) {
     console.log('SyncCajaAndMovimientos error:', err);
+  }
+};
+
+/**
+ * Sincroniza conceptos parametrizados desde la BD Supabase hacia SQLite para funcionamiento offline
+ */
+export const syncConcepts = async () => {
+  try {
+    const { data: remoteConcepts, error } = await supabase
+      .from('concepts')
+      .select('id, tipo, valor, nombre, tipo_movimiento, activo, orden, organizacion_id')
+      .order('orden', { ascending: true });
+
+    if (!error && remoteConcepts && remoteConcepts.length > 0) {
+      const db = await getDbConnection();
+      await db.executeSql(`CREATE TABLE IF NOT EXISTS concepts (
+        id INTEGER PRIMARY KEY,
+        tipo TEXT,
+        valor TEXT,
+        nombre TEXT,
+        tipo_movimiento TEXT,
+        activo INTEGER DEFAULT 1,
+        orden INTEGER DEFAULT 0,
+        organizacion_id TEXT
+      )`);
+      for (const rc of remoteConcepts) {
+        await db.executeSql(
+          `INSERT OR REPLACE INTO concepts (id, tipo, valor, nombre, tipo_movimiento, activo, orden, organizacion_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            rc.id,
+            rc.tipo || null,
+            rc.valor || null,
+            rc.nombre || rc.valor || '',
+            rc.tipo_movimiento || rc.tipo || null,
+            rc.activo === false ? 0 : 1,
+            rc.orden || 0,
+            rc.organizacion_id || null,
+          ]
+        );
+      }
+      console.log(`syncConcepts: ${remoteConcepts.length} conceptos parametrizados sincronizados localmente.`);
+    }
+  } catch (err) {
+    console.log('syncConcepts error:', err);
   }
 };

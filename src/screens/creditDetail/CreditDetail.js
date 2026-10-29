@@ -21,6 +21,8 @@ import { apple } from '../../theme/appleTheme';
 import { AppleCard } from '../../components/AppleCard';
 import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
+import EvidencePreviewModal from '../../components/EvidencePreviewModal';
+import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 
 function StatusBadge({ estado }) {
   const map = {
@@ -43,6 +45,9 @@ export default function CreditDetail({ route, navigation }) {
   const [client, setClient] = useState(null);
   const [cuotas, setCuotas] = useState([]);
   const [pagos, setPagos] = useState([]);
+  const [docEvidenceModalVisible, setDocEvidenceModalVisible] = useState(false);
+  const [receiptModalVisible, setReceiptModalVisible] = useState(false);
+  const [activeReceipt, setActiveReceipt] = useState(null);
 
   // Estado unificado de coordenadas (Requisito 2)
   const [coords, setCoords] = useState({
@@ -67,6 +72,11 @@ export default function CreditDetail({ route, navigation }) {
             created_at: row.fecha,
             latitud: row.latitud,
             longitud: row.longitud,
+            periodicidad: row.periodicidad || 'Diario',
+            num_cuotas: row.num_cuotas,
+            tasa_interes: row.tasa_interes,
+            pago_adelantado: Number(row.pago_adelantado) === 1,
+            foto_documento_path: row.foto_documento_path || null,
           });
           setClient({
             nombre: row.nombreUno,
@@ -75,6 +85,7 @@ export default function CreditDetail({ route, navigation }) {
             telefono: row.celular,
             direccion: row.direccion,
             documento: row.documento,
+            foto_documento_path: row.foto_documento_path || null,
           });
           if (row.latitud != null && row.longitud != null && Number(row.latitud) !== 0) {
             setCoords({ lat: row.latitud, lng: row.longitud });
@@ -106,23 +117,29 @@ export default function CreditDetail({ route, navigation }) {
         try {
           const { data: inv } = await supabase
             .from('invoice')
-            .select('id, amount, saldo, status, created_at, plazo_id, interes_id, client_id, usuario_id, latitud, longitud')
+            .select('id, amount, saldo, status, created_at, plazo_id, interes_id, client_id, usuario_id, latitud, longitud, periodicidad, num_cuotas, tasa_interes, pago_adelantado')
             .eq('id', invoiceId)
             .single();
 
           if (inv) {
-            setInvoice(inv);
+            setInvoice(prev => ({
+              ...prev,
+              ...inv,
+              amount: Number(inv.amount),
+              saldo: Number(inv.saldo),
+              pago_adelantado: inv.pago_adelantado === true || Number(inv.pago_adelantado) === 1,
+            }));
             if (inv.latitud != null && inv.longitud != null && Number(inv.latitud) !== 0) {
               setCoords({ lat: inv.latitud, lng: inv.longitud });
             }
             if (inv.client_id) {
               const { data: cli } = await supabase
                 .from('clients')
-                .select('nombre, apellido, alias, telefono, direccion, documento, latitud, longitud')
+                .select('nombre, apellido, alias, telefono, direccion, documento, latitud, longitud, foto_documento_path')
                 .eq('id', inv.client_id)
                 .single();
               if (cli) {
-                setClient(cli);
+                setClient(prev => ({ ...prev, ...cli }));
                 if ((!inv.latitud || Number(inv.latitud) === 0) && cli.latitud != null) {
                   setCoords({ lat: cli.latitud, lng: cli.longitud });
                 }
@@ -232,6 +249,42 @@ export default function CreditDetail({ route, navigation }) {
         documento: client?.documento || '',
       },
     });
+  };
+
+  const handleOpenPaymentReceipt = async (paymentItem) => {
+    let orgData = { nombre: 'ZENDA', nit: '', logo: null };
+    try {
+      const db = await getDbConnection();
+      const orgRows = await getData(db, 'SELECT * FROM organizaciones LIMIT 1');
+      if (orgRows && orgRows.length > 0) {
+        orgData = {
+          nombre: orgRows[0].nombre || 'ZENDA',
+          nit: orgRows[0].nit || '',
+          logo: orgRows[0].logo_path || null,
+        };
+      }
+    } catch {}
+
+    const cliName = client ? `${client.nombre || ''} ${client.apellido || ''}`.trim() : clientName || 'Cliente';
+    const cliDoc = client?.documento || '';
+    const dateStr = paymentItem.payment_date || paymentItem.created_at || new Date().toISOString();
+
+    setActiveReceipt({
+      id: paymentItem.id,
+      idFactura: invoiceId,
+      clienteNombre: cliName,
+      clienteDoc: cliDoc,
+      fecha: dateStr,
+      valor: paymentItem.amount,
+      saldoRestante: invoice?.saldo ?? saldoActual,
+      vendedorNombre: 'Vendedor',
+      orgNombre: orgData.nombre,
+      orgNit: orgData.nit,
+      orgLogo: orgData.logo,
+      metodo: (paymentItem.method || 'Efectivo'),
+      isPendingSync: false,
+    });
+    setReceiptModalVisible(true);
   };
 
   if (loading) {
@@ -348,6 +401,44 @@ export default function CreditDetail({ route, navigation }) {
                 </View>
               </View>
 
+              {/* Parámetros financieros: Periodicidad, Cuotas, Interés */}
+              <View style={styles.financialParamRow}>
+                <View style={styles.paramPill}>
+                  <Text style={styles.paramLabel}>PERIODICIDAD</Text>
+                  <Text style={styles.paramVal}>{invoice?.periodicidad || 'Diario'}</Text>
+                </View>
+                <View style={styles.paramPill}>
+                  <Text style={styles.paramLabel}>CUOTAS</Text>
+                  <Text style={styles.paramVal}>{invoice?.num_cuotas || cuotas.length || '—'}</Text>
+                </View>
+                <View style={styles.paramPill}>
+                  <Text style={styles.paramLabel}>INTERÉS</Text>
+                  <Text style={styles.paramVal}>{invoice?.tasa_interes ? `${invoice.tasa_interes}%` : '—'}</Text>
+                </View>
+              </View>
+
+              {invoice?.pago_adelantado && (
+                <View style={styles.advancePaymentNotice}>
+                  <Icon name="check-circle" size={12} color={apple.colors.success} />
+                  <Text style={styles.advancePaymentText}>1ª cuota cubierta con pago adelantado</Text>
+                </View>
+              )}
+
+              {/* Botón de documento de identidad con foto */}
+              {(client?.foto_documento_path || invoice?.foto_documento_path) && (
+                <TouchableOpacity
+                  style={styles.docEvidenceBtn}
+                  onPress={() => setDocEvidenceModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.docEvidenceLeft}>
+                    <Icon name="id-card-o" size={14} color={apple.colors.blue} />
+                    <Text style={styles.docEvidenceText}>Ver fotografía del documento</Text>
+                  </View>
+                  <Icon name="external-link" size={12} color={apple.colors.blue} />
+                </TouchableOpacity>
+              )}
+
               {/* Banner de previsualizacion de mapa si hay coordenadas */}
               {hasCoords ? (
                 <TouchableOpacity onPress={openMap} style={styles.mapPreview}>
@@ -432,6 +523,7 @@ export default function CreditDetail({ route, navigation }) {
               <Text style={[styles.th, { flex: 1 }]}>FECHA</Text>
               <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>MONTO</Text>
               <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>MÉTODO</Text>
+              <Text style={[styles.th, { width: 36, textAlign: 'center' }]}></Text>
             </View>
             {pagos.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center' }}>
@@ -456,6 +548,13 @@ export default function CreditDetail({ route, navigation }) {
                     <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>
                       {(item.method || '—').toUpperCase()}
                     </Text>
+                    <TouchableOpacity
+                      style={styles.paymentReceiptIconBtn}
+                      onPress={() => handleOpenPaymentReceipt(item)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icon name="file-text-o" size={14} color={apple.colors.blue} />
+                    </TouchableOpacity>
                   </View>
                 )}
                 ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -465,6 +564,19 @@ export default function CreditDetail({ route, navigation }) {
           </AppleCard>
         </View>
       </View>
+
+      <EvidencePreviewModal
+        visible={docEvidenceModalVisible}
+        onClose={() => setDocEvidenceModalVisible(false)}
+        readOnly={true}
+        initialUri={client?.foto_documento_path || invoice?.foto_documento_path}
+        title="Documento de Identidad"
+      />
+      <PaymentReceiptModal
+        visible={receiptModalVisible}
+        onClose={() => setReceiptModalVisible(false)}
+        receiptData={activeReceipt}
+      />
     </SafeAreaView>
   );
 }
@@ -622,4 +734,81 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   renewalBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  financialParamRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  paramPill: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E8EAED',
+    borderRadius: apple.radius.m,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  paramLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: apple.colors.secondaryLabel,
+    letterSpacing: 0.3,
+  },
+  paramVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: apple.colors.label,
+    marginTop: 2,
+  },
+  advancePaymentNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: apple.radius.m,
+    marginTop: 8,
+  },
+  advancePaymentText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  docEvidenceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: apple.radius.m,
+    marginTop: 8,
+  },
+  docEvidenceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  docEvidenceText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: apple.colors.blue,
+  },
+  paymentReceiptIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F7FF',
+    borderWidth: 1,
+    borderColor: '#D0E4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+  },
 });

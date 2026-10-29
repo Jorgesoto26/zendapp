@@ -27,6 +27,7 @@ import {
 } from '../../services/adminService';
 import { UserCard } from './components/UserCard';
 import { UserModal } from './components/UserModal';
+import OrganizationModal from './components/OrganizationModal';
 
 export default function AdminUsuarios() {
   const [users, setUsers] = useState([]);
@@ -38,6 +39,7 @@ export default function AdminUsuarios() {
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [orgModalVisible, setOrgModalVisible] = useState(false);
   const { signOut } = useAuth();
 
   const handleLogout = useCallback(() => {
@@ -153,6 +155,13 @@ export default function AdminUsuarios() {
           >
             <Icon name="sign-out" size={17} color={apple.colors.danger} />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerOrgBtn}
+            onPress={() => setOrgModalVisible(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="building-o" size={16} color={apple.colors.blue} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={handleCreate}>
             <Icon name="plus" size={16} color="#FFFFFF" />
           </TouchableOpacity>
@@ -239,6 +248,11 @@ export default function AdminUsuarios() {
         onSave={handleSaveUser}
         editingUser={editingUser}
       />
+      <OrganizationModal
+        visible={orgModalVisible}
+        onClose={() => setOrgModalVisible(false)}
+        onSaved={loadUsers}
+      />
       <LogoutConfirmModal
         visible={showLogout}
         onClose={() => setShowLogout(false)}
@@ -276,6 +290,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  headerOrgBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...apple.shadow.subtle,
   },
   headerLogoutBtn: {
     width: 38,

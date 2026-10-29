@@ -12,6 +12,8 @@ import { apple } from '../../../theme/appleTheme';
 import { appAlert } from '../../../components/AppAlert';
 import { eventBus, EVENTS } from '../../../utils/eventBus';
 import { SyncWithSupabase } from '../../../utils/sync';
+import { useAuth } from '../../../context/AuthContext';
+import PaymentReceiptModal from '../../../components/PaymentReceiptModal';
 
 const getStatusColor = (tipo) => ({ pago: apple.colors.success, 'no pago': apple.colors.danger, parcial: apple.colors.warning, pendiente: apple.colors.separator }[ (tipo||'').toLowerCase().trim()] || apple.colors.separator);
 const getStatusBg = (tipo) => ({ pago: '#E8F5E9', 'no pago': '#FFEBEE', parcial: '#FFF8E1', pendiente: apple.colors.fill }[ (tipo||'').toLowerCase().trim()] || apple.colors.fill);
@@ -100,12 +102,13 @@ const getUltimoTramite = async (db, idFactura) => {
 const ItemPayments = memo(({
   id, name, address, amount, status, paymentType, estadoPago, saldo, cuotasPagas,
   saldoVencido, nombreUno, valorCuota, onPaymentSuccess, estadoMovil, telefono,
-  latitud, longitud, valorCredito,
+  latitud, longitud, valorCredito, documento,
   tipoTramitado: propTipoTramitado,
   valorPagado: propValorPagado,
   pendienteSync: propPendienteSync,
 }) => {
   const navigation = useNavigation();
+  const { profile } = useAuth() || {};
   const [modalParcial, setModalParcial] = useState(false);
   const [modalNoPago, setModalNoPago] = useState(false);
   const [valorParcial, setValorParcial] = useState('');
@@ -113,6 +116,8 @@ const ItemPayments = memo(({
   const [tipoTramitado, setTipoTramitado] = useState(propTipoTramitado || null);
   const [valorPagado, setValorPagado] = useState(propValorPagado || 0);
   const [pendienteSync, setPendienteSync] = useState(propPendienteSync !== undefined ? propPendienteSync : false);
+  const [receiptData, setReceiptData] = useState(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -219,6 +224,43 @@ const ItemPayments = memo(({
       setPendienteSync(true);
 
       Toast.show({ text1: tipo === 'pago' ? 'Pago realizado' : tipo === 'nopago' ? 'No pago registrado' : 'Pago parcial realizado' });
+
+      // Generar comprobante automático si fue un pago o abono válido
+      if (tipo !== 'nopago' && valorPago > 0) {
+        let orgData = { nombre: 'ZENDA', nit: '', logo: null };
+        try {
+          const orgRows = await getData(db, 'SELECT * FROM organizaciones LIMIT 1');
+          if (orgRows && orgRows.length > 0) {
+            orgData = {
+              nombre: orgRows[0].nombre || 'ZENDA',
+              nit: orgRows[0].nit || '',
+              logo: orgRows[0].logo_path || null,
+            };
+          }
+        } catch (eOrg) {}
+
+        const vendedorName = profile?.nombre
+          ? `${profile.nombre} ${profile.apellidos || profile.apellido || ''}`.trim()
+          : 'Vendedor';
+
+        setReceiptData({
+          id: pago.id,
+          idFactura: id,
+          clienteNombre: name || nombreUno || 'Cliente',
+          clienteDoc: documento || '',
+          fecha: pago.horaDispositivo || nowIso,
+          valor: valorPago,
+          saldoRestante: ns,
+          vendedorNombre: vendedorName,
+          orgNombre: orgData.nombre,
+          orgNit: orgData.nit,
+          orgLogo: orgData.logo,
+          metodo: 'Efectivo',
+          isPendingSync: true,
+        });
+        setShowReceiptModal(true);
+      }
+
       onPaymentSuccess?.();
       if (tipo === 'parcial') { setModalParcial(false); setValorParcial(''); } else if (tipo === 'nopago') setModalNoPago(false);
     } catch (e) {
@@ -227,7 +269,57 @@ const ItemPayments = memo(({
     } finally {
       setLoading(false);
     }
-  }, [id, saldo, cuotasPagas, saldoVencido, nombreUno, onPaymentSuccess]);
+  }, [id, saldo, cuotasPagas, saldoVencido, nombreUno, name, documento, profile, onPaymentSuccess]);
+
+  const handleOpenReceiptForTramitado = useCallback(async () => {
+    try {
+      const db = await getDbConnection();
+      const pRows = await getData(
+        db,
+        `SELECT id, valor, horaDispositivo, tipo FROM pagos WHERE idFactura = ? AND tipo != 'nopago' ORDER BY horaDispositivo DESC, rowid DESC LIMIT 1`,
+        [id]
+      );
+      const lastP = pRows?.[0];
+      const val = lastP ? Number(lastP.valor) : valorPagado;
+      const pId = lastP ? lastP.id : `REC-${id}`;
+      const fDate = lastP?.horaDispositivo || new Date().toISOString();
+
+      let orgData = { nombre: 'ZENDA', nit: '', logo: null };
+      try {
+        const orgRows = await getData(db, 'SELECT * FROM organizaciones LIMIT 1');
+        if (orgRows && orgRows.length > 0) {
+          orgData = {
+            nombre: orgRows[0].nombre || 'ZENDA',
+            nit: orgRows[0].nit || '',
+            logo: orgRows[0].logo_path || null,
+          };
+        }
+      } catch (eOrg) {}
+
+      const vendedorName = profile?.nombre
+        ? `${profile.nombre} ${profile.apellidos || profile.apellido || ''}`.trim()
+        : 'Vendedor';
+
+      setReceiptData({
+        id: pId,
+        idFactura: id,
+        clienteNombre: name || nombreUno || 'Cliente',
+        clienteDoc: documento || '',
+        fecha: fDate,
+        valor: val,
+        saldoRestante: saldo,
+        vendedorNombre: vendedorName,
+        orgNombre: orgData.nombre,
+        orgNit: orgData.nit,
+        orgLogo: orgData.logo,
+        metodo: 'Efectivo',
+        isPendingSync: (propPendienteSync !== undefined ? propPendienteSync : pendienteSync),
+      });
+      setShowReceiptModal(true);
+    } catch (e) {
+      console.log('Error opening receipt for tramitado:', e);
+    }
+  }, [id, name, nombreUno, documento, valorPagado, saldo, profile, propPendienteSync, pendienteSync]);
 
   const textoChip = estadoMovil === 'actualizado' && tipoTramitado ? tipoTramitado : paymentType;
   const valorAMostrar = estadoMovil === 'actualizado' ? valorPagado : amount;
@@ -319,21 +411,33 @@ const ItemPayments = memo(({
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.tramitadoInfo}>
-              <View style={styles.tramitadoCol}>
-                <Text style={styles.tramitadoLabel}>VALOR CUOTA</Text>
-                <Text style={styles.tramitadoVal}>{FormatMoneyDecimales(valorCuota)}</Text>
+            <View>
+              <View style={styles.tramitadoInfo}>
+                <View style={styles.tramitadoCol}>
+                  <Text style={styles.tramitadoLabel}>VALOR CUOTA</Text>
+                  <Text style={styles.tramitadoVal}>{FormatMoneyDecimales(valorCuota)}</Text>
+                </View>
+                <View style={styles.tramitadoSep} />
+                <View style={styles.tramitadoCol}>
+                  <Text style={styles.tramitadoLabel}>VALOR CRÉDITO</Text>
+                  <Text style={styles.tramitadoVal}>{FormatMoneyDecimales(valorCredito || amount)}</Text>
+                </View>
+                <View style={styles.tramitadoSep} />
+                <View style={styles.tramitadoCol}>
+                  <Text style={styles.tramitadoLabel}>SALDO VENCIDO</Text>
+                  <Text style={[styles.tramitadoVal, { color: Number(saldoVencido) > 0 ? apple.colors.danger : apple.colors.success }]}>{FormatMoneyDecimales(saldoVencido)}</Text>
+                </View>
               </View>
-              <View style={styles.tramitadoSep} />
-              <View style={styles.tramitadoCol}>
-                <Text style={styles.tramitadoLabel}>VALOR CRÉDITO</Text>
-                <Text style={styles.tramitadoVal}>{FormatMoneyDecimales(valorCredito || amount)}</Text>
-              </View>
-              <View style={styles.tramitadoSep} />
-              <View style={styles.tramitadoCol}>
-                <Text style={styles.tramitadoLabel}>SALDO VENCIDO</Text>
-                <Text style={[styles.tramitadoVal, { color: Number(saldoVencido) > 0 ? apple.colors.danger : apple.colors.success }]}>{FormatMoneyDecimales(saldoVencido)}</Text>
-              </View>
+              {tipoTramitado !== 'NO PAGO' && (
+                <TouchableOpacity
+                  style={styles.receiptShareBtn}
+                  onPress={handleOpenReceiptForTramitado}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="file-text-o" size={13} color={apple.colors.blue} />
+                  <Text style={styles.receiptShareBtnText}>Ver y compartir comprobante de pago</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -371,6 +475,11 @@ const ItemPayments = memo(({
           </View>
         </View>
       </Modal>
+      <PaymentReceiptModal
+        visible={showReceiptModal}
+        onClose={() => setShowReceiptModal(false)}
+        receiptData={receiptData}
+      />
     </Animated.View>
   );
 }, (a, b) =>
@@ -380,7 +489,8 @@ const ItemPayments = memo(({
   a.estadoMovil === b.estadoMovil &&
   a.pendienteSync === b.pendienteSync &&
   a.tipoTramitado === b.tipoTramitado &&
-  a.valorPagado === b.valorPagado
+  a.valorPagado === b.valorPagado &&
+  a.documento === b.documento
 );
 
 export default ItemPayments;
@@ -443,4 +553,22 @@ const styles = StyleSheet.create({
   sheetPrimary: { backgroundColor: apple.colors.blue, borderRadius: apple.radius.s, height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   sheetPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   sheetBtn: { flex: 1, height: 46, borderRadius: apple.radius.s, alignItems: 'center', justifyContent: 'center' },
+  receiptShareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F0F7FF',
+    borderRadius: apple.radius.m,
+    borderWidth: 1,
+    borderColor: '#D0E4FF',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    marginTop: 8,
+  },
+  receiptShareBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: apple.colors.blue,
+  },
 });

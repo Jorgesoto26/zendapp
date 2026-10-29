@@ -1,6 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { getDbConnection, getData } from '../database/db';
+import { eventBus, EVENTS } from '../utils/eventBus';
 
 export async function computeCajaSaldo(db, caja) {
   if (!caja || !caja.id) return caja;
@@ -73,13 +74,17 @@ export async function saveMovimientoLocal(db, m, cajaId = null, estadoMovil = 's
   const monto = Number(m.monto != null ? m.monto : m.valor) || 0;
   const lat = m.latitud != null ? String(m.latitud) : null;
   const lng = m.longitud != null ? String(m.longitud) : null;
+  const conceptoId = m.concepto_id != null ? Number(m.concepto_id) : null;
+  const conceptoNombre = m.concepto_nombre || null;
+  const evidenciaPath = m.evidencia_path || null;
 
   try {
     await db.executeSql(
       `INSERT OR REPLACE INTO movimientos (
-        id, tipo, descripcion, monto, fecha, horaDispositivo, idCaja, caja_id, estadoMovil, latitud, longitud
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [String(m.id), tipo, desc, monto, fecha, fecha, cid, cid, estadoMovil, lat, lng]
+        id, tipo, descripcion, monto, fecha, horaDispositivo, idCaja, caja_id, estadoMovil, latitud, longitud,
+        concepto_id, concepto_nombre, evidencia_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [String(m.id), tipo, desc, monto, fecha, fecha, cid, cid, estadoMovil, lat, lng, conceptoId, conceptoNombre, evidenciaPath]
     );
   } catch (err) {
     try {
@@ -225,34 +230,79 @@ export async function getHistorialCajas(limit = 20, offset = 0) {
   }
 }
 
+export async function checkOrAutoOpenVendedorCaja(userId, profile) {
+  const modoApertura = profile?.modo_apertura_caja || 'admin_masivo';
+  if (profile?.rol !== 'vendedor' || modoApertura !== 'vendedor_dia') {
+    return null;
+  }
+  const db = await getDbConnection();
+  // Verificar si ya tiene caja abierta local
+  const localOpen = await getData(db, `SELECT * FROM cajas WHERE estado = 'abierta' AND (usuario_id = ? OR usuario_id IS NULL) LIMIT 1`, [userId]);
+  if (localOpen && localOpen.length > 0) return localOpen[0];
+
+  try {
+    const { data, error } = await supabase.rpc('rpc_check_or_open_vendedor_caja', {
+      p_vendedor_id: userId,
+    });
+    if (!error && data?.success && data?.caja) {
+      await saveCajaLocal(db, data.caja, userId);
+      return data.caja;
+    }
+  } catch (e) {
+    console.log('rpc_check_or_open_vendedor_caja catch:', e);
+  }
+  return null;
+}
+
 export async function abrirCaja(saldoInicial = 0) {
   const session = await ensureAuthenticatedSession();
   if (!session) throw new Error('No autenticado');
   const userId = session.user.id;
 
-  // Solo el administrador tiene permiso de abrir cajas
   const { data: profile } = await supabase
     .from('profiles')
-    .select('rol')
+    .select('rol, dinero_max_caja, modo_apertura_caja')
     .eq('id', userId)
     .maybeSingle();
 
-  if (profile?.rol !== 'admin' && profile?.rol !== 'superadmin') {
-    throw new Error('Solo el administrador puede realizar la apertura de cajas.');
-  }
+  const isAdmin = profile?.rol === 'admin' || profile?.rol === 'superadmin';
+  const isVendedorDia = profile?.rol === 'vendedor' && profile?.modo_apertura_caja === 'vendedor_dia';
 
-  // El admin puede tener hasta 3 cajas abiertas simultáneamente
-  const { data: abiertas, error: countErr } = await supabase
-    .from('cajas')
-    .select('id')
-    .eq('usuario_id', userId)
-    .eq('estado', 'abierta');
-
-  if (abiertas && abiertas.length >= 3) {
-    throw new Error('Tienes 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas antes de poder abrir una nueva.');
+  if (!isAdmin && !isVendedorDia) {
+    throw new Error('Solo el administrador puede realizar la apertura de cajas en modo apertura masiva.');
   }
 
   const saldoNum = Number(saldoInicial) || 0;
+
+  if (isVendedorDia) {
+    const maxCaja = Number(profile?.dinero_max_caja) || 0;
+    if (maxCaja > 0 && saldoNum > maxCaja) {
+      throw new Error(`El saldo inicial ($${saldoNum.toLocaleString('es-CO')}) excede tu límite permitido por caja ($${maxCaja.toLocaleString('es-CO')}).`);
+    }
+
+    // Verificar que no tenga caja abierta hoy
+    const { data: abiertasVendedor } = await supabase
+      .from('cajas')
+      .select('id')
+      .eq('usuario_id', userId)
+      .eq('estado', 'abierta');
+
+    if (abiertasVendedor && abiertasVendedor.length > 0) {
+      throw new Error('Ya tienes una caja abierta. No se permite abrir más de una caja simultánea para tu usuario.');
+    }
+  } else {
+    // El admin puede tener hasta 3 cajas abiertas simultáneamente
+    const { data: abiertas } = await supabase
+      .from('cajas')
+      .select('id')
+      .eq('usuario_id', userId)
+      .eq('estado', 'abierta');
+
+    if (abiertas && abiertas.length >= 3) {
+      throw new Error('Tienes 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas antes de poder abrir una nueva.');
+    }
+  }
+
   const { data, error } = await supabase
     .from('cajas')
     .insert([{ usuario_id: userId, estado: 'abierta', saldo_inicial: saldoNum, saldo_final: saldoNum }])
@@ -267,6 +317,98 @@ export async function abrirCaja(saldoInicial = 0) {
   }
 
   return data;
+}
+
+/**
+ * Registra no pagos masivos para clientes sin tramitar antes del cierre de caja
+ * No genera dinero recibido, no incrementa saldo de caja, respeta idempotencia.
+ */
+export async function registrarNoPagosMasivos(facturasIds) {
+  if (!facturasIds || facturasIds.length === 0) {
+    return { count: 0, processed: [] };
+  }
+  const db = await getDbConnection();
+  const caja = await getCajaActual();
+  const currentCajaId = caja?.id || null;
+  const nowIso = new Date().toISOString();
+  const processed = [];
+
+  let nextConsecutivo = 1;
+  try {
+    const r = await getData(db, 'SELECT valor FROM consecutivoTramitado WHERE id = 1');
+    if (r && r.length > 0) nextConsecutivo = parseInt(r[0].valor || 0) + 1;
+  } catch {}
+
+  for (const fid of facturasIds) {
+    try {
+      const factRows = await getData(db, `SELECT * FROM facturas WHERE id = ?`, [String(fid)]);
+      if (!factRows || factRows.length === 0) continue;
+      const f = factRows[0];
+      const clienteDesc = `${f.nombreUno || ''} ${f.apellidoUno || ''}`.trim() || 'Cliente';
+
+      // Verificar si ya tiene no pago registrado
+      const existePago = await getData(
+        db,
+        `SELECT id FROM pagos WHERE idFactura = ? AND (tipo = 'nopago' OR estadoMovil = 'actualizado') AND date(substr(horaDispositivo,1,10)) = date('now','localtime')`,
+        [String(fid)]
+      );
+      if (existePago && existePago.length > 0) {
+        await db.executeSql(`UPDATE facturas SET estadoMovil = 'actualizado' WHERE id = ?`, [String(fid)]);
+        continue;
+      }
+
+      const idInsert = -Date.now() - Math.floor(Math.random() * 1000);
+      const consecutivo = nextConsecutivo++;
+
+      // 1. Actualizar estadoMovil en factura
+      await db.executeSql(
+        `UPDATE facturas SET estadoMovil = 'actualizado', consecutivoTramitado = ? WHERE id = ?`,
+        [consecutivo, String(fid)]
+      );
+
+      // 2. Insertar pago con monto 0
+      await db.executeSql(
+        `INSERT OR REPLACE INTO pagos (
+          id, tipo, valor, horaDispositivo, idFactura, valorFactura, estadoMovil, nombre, secuencia_pago, idCaja
+        ) VALUES (?, 'nopago', 0, ?, ?, 0, 'actualizado', ?, ?, ?)`,
+        [idInsert, nowIso, String(fid), clienteDesc, consecutivo, currentCajaId]
+      );
+
+      // 3. Insertar detalleCaja
+      await db.executeSql(
+        `INSERT OR REPLACE INTO detallesCaja (
+          id, facturaId, valor, fecha, tipo, hora_dispositivo, nombre, nopago_factura_venta_id, editable
+        ) VALUES (?, ?, 0, ?, 'nopago', ?, ?, ?, 'true')`,
+        [idInsert, String(fid), nowIso.slice(0, 10), nowIso, clienteDesc, `${fid}_${idInsert}`]
+      );
+
+      // 4. Insertar movimiento con monto 0 (no incrementa saldo_final)
+      await db.executeSql(
+        `INSERT OR REPLACE INTO movimientos (
+          id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre
+        ) VALUES (?, ?, 0, ?, 'nopago', 'actualizado', ?, ?, ?, ?)`,
+        [idInsert, `No pago: ${clienteDesc}`, nowIso, currentCajaId, nowIso, String(fid), clienteDesc]
+      );
+
+      processed.push(fid);
+    } catch (itemErr) {
+      console.log(`Error registrando no pago masivo para factura ${fid}:`, itemErr);
+    }
+  }
+
+  try {
+    await db.executeSql('INSERT OR REPLACE INTO consecutivoTramitado (id, valor) VALUES (1, ?)', [nextConsecutivo]);
+  } catch {}
+
+  eventBus.emit(EVENTS.PAYMENT_REGISTERED);
+  eventBus.emit(EVENTS.MOVEMENT_CHANGED);
+
+  try {
+    const { SyncWithSupabase } = require('../utils/sync');
+    SyncWithSupabase(false, () => {});
+  } catch {}
+
+  return { count: processed.length, processed };
 }
 
 /**

@@ -34,6 +34,10 @@ import { eventBus, EVENTS } from '../../utils/eventBus';
 import { getDbConnection, getData } from '../../database/db';
 import { supabase } from '../../lib/supabase';
 import Toast from 'react-native-toast-message';
+import ConceptPickerModal from '../../components/ConceptPickerModal';
+import EvidencePreviewModal from '../../components/EvidencePreviewModal';
+import PaymentReceiptModal from '../../components/PaymentReceiptModal';
+import { pickImage } from '../../services/multimediaService';
 
 export default function MovementsScreen() {
   const navigation = useNavigation();
@@ -51,7 +55,15 @@ export default function MovementsScreen() {
   const [formTipo, setFormTipo] = useState('ingreso');
   const [formDesc, setFormDesc] = useState('');
   const [formMonto, setFormMonto] = useState('');
+  const [selectedConcept, setSelectedConcept] = useState(null);
+  const [formEvidenceUri, setFormEvidenceUri] = useState(null);
+  const [conceptModalVisible, setConceptModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Visor de Evidencia y Comprobante
+  const [evidenceViewUri, setEvidenceViewUri] = useState(null);
+  const [receiptModalVisible, setReceiptModalVisible] = useState(false);
+  const [activeReceipt, setActiveReceipt] = useState(null);
 
   // Modal Edición Movimiento
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -173,12 +185,17 @@ export default function MovementsScreen() {
         monto,
         latitud: loc?.lat ?? null,
         longitud: loc?.lng ?? null,
+        conceptoId: formTipo === 'gasto' ? (selectedConcept?.id || null) : null,
+        conceptoNombre: formTipo === 'gasto' ? (selectedConcept?.nombre || null) : null,
+        evidenciaPath: formTipo === 'gasto' ? (formEvidenceUri || null) : null,
       });
 
       setModalVisible(false);
       setFormDesc('');
       setFormMonto('');
       setFormTipo('ingreso');
+      setSelectedConcept(null);
+      setFormEvidenceUri(null);
 
       eventBus.emit(EVENTS.MOVEMENT_CHANGED);
       await load(true);
@@ -191,6 +208,42 @@ export default function MovementsScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleOpenPaymentReceiptForMovement = async (item) => {
+    let orgData = { nombre: 'ZENDA', nit: '', logo: null };
+    try {
+      const db = await getDbConnection();
+      const orgRows = await getData(db, 'SELECT * FROM organizaciones LIMIT 1');
+      if (orgRows && orgRows.length > 0) {
+        orgData = {
+          nombre: orgRows[0].nombre || 'ZENDA',
+          nit: orgRows[0].nit || '',
+          logo: orgRows[0].logo_path || null,
+        };
+      }
+    } catch {}
+
+    const monto = Number(item.monto != null ? item.monto : item.valor) || 0;
+    const fId = item.idFactura || null;
+    const cliName = item.cliente_nombre || (item.descripcion ? item.descripcion.replace(/^Pago:\s*/i, '') : 'Cliente');
+
+    setActiveReceipt({
+      id: item.id,
+      idFactura: fId,
+      clienteNombre: cliName,
+      clienteDoc: '',
+      fecha: item.fecha || item.horaDispositivo || new Date().toISOString(),
+      valor: monto,
+      saldoRestante: null,
+      vendedorNombre: profile?.nombre ? `${profile.nombre} ${profile.apellidos || ''}`.trim() : 'Vendedor',
+      orgNombre: orgData.nombre,
+      orgNit: orgData.nit,
+      orgLogo: orgData.logo,
+      metodo: 'Efectivo',
+      isPendingSync: item.estadoMovil === 'actualizado',
+    });
+    setReceiptModalVisible(true);
   };
 
   // Abrir modal de edición con validación de sincronización (Requisito 3.1)
@@ -460,9 +513,16 @@ export default function MovementsScreen() {
         {/* Informacion central */}
         <View style={{ flex: 1 }}>
           <View style={styles.rowTopLine}>
-            <Text style={styles.rowTitle}>
-              {item.tipo.toUpperCase()} • {FormatMoneyDecimales(item.monto != null ? item.monto : item.valor)}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+              <Text style={styles.rowTitle}>
+                {item.tipo.toUpperCase()} • {FormatMoneyDecimales(item.monto != null ? item.monto : item.valor)}
+              </Text>
+              {item.concepto_nombre ? (
+                <View style={styles.conceptTag}>
+                  <Text style={styles.conceptTagText}>{item.concepto_nombre}</Text>
+                </View>
+              ) : null}
+            </View>
             {/* Pill indicador de sincronizacion */}
             <View style={[styles.syncPill, isPendingSync ? styles.syncPillPending : styles.syncPillOk]}>
               <Icon
@@ -482,6 +542,28 @@ export default function MovementsScreen() {
 
         {/* Acciones */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* Botón de Evidencia si tiene foto adjunta */}
+          {item.evidencia_path ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => setEvidenceViewUri(item.evidencia_path)}
+            >
+              <Icon name="camera" size={13} color={apple.colors.blue} />
+            </TouchableOpacity>
+          ) : null}
+
+          {/* Botón de Comprobante si es movimiento de pago */}
+          {isPago && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={() => handleOpenPaymentReceiptForMovement(item)}
+            >
+              <Icon name="file-text-o" size={13} color={apple.colors.label} />
+            </TouchableOpacity>
+          )}
+
           {/* Botón de Auditoría / Historial de Cambios (Requisito 6) */}
           <TouchableOpacity
             style={styles.actionBtn}
@@ -657,6 +739,71 @@ export default function MovementsScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.hint}>Ventas y pagos se registran automáticamente en sus secciones.</Text>
+
+            {/* Selector de Concepto y Evidencia Fotográfica (Solo para Gastos) */}
+            {formTipo === 'gasto' && (
+              <View style={styles.gastoExtrasSection}>
+                <Text style={styles.label}>Concepto de gasto</Text>
+                <TouchableOpacity
+                  style={styles.conceptSelectBtn}
+                  onPress={() => setConceptModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="tag" size={13} color={selectedConcept ? apple.colors.blue : apple.colors.secondaryLabel} />
+                  <Text style={[styles.conceptSelectText, selectedConcept && { color: apple.colors.label, fontWeight: '700' }]}>
+                    {selectedConcept ? selectedConcept.nombre : 'Seleccionar concepto (opcional)'}
+                  </Text>
+                  <Icon name="chevron-right" size={12} color={apple.colors.tertiaryLabel} />
+                </TouchableOpacity>
+
+                <Text style={styles.label}>Evidencia / Comprobante (foto)</Text>
+                {formEvidenceUri ? (
+                  <View style={styles.evidenceThumbnailCard}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                      onPress={() => setEvidenceViewUri(formEvidenceUri)}
+                    >
+                      <Icon name="file-image-o" size={16} color={apple.colors.blue} />
+                      <Text style={styles.evidenceAttachedText} numberOfLines={1}>Evidencia adjunta</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setFormEvidenceUri(null)}
+                      style={styles.evidenceRemoveBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Icon name="times" size={14} color={apple.colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.evidencePickerRow}>
+                    <TouchableOpacity
+                      style={styles.evidencePickerBtn}
+                      onPress={async () => {
+                        const res = await pickImage('camera', 'EXPENSE_RECEIPT');
+                        if (res?.localUri) {
+                          setFormEvidenceUri(res.localUri);
+                        }
+                      }}
+                    >
+                      <Icon name="camera" size={14} color={apple.colors.blue} />
+                      <Text style={styles.evidencePickerText}>Tomar foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.evidencePickerBtn}
+                      onPress={async () => {
+                        const res = await pickImage('gallery', 'EXPENSE_RECEIPT');
+                        if (res?.localUri) {
+                          setFormEvidenceUri(res.localUri);
+                        }
+                      }}
+                    >
+                      <Icon name="image" size={14} color={apple.colors.blue} />
+                      <Text style={styles.evidencePickerText}>Galería</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Inputs */}
             <Text style={styles.label}>Descripción *</Text>
@@ -868,6 +1015,35 @@ export default function MovementsScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Selector de Concepto de Gasto */}
+      <ConceptPickerModal
+        visible={conceptModalVisible}
+        onClose={() => setConceptModalVisible(false)}
+        selectedId={selectedConcept?.id}
+        onSelect={(concept) => {
+          setSelectedConcept(concept);
+          if (!formDesc) {
+            setFormDesc(concept.nombre);
+          }
+        }}
+      />
+
+      {/* Visor de Evidencia Multimedia */}
+      <EvidencePreviewModal
+        visible={!!evidenceViewUri}
+        onClose={() => setEvidenceViewUri(null)}
+        readOnly={true}
+        initialUri={evidenceViewUri}
+        title="Evidencia del Movimiento"
+      />
+
+      {/* Comprobante de Pago */}
+      <PaymentReceiptModal
+        visible={receiptModalVisible}
+        onClose={() => setReceiptModalVisible(false)}
+        receiptData={activeReceipt}
+      />
     </SafeAreaView>
   );
 }
@@ -1143,4 +1319,78 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   saveText: { fontWeight: '700', color: '#fff', fontSize: 14 },
+  conceptTag: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    borderColor: '#FDE68A',
+  },
+  conceptTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  gastoExtrasSection: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  conceptSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: apple.colors.bgGrouped,
+    borderRadius: apple.radius.s,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  conceptSelectText: {
+    flex: 1,
+    fontSize: 13,
+    color: apple.colors.secondaryLabel,
+    marginLeft: 8,
+  },
+  evidenceThumbnailCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0F9FF',
+    borderRadius: apple.radius.s,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  evidenceAttachedText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0369A1',
+  },
+  evidenceRemoveBtn: {
+    padding: 6,
+  },
+  evidencePickerRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  evidencePickerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 42,
+    backgroundColor: apple.colors.bgGrouped,
+    borderRadius: apple.radius.s,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+  },
+  evidencePickerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
 });

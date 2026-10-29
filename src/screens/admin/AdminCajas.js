@@ -1,5 +1,5 @@
 // src/screens/admin/AdminCajas.js
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getAdminCajas, abrirCajasMasivo, getAdminOpenCajasCount } from '../../services/adminService';
 import { CajaCard } from './components/CajaCard';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+import { eventBus, EVENTS } from '../../utils/eventBus';
 
 const getTodayIso = () => {
   const d = new Date();
@@ -106,6 +107,13 @@ export default function AdminCajas() {
     }, [loadData])
   );
 
+  useEffect(() => {
+    const unsub = eventBus.on(EVENTS.MOVEMENT_CHANGED, () => {
+      loadData(true);
+    });
+    return () => unsub();
+  }, [loadData]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData(true);
@@ -160,7 +168,10 @@ export default function AdminCajas() {
   };
 
   const handleSelectCaja = (caja) => {
-    navigation.navigate('AdminCajaDetalle', { caja });
+    navigation.navigate('AdminCajaDetalle', {
+      caja,
+      onRefreshParent: () => loadData(true),
+    });
   };
 
   const openCalendarModal = () => {

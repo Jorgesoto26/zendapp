@@ -1,5 +1,6 @@
 // src/services/adminService.js
 import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
+import { getDbConnection } from '../database/db';
 
 /**
  * Obtiene la lista de usuarios subordinados (vendedores y administradores)
@@ -89,13 +90,38 @@ export const updateAdminUser = async (userId, userData) => {
 
   // Si fall con p_password por incompatibilidad con cach de PostgREST:
   if (error && error.message && error.message.includes('schema cache') && hasNewPassword) {
-    console.warn('admin_update_user: la funcin desplegada no tiene p_password. Reintentando sin contrasea...');
+    console.warn('admin_update_user: la función desplegada no tiene p_password. Reintentando sin contraseña...');
     delete rpcParams.p_password;
     const retry = await supabase.rpc('admin_update_user', rpcParams);
     if (!retry.error) {
-      throw new Error('Los datos se actualizaron correctamente, pero cambiar la contrasea requiere aplicar la migracin SQL en Supabase.');
+      throw new Error('Los datos se actualizaron correctamente, pero cambiar la contraseña requiere aplicar la migración SQL en Supabase.');
     }
     error = retry.error;
+  }
+
+  // Fallback si la función RPC remota falla por la columna updated_at inexistente en profiles
+  if (error && error.message && error.message.includes('updated_at')) {
+    console.warn('admin_update_user: RPC falló por updated_at inexistente en profiles. Aplicando actualización directa con RLS...');
+    const directPayload = {
+      nombre,
+      apellido,
+    };
+    if (dinero_max_caja !== undefined && dinero_max_caja !== null) directPayload.dinero_max_caja = parseFloat(dinero_max_caja);
+    if (dinero_max_venta !== undefined && dinero_max_venta !== null) directPayload.dinero_max_venta = parseFloat(dinero_max_venta);
+    if (dinero_max_gasto !== undefined && dinero_max_gasto !== null) directPayload.dinero_max_gasto = parseFloat(dinero_max_gasto);
+    if (max_cuotas !== undefined && max_cuotas !== null) directPayload.max_cuotas = parseInt(max_cuotas, 10);
+    if (permite_borrar_venta !== undefined && permite_borrar_venta !== null) directPayload.permite_borrar_venta = !!permite_borrar_venta;
+    if (permite_modificar_pagos !== undefined && permite_modificar_pagos !== null) directPayload.permite_modificar_pagos = !!permite_modificar_pagos;
+
+    const { error: directErr } = await supabase
+      .from('profiles')
+      .update(directPayload)
+      .eq('id', userId);
+
+    if (!directErr) {
+      return { success: true, user_id: userId };
+    }
+    error = directErr;
   }
 
   if (error) throw new Error(error.message || 'Error al actualizar usuario');
@@ -234,6 +260,66 @@ export const createAdminCajaMovement = async ({ cajaId, tipo, descripcion, monto
 /**
  * Traslada la cartera completa de un vendedor a otro de forma atomica
  */
+/**
+ * Obtiene la configuración de la organización (logo, nombre, nit, modo de apertura)
+ */
+export const getAdminOrganizacion = async () => {
+  await ensureAuthenticatedSession();
+  try {
+    const { data, error } = await supabase.rpc('admin_get_organizacion');
+    if (!error && data) return data;
+  } catch (e) {
+    console.log('admin_get_organizacion RPC fallback:', e);
+  }
+
+  // Fallback directo a tabla organizaciones
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) {
+      const { data: org } = await supabase
+        .from('organizaciones')
+        .select('*')
+        .eq('admin_id', user.id)
+        .maybeSingle();
+      if (org) return org;
+    }
+  } catch {}
+
+  return {
+    nombre: 'ZENDA',
+    nit: '',
+    telefono: '',
+    direccion: '',
+    logo_path: null,
+    modo_apertura_caja: 'admin_masivo',
+  };
+};
+
+/**
+ * Actualiza los datos de la organización, logo y modo de apertura de caja
+ */
+export const updateAdminOrganizacion = async ({
+  nombre,
+  nit = '',
+  telefono = '',
+  direccion = '',
+  logoPath = null,
+  modoApertura = 'admin_masivo',
+}) => {
+  await ensureAuthenticatedSession();
+  const { data, error } = await supabase.rpc('admin_update_organizacion', {
+    p_nombre: nombre,
+    p_nit: nit,
+    p_telefono: telefono,
+    p_direccion: direccion,
+    p_logo_path: logoPath,
+    p_modo_apertura: modoApertura,
+  });
+
+  if (error) throw new Error(error.message || 'Error al actualizar organización');
+  return data;
+};
+
 export const trasladarCartera = async (vendedorOrigenId, vendedorDestinoId) => {
   await ensureAuthenticatedSession();
   const { data, error } = await supabase.rpc('admin_trasladar_cartera', {
@@ -338,4 +424,94 @@ export const getSubordinateOpenCajas = async (adminId) => {
     console.log('Error en getSubordinateOpenCajas:', e);
     return [];
   }
+};
+
+
+/**
+ * Reabre una caja cerrada (Solo Administrador)
+ */
+export const reabrirCajaAdmin = async (cajaId) => {
+  const session = await ensureAuthenticatedSession();
+  const currentAdminId = session?.user?.id;
+
+  // 1. Obtener la caja y verificar existencia y estado
+  const { data: currentBox, error: boxErr } = await supabase
+    .from('cajas')
+    .select('id, usuario_id, estado, fecha_apertura')
+    .eq('id', cajaId)
+    .maybeSingle();
+
+  if (boxErr || !currentBox) throw new Error('La caja especificada no existe');
+  if (currentBox.estado === 'abierta') throw new Error('Esta caja ya se encuentra abierta');
+
+  // 2. Si la caja pertenece a un vendedor, validar que la CAJA PADRE del administrador esté ABIERTA
+  if (currentBox.usuario_id && currentBox.usuario_id !== currentAdminId) {
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('superior_id, rol, nombre')
+      .eq('id', currentBox.usuario_id)
+      .maybeSingle();
+
+    const padreId = prof?.superior_id || currentAdminId;
+    const { data: padreOpen } = await supabase
+      .from('cajas')
+      .select('id')
+      .eq('usuario_id', padreId)
+      .eq('estado', 'abierta')
+      .limit(1)
+      .maybeSingle();
+
+    if (!padreOpen) {
+      throw new Error(
+        'No se puede reabrir la caja del vendedor porque la caja principal (caja padre del administrador) se encuentra cerrada. Debes abrir primero la caja del administrador.'
+      );
+    }
+  }
+
+  // 3. Validar que el usuario no tenga ya otra caja abierta actualmente
+  const { data: openOther } = await supabase
+    .from('cajas')
+    .select('id')
+    .eq('usuario_id', currentBox.usuario_id)
+    .eq('estado', 'abierta')
+    .neq('id', cajaId)
+    .limit(1)
+    .maybeSingle();
+
+  if (openOther) {
+    throw new Error('El usuario ya tiene otra caja abierta actualmente. Debe cerrarla antes de reabrir esta.');
+  }
+
+  // 4. Invocar RPC en Supabase
+  let { data, error } = await supabase.rpc('admin_reabrir_caja', {
+    p_caja_id: cajaId,
+  });
+
+  // Fallback si la función RPC aún no está en cache o migración
+  if (error && (error.code === 'PGRST202' || (error.message && error.message.includes('schema cache')))) {
+    console.warn('admin_reabrir_caja RPC no encontrada, aplicando reapertura directa con RLS...');
+    const { error: updErr } = await supabase
+      .from('cajas')
+      .update({ estado: 'abierta', fecha_cierre: null, saldo_final: null })
+      .eq('id', cajaId);
+
+    if (updErr) throw new Error(updErr.message || 'Error al reabrir la caja');
+    data = { success: true, caja_id: cajaId, estado: 'abierta' };
+    error = null;
+  }
+
+  if (error) throw new Error(error.message || 'Error al reabrir la caja');
+
+  // Actualizar SQLite local si la caja existe localmente
+  try {
+    const db = await getDbConnection();
+    await db.executeSql(
+      `UPDATE cajas SET estado = 'abierta', fecha_cierre = NULL, saldo_final = NULL WHERE id = ?`,
+      [String(cajaId)]
+    );
+  } catch (eSql) {
+    console.log('Error actualizando reapertura en SQLite:', eSql);
+  }
+
+  return data;
 };

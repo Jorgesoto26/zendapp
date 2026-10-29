@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, FlatList, TextInput, ActivityIndicator, TouchableOpacity, Animated, BackHandler, Alert, RefreshControl, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, FlatList, TextInput, ActivityIndicator, TouchableOpacity, Animated, BackHandler, Alert, RefreshControl, Dimensions, Platform, Image } from 'react-native';
 import { useFocusEffect, useNavigation, useNavigationState } from '@react-navigation/native';
 import Modal from 'react-native-modal';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -16,6 +16,7 @@ import { SyncWithSupabase, SyncCajaAndMovimientos } from '../../utils/sync';
 import { clearAllLocalData } from '../../utils/clearLocal';
 import { getInvoice } from '../../services/services';
 import { supabase } from '../../lib/supabase';
+import { getSignedUrl } from '../../services/multimediaService';
 
 const mapPaymentType = (id) => ({ 1: 'MENSUAL', 2: 'SEMANAL', 3: 'QUINCENAL' }[id] || '—');
 const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
@@ -145,6 +146,7 @@ export default function Payments() {
   const [showLogout, setShowLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [segmentWidth, setSegmentWidth] = useState(0);
+  const [orgLogo, setOrgLogo] = useState(null);
 
   // Animaciones 100% nativas en GPU (0 lag, 0 consumo innecesario)
   const slideAnim = useRef(new Animated.Value(0)).current; // 0 = pendiente, 1 = tramitados
@@ -189,6 +191,18 @@ export default function Payments() {
       }
       setClients(n);
       setStats(await calculateStats(n));
+      try {
+        const db = await getDbConnection();
+        const orgRows = await getData(db, 'SELECT * FROM organizaciones LIMIT 1');
+        if (orgRows && orgRows.length > 0 && orgRows[0].logo_path) {
+          try {
+            const u = await getSignedUrl(orgRows[0].logo_path);
+            setOrgLogo(u);
+          } catch {
+            setOrgLogo(orgRows[0].logo_path);
+          }
+        }
+      } catch {}
     } catch (e) { console.error(e); } finally { setLoading(false); }
   }, []);
   useEffect(() => {
@@ -226,6 +240,18 @@ export default function Payments() {
       const n = await loadClientsFromDB();
       setClients(n);
       setStats(await calculateStats(n));
+      try {
+        const db = await getDbConnection();
+        const orgRows = await getData(db, 'SELECT * FROM organizaciones LIMIT 1');
+        if (orgRows && orgRows.length > 0 && orgRows[0].logo_path) {
+          try {
+            const u = await getSignedUrl(orgRows[0].logo_path);
+            setOrgLogo(u);
+          } catch {
+            setOrgLogo(orgRows[0].logo_path);
+          }
+        }
+      } catch {}
       Toast.show({ text1: 'Cartera actualizada' });
     } catch (e) {
       console.log('Error refreshing payments:', e);
@@ -289,6 +315,13 @@ export default function Payments() {
         <View style={styles.headerTop}>
           <View style={styles.titleSection}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {orgLogo ? (
+                <Image
+                  source={{ uri: orgLogo }}
+                  style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', borderWidth: 0.5, borderColor: '#ddd' }}
+                  resizeMode="contain"
+                />
+              ) : null}
               <Text style={styles.largeTitle}>Cartera</Text>
               <TouchableOpacity
                 onPress={handleSyncAndRefresh}
@@ -427,6 +460,7 @@ export default function Payments() {
                 telefono={item.telefono}
                 latitud={item.latitud}
                 longitud={item.longitud}
+                documento={item.documento}
                 valorCredito={item.valorCredito}
                 tipoTramitado={item.tipoTramitado}
                 valorPagado={item.valorPagado}

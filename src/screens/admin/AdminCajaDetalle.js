@@ -21,8 +21,10 @@ import {
   getCajaMovements,
   createAdminCajaMovement,
   getSubordinateOpenCajas,
+  reabrirCajaAdmin,
 } from '../../services/adminService';
 import { formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
+import { eventBus, EVENTS } from '../../utils/eventBus';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -39,6 +41,8 @@ export default function AdminCajaDetalle() {
   const route = useRoute();
   const navigation = useNavigation();
   const { caja } = route.params || {};
+  const [cajaState, setCajaState] = useState(caja || {});
+  const [reopening, setReopening] = useState(false);
 
   const [movements, setMovements] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -60,8 +64,8 @@ export default function AdminCajaDetalle() {
   const [openSubordinates, setOpenSubordinates] = useState([]);
   const [checkingSubs, setCheckingSubs] = useState(false);
 
-  const isOpen = caja?.estado === 'abierta';
-  const isAdmin = caja?.rol_usuario === 'admin' || caja?.rol_usuario === 'superadmin';
+  const isOpen = cajaState?.estado === 'abierta';
+  const isAdmin = cajaState?.rol_usuario === 'admin' || cajaState?.rol_usuario === 'superadmin';
 
   // Tipos de movimiento según rol de la caja (Requisito 6)
   const types = useMemo(() => {
@@ -165,19 +169,62 @@ export default function AdminCajaDetalle() {
     setClosing(true);
     try {
       const { cerrarCaja } = require('../../services/cajaService');
-      await cerrarCaja(cajaId);
+      const res = await cerrarCaja(cajaId);
+      setCajaState(prev => ({
+        ...prev,
+        estado: 'cerrada',
+        fecha_cierre: res?.fecha_cierre || new Date().toISOString(),
+        saldo_final: res?.saldo_final != null ? res.saldo_final : prev.saldo_final,
+      }));
       setSubModalVisible(false);
-      appAlert('¡Caja cerrada!', 'La caja se cerró exitosamente en el sistema.', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      try {
+        eventBus.emit(EVENTS.MOVEMENT_CHANGED);
+      } catch {}
+      route.params?.onRefreshParent?.();
+      appAlert('¡Caja cerrada!', 'La caja se cerró exitosamente en el sistema.');
     } catch (err) {
       appAlert('No se pudo cerrar', err.message);
     } finally {
       setClosing(false);
     }
+  };
+
+  const handleReabrirCaja = () => {
+    const cajaId = cajaState?.caja_id || cajaState?.id;
+    if (!cajaId) return;
+
+    appAlert(
+      'Reabrir caja',
+      `¿Deseas reabrir la caja de ${cajaState?.nombre_usuario || 'este vendedor'}?\n\nLa caja volverá al estado 'abierta', permitiendo registrar cobros y movimientos pendientes.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Reabrir Caja',
+          onPress: async () => {
+            setReopening(true);
+            try {
+              await reabrirCajaAdmin(cajaId);
+              setCajaState(prev => ({
+                ...prev,
+                estado: 'abierta',
+                fecha_cierre: null,
+                saldo_final: null,
+              }));
+              try {
+                eventBus.emit(EVENTS.MOVEMENT_CHANGED);
+              } catch {}
+              route.params?.onRefreshParent?.();
+              appAlert('¡Caja reabierta!', 'La caja se encuentra abierta nuevamente en el sistema.');
+              loadData();
+            } catch (err) {
+              appAlert('No se pudo reabrir', err.message);
+            } finally {
+              setReopening(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleCreateMovement = async () => {
@@ -217,10 +264,10 @@ export default function AdminCajaDetalle() {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {caja?.nombre_usuario}
+            {cajaState?.nombre_usuario}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {isOpen ? '🟢 Caja Abierta' : '🔴 Caja Cerrada'} · {caja?.rol_usuario?.toUpperCase()}
+            {isOpen ? '🟢 Caja Abierta' : '🔴 Caja Cerrada'} · {cajaState?.rol_usuario?.toUpperCase()}
           </Text>
         </View>
 
@@ -249,23 +296,54 @@ export default function AdminCajaDetalle() {
       <View style={styles.summaryBar}>
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>Saldo Inicial</Text>
-          <Text style={styles.summaryVal}>{formatMoney(caja?.saldo_inicial)}</Text>
+          <Text style={styles.summaryVal}>{formatMoney(cajaState?.saldo_inicial)}</Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
           <Text style={[styles.summaryVal, { color: apple.colors.blue }]}>
-            {formatMoney(caja?.saldo_final)}
+            {formatMoney(cajaState?.saldo_final)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>{isAdmin ? 'Ingresos' : 'Recaudado'}</Text>
           <Text style={[styles.summaryVal, { color: apple.colors.success }]}>
-            {formatMoney(isAdmin ? caja?.valor_ingresos : caja?.valor_recaudado)}
+            {formatMoney(isAdmin ? cajaState?.valor_ingresos : cajaState?.valor_recaudado)}
           </Text>
         </View>
       </View>
+
+      {/* Banner Informativo Caja Cerrada / Opción de Reapertura */}
+      {!isOpen && (
+        <View style={styles.reopenBanner}>
+          <View style={styles.reopenBannerLeft}>
+            <View style={styles.reopenIconCircle}>
+              <Icon name="lock" size={14} color="#D97706" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reopenBannerTitle}>Caja Cerrada / Finalizada</Text>
+              <Text style={styles.reopenBannerSub}>
+                Como administrador puedes reabrir esta caja si el vendedor necesita registrar pagos o cobros pendientes del día.
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.reopenBannerBtn}
+            onPress={handleReabrirCaja}
+            disabled={reopening}
+          >
+            {reopening ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Icon name="unlock" size={13} color="#FFFFFF" />
+                <Text style={styles.reopenBannerBtnText}>Reabrir esta Caja</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Buscador */}
       <View style={styles.searchContainer}>
@@ -865,5 +943,71 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: apple.colors.blue,
+  },
+  btnReopenCaja: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D97706',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: apple.radius.s,
+    gap: 5,
+  },
+  btnReopenCajaText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  reopenBanner: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: apple.radius.m,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    padding: 12,
+  },
+  reopenBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  reopenIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  reopenBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  reopenBannerSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  reopenBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#D97706',
+    borderRadius: apple.radius.s,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginTop: 10,
+    gap: 6,
+    alignSelf: 'flex-end',
+  },
+  reopenBannerBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

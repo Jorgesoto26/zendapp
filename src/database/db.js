@@ -93,15 +93,70 @@ export async function ensureDatabaseIntegrity(db) {
     await ensureColumnExists(db, 'movimientos', 'cliente_nombre', 'TEXT');
     await ensureColumnExists(db, 'movimientos', 'latitud', 'TEXT');
     await ensureColumnExists(db, 'movimientos', 'longitud', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'concepto_id', 'INTEGER');
+    await ensureColumnExists(db, 'movimientos', 'concepto_nombre', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'evidencia_path', 'TEXT');
 
     // Asegurar columnas en facturas
     await ensureColumnExists(db, 'facturas', 'latitud', 'TEXT');
     await ensureColumnExists(db, 'facturas', 'longitud', 'TEXT');
     await ensureColumnExists(db, 'facturas', 'previous_invoice_id', 'TEXT');
+    await ensureColumnExists(db, 'facturas', 'periodicidad', 'TEXT');
+    await ensureColumnExists(db, 'facturas', 'num_cuotas', 'TEXT');
+    await ensureColumnExists(db, 'facturas', 'tasa_interes', 'REAL');
+    await ensureColumnExists(db, 'facturas', 'pago_adelantado', 'INTEGER');
+    await ensureColumnExists(db, 'facturas', 'foto_documento_path', 'TEXT');
+
+    // Asegurar columnas en clients
+    await ensureColumnExists(db, 'clients', 'foto_documento_path', 'TEXT');
 
     // Asegurar columnas en pagos
     await ensureColumnExists(db, 'pagos', 'latitud', 'TEXT');
     await ensureColumnExists(db, 'pagos', 'longitud', 'TEXT');
+
+    // Tablas de multimedia y organizaciones locales
+    await db.executeSql(`CREATE TABLE IF NOT EXISTS evidencias_locales (
+      id TEXT PRIMARY KEY,
+      tipo_evidencia TEXT,
+      tabla_relacionada TEXT,
+      registro_id TEXT,
+      local_path TEXT,
+      file_path TEXT,
+      mime_type TEXT,
+      size_original REAL,
+      size_compressed REAL,
+      estado TEXT DEFAULT 'pendiente',
+      usuario_id TEXT,
+      created_at TEXT
+    )`);
+
+    await db.executeSql(`CREATE TABLE IF NOT EXISTS organizaciones (
+      id TEXT PRIMARY KEY,
+      nombre TEXT,
+      nit TEXT,
+      telefono TEXT,
+      direccion TEXT,
+      logo_path TEXT,
+      admin_id TEXT,
+      modo_apertura_caja TEXT DEFAULT 'admin_masivo'
+    )`);
+
+    // Tabla de conceptos parametrizados desde la BD (offline-first)
+    await db.executeSql(`CREATE TABLE IF NOT EXISTS concepts (
+      id INTEGER PRIMARY KEY,
+      tipo TEXT,
+      valor TEXT,
+      nombre TEXT,
+      tipo_movimiento TEXT,
+      activo INTEGER DEFAULT 1,
+      orden INTEGER DEFAULT 0,
+      organizacion_id TEXT
+    )`);
+    await ensureColumnExists(db, 'concepts', 'nombre', 'TEXT');
+    await ensureColumnExists(db, 'concepts', 'tipo_movimiento', 'TEXT');
+    await ensureColumnExists(db, 'concepts', 'activo', 'INTEGER');
+    await ensureColumnExists(db, 'concepts', 'orden', 'INTEGER');
+    await ensureColumnExists(db, 'concepts', 'organizacion_id', 'TEXT');
 
     // Tabla de auditoría local de movimientos (Trazabilidad offline-first)
     await db.executeSql(`CREATE TABLE IF NOT EXISTS movimientos_audit (
@@ -139,7 +194,10 @@ export async function ensureDatabaseIntegrity(db) {
         (6, 'permiso', 'cliente'),
         (7, 'name', NULL),
         (8, 'partner_id', NULL),
-        (9, 'version', '2.6.3')`);
+        (9, 'version', '2.6.3'),
+        (10, 'modo_apertura_caja', 'admin_masivo')`);
+    } else {
+      await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (10, 'modo_apertura_caja', 'admin_masivo')`);
     }
   } catch (err) {
     console.log('ensureDatabaseIntegrity warning:', err);
