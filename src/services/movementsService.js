@@ -144,8 +144,8 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
 
     // Actualizar en SQLite
     await db.executeSql(
-      `UPDATE movimientos SET monto = ?, estadoMovil = 'actualizado' WHERE id = ?`,
-      [val, id]
+      `UPDATE movimientos SET monto = ?, caja_id = COALESCE(?, caja_id), idCaja = COALESCE(?, idCaja), estadoMovil = 'actualizado' WHERE id = ?`,
+      [val, cid, cid, id]
     );
 
     // Ajustar caja (gastos restan de la caja)
@@ -197,8 +197,8 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
       cleanDesc = (current.descripcion || 'No pago').replace(/pago/i, 'No pago');
 
       await db.executeSql(
-        `UPDATE movimientos SET tipo = 'nopago', monto = 0, descripcion = ?, estadoMovil = 'actualizado' WHERE id = ?`,
-        [cleanDesc, id]
+        `UPDATE movimientos SET tipo = 'nopago', monto = 0, descripcion = ?, caja_id = COALESCE(?, caja_id), idCaja = COALESCE(?, idCaja), estadoMovil = 'actualizado' WHERE id = ?`,
+        [cleanDesc, cid, cid, id]
       );
       try {
         await db.executeSql(`DELETE FROM pagos WHERE id = ?`, [id]);
@@ -230,8 +230,8 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
       cleanDesc = (current.descripcion || 'Pago').replace(/no\s*pago/i, 'Pago');
 
       await db.executeSql(
-        `UPDATE movimientos SET tipo = 'pago', monto = ?, descripcion = ?, estadoMovil = 'actualizado' WHERE id = ?`,
-        [val, cleanDesc, id]
+        `UPDATE movimientos SET tipo = 'pago', monto = ?, descripcion = ?, caja_id = COALESCE(?, caja_id), idCaja = COALESCE(?, idCaja), estadoMovil = 'actualizado' WHERE id = ?`,
+        [val, cleanDesc, cid, cid, id]
       );
 
       try {
@@ -268,8 +268,8 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
       delta = val - oldVal;
 
       await db.executeSql(
-        `UPDATE movimientos SET monto = ?, estadoMovil = 'actualizado' WHERE id = ?`,
-        [val, id]
+        `UPDATE movimientos SET monto = ?, caja_id = COALESCE(?, caja_id), idCaja = COALESCE(?, idCaja), estadoMovil = 'actualizado' WHERE id = ?`,
+        [val, cid, cid, id]
       );
 
       try {

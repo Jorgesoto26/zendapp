@@ -23,20 +23,13 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 
 const getTodayIso = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 };
 
 const getYesterdayIso = () => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 };
 
 const formatReadableDate = (isoStr) => {
@@ -122,7 +115,7 @@ export default function AdminCajas() {
   const handlePressAbrirMasivo = () => {
     const todayIso = getTodayIso();
     const cajaHoyAdmin = cajas.find(
-      (c) => c.usuario_id === userId && c.estado === 'abierta' && (
+      (c) => c.usuario_id === userId && (
         c.fecha_apertura && c.fecha_apertura.slice(0, 10) === todayIso
       )
     );
@@ -136,7 +129,9 @@ export default function AdminCajas() {
     }
 
     const mensaje = cajaHoyAdmin
-      ? `Ya tienes una caja abierta para hoy. Se reutilizará como referencia y se abrirán las cajas de tus vendedores subordinados activos que aún no tengan caja abierta.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
+      ? cajaHoyAdmin.estado === 'cerrada'
+        ? `Tienes una caja cerrada con fecha de hoy. Al ejecutar la apertura masiva, se reabrirá tu caja de hoy y las cajas de hoy de tus vendedores subordinados.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
+        : `Ya tienes una caja abierta para hoy. Se reutilizará como referencia y se abrirán las cajas de tus vendedores subordinados activos que aún no tengan caja abierta.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
       : `¿Deseas abrir las cajas de todos los vendedores activos y una nueva caja para ti con la fecha de hoy?\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`;
 
     appAlert(
@@ -150,8 +145,10 @@ export default function AdminCajas() {
             setOpening(true);
             try {
               const res = await abrirCajasMasivo();
-              const detalle = res.admin_caja_reutilizada
-                ? `Se reutilizó tu caja de hoy y se abrieron ${res.vendedores_cajas_abiertas ?? (res.cajas_abiertas || 0)} caja(s) de vendedores.`
+              const detalle = res.admin_caja_reabierta
+                ? `Se reabrió tu caja de hoy. Vendedores: ${res.vendedores_cajas_reabiertas || 0} reabiertas, ${res.vendedores_cajas_abiertas || 0} nuevas.`
+                : res.admin_caja_reutilizada
+                ? `Se reutilizó tu caja de hoy. Vendedores: ${res.vendedores_cajas_reabiertas || 0} reabiertas, ${res.vendedores_cajas_abiertas || 0} nuevas.`
                 : `Se abrieron ${res.cajas_abiertas} caja(s) correctamente, incluyendo tu nueva caja del día.`;
               appAlert('¡Apertura exitosa!', detalle);
               loadData(true);

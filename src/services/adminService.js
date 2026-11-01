@@ -427,6 +427,25 @@ export const getSubordinateOpenCajas = async (adminId) => {
 };
 
 
+const formatFechaAperturaReadable = (dateStr) => {
+  if (!dateStr) return 'Sin fecha registrada';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day} ${month} ${year}, ${hours}:${minutes} ${ampm}`;
+  } catch {
+    return String(dateStr);
+  }
+};
+
 /**
  * Reabre una caja cerrada (Solo Administrador)
  */
@@ -471,15 +490,17 @@ export const reabrirCajaAdmin = async (cajaId) => {
   // 3. Validar que el usuario no tenga ya otra caja abierta actualmente
   const { data: openOther } = await supabase
     .from('cajas')
-    .select('id')
+    .select('id, fecha_apertura')
     .eq('usuario_id', currentBox.usuario_id)
     .eq('estado', 'abierta')
     .neq('id', cajaId)
+    .order('fecha_apertura', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (openOther) {
-    throw new Error('El usuario ya tiene otra caja abierta actualmente. Debe cerrarla antes de reabrir esta.');
+    const fechaFormatted = formatFechaAperturaReadable(openOther.fecha_apertura);
+    throw new Error(`El usuario ya tiene otra caja abierta actualmente con fecha de apertura: ${fechaFormatted}. Debe cerrarla antes de reabrir esta caja.`);
   }
 
   // 4. Invocar RPC en Supabase
