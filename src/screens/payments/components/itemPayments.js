@@ -164,8 +164,78 @@ const ItemPayments = memo(({
       const { pago, detalle } = await buildPaymentData({ tipo, valor: valorPago, idFactura: id, nombre: nombreUno, secuencia: c });
       const ns = tipo === 'nopago' ? saldo : Math.max(saldo - valorPago, 0);
       const nsv = tipo === 'nopago' ? (saldoVencido || 0) : Math.max((saldoVencido || 0) - valorPago, 0);
-      const ncp = tipo === 'nopago' ? cuotasPagas : cuotasPagas + 1;
-      await updateFacturaWithConsecutivo(db, id, { estadoMovil: 'actualizado', saldo: ns, cuotasPagas: ncp, saldoVencido: nsv }, c);
+
+      // Amortización progresiva de cuotas en SQLite
+      let ncp = cuotasPagas;
+      if (tipo !== 'nopago' && valorPago > 0) {
+        try {
+          const cuotasRows = await getData(
+            db,
+            `SELECT id, numero, monto, COALESCE(monto_pagado, 0) AS monto_pagado, estado
+             FROM cuotas
+             WHERE invoice_id = ?
+             ORDER BY numero ASC`,
+            [String(id)]
+          );
+
+          if (cuotasRows && cuotasRows.length > 0) {
+            if (ns <= 0) {
+              // PAGO TOTAL: todas las cuotas quedan en estado pagada
+              await db.executeSql(
+                `UPDATE cuotas SET estado = 'pagada', monto_pagado = monto, payment_id = ? WHERE invoice_id = ?`,
+                [pago.id, String(id)]
+              );
+              ncp = cuotasRows.length;
+            } else {
+              // PAGO PARCIAL O MAYOR A UNA CUOTA: distribución progresiva
+              let montoRestante = valorPago;
+              for (const cuota of cuotasRows) {
+                if (montoRestante <= 0) break;
+                const saldoCuota = Number(cuota.monto) - Number(cuota.monto_pagado || 0);
+                if (saldoCuota <= 0) continue;
+
+                if (montoRestante >= saldoCuota) {
+                  // Cubre la totalidad de la cuota
+                  await db.executeSql(
+                    `UPDATE cuotas SET estado = 'pagada', monto_pagado = ?, payment_id = ? WHERE id = ?`,
+                    [Number(cuota.monto), pago.id, cuota.id]
+                  );
+                  montoRestante -= saldoCuota;
+                } else {
+                  // Abono parcial a la cuota
+                  await db.executeSql(
+                    `UPDATE cuotas SET estado = 'abonada', monto_pagado = ?, payment_id = ? WHERE id = ?`,
+                    [Number(cuota.monto_pagado || 0) + montoRestante, pago.id, cuota.id]
+                  );
+                  montoRestante = 0;
+                  break;
+                }
+              }
+
+              const countRes = await getData(
+                db,
+                `SELECT COUNT(*) AS count FROM cuotas WHERE invoice_id = ? AND estado = 'pagada'`,
+                [String(id)]
+              );
+              ncp = countRes?.[0]?.count ?? (cuotasPagas + 1);
+            }
+          } else {
+            ncp = cuotasPagas + 1;
+          }
+        } catch (errCuotas) {
+          console.log('Error actualizando cuotas en executePaymentAction:', errCuotas);
+          ncp = cuotasPagas + 1;
+        }
+      }
+
+      const nuevoEstadoFactura = ns <= 0 ? 'pagada' : 'pendiente';
+      await updateFacturaWithConsecutivo(db, id, {
+        estadoMovil: 'actualizado',
+        saldo: ns,
+        cuotasPagas: ncp,
+        saldoVencido: nsv,
+        estado: nuevoEstadoFactura,
+      }, c);
       await Promise.all([insertTables(db, 'pagos', [pago]), insertTables(db, 'detallesCaja', [detalle])]);
 
       // Requisito 5: Guardar movimiento local para que se refleje inmediatamente en Movimientos y Caja
@@ -220,11 +290,19 @@ const ItemPayments = memo(({
         SyncWithSupabase(false, () => {});
       } catch {}
 
-      setTipoTramitado(tipo === 'nopago' ? 'NO PAGO' : tipo === 'parcial' ? 'PARCIAL' : 'PAGO');
+      setTipoTramitado(tipo === 'nopago' ? 'NO PAGO' : (ns <= 0 ? 'PAGO' : (tipo === 'parcial' ? 'PARCIAL' : 'PAGO')));
       setValorPagado(tipo === 'nopago' ? 0 : valorPago);
       setPendienteSync(true);
 
-      Toast.show({ text1: tipo === 'pago' ? 'Pago realizado' : tipo === 'nopago' ? 'No pago registrado' : 'Pago parcial realizado' });
+      Toast.show({
+        text1: ns <= 0
+          ? 'Crédito pagado en su totalidad'
+          : tipo === 'pago'
+          ? 'Pago realizado'
+          : tipo === 'nopago'
+          ? 'No pago registrado'
+          : 'Pago parcial realizado',
+      });
 
       // Generar comprobante automático si fue un pago o abono válido
       if (tipo !== 'nopago' && valorPago > 0) {
@@ -459,9 +537,19 @@ const ItemPayments = memo(({
       <Modal isVisible={modalParcial} onBackdropPress={() => setModalParcial(false)} animationIn="slideInUp" animationOut="slideOutDown" backdropOpacity={0.4}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Pago parcial</Text>
+          <Text style={styles.sheetTitle}>Abonar o Pagar Total</Text>
           <Text style={styles.sheetSub}>{name} · Saldo {FormatMoneyDecimales(saldo)}</Text>
           <TextInput placeholder="$ 0" keyboardType="numeric" style={styles.sheetInput} value={valorParcial} onChangeText={t => setValorParcial(formatMoneyInput(t))} placeholderTextColor={apple.colors.tertiaryLabel} />
+          {saldo > 0 && (
+            <TouchableOpacity
+              style={styles.sheetTotalQuickBtn}
+              onPress={() => setValorParcial(formatMoneyInput(String(saldo)))}
+              activeOpacity={0.7}
+            >
+              <Icon name="check-circle" size={13} color={apple.colors.blue} />
+              <Text style={styles.sheetTotalQuickBtnText}>Pagar saldo total: {FormatMoneyDecimales(saldo)}</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.sheetPrimary}
             onPress={() => {
@@ -584,6 +672,23 @@ const styles = StyleSheet.create({
   },
   receiptShareBtnText: {
     fontSize: 12,
+    fontWeight: '700',
+    color: apple.colors.blue,
+  },
+  sheetTotalQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F0F7FF',
+    borderWidth: 1,
+    borderColor: '#D0E4FF',
+    borderRadius: apple.radius.s,
+    paddingVertical: 10,
+    marginTop: 10,
+  },
+  sheetTotalQuickBtnText: {
+    fontSize: 13,
     fontWeight: '700',
     color: apple.colors.blue,
   },

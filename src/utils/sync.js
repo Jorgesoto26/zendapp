@@ -715,6 +715,27 @@ const processResponseAndUpdateTables = async (response) => {
       } catch {}
 
       try { await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ? OR id = '' || ?`, [item.idn, item.idv, item.idv]); } catch { }
+
+      if (facturaId) {
+        try {
+          const { data: remoteCuotas } = await supabase
+            .from('cuotas')
+            .select('id, numero, fecha_vencimiento, monto, estado, monto_pagado')
+            .eq('invoice_id', facturaId)
+            .order('numero', { ascending: true });
+          if (remoteCuotas && remoteCuotas.length > 0) {
+            for (const rc of remoteCuotas) {
+              await db.executeSql(
+                `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [String(rc.id), String(facturaId), rc.numero, rc.fecha_vencimiento, Number(rc.monto), rc.estado || 'pendiente', Number(rc.monto_pagado || 0)]
+              );
+            }
+          }
+        } catch (errSyncCuotas) {
+          console.log('Error refrescando cuotas en SQLite tras sincronizar pago:', errSyncCuotas);
+        }
+      }
     } else if (mapping.type === 'movimiento') {
       try {
         if (item.idn && String(item.idn) !== String(item.idv)) {

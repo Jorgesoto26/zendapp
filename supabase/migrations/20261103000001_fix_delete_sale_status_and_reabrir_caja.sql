@@ -491,3 +491,239 @@ $func$;
 GRANT EXECUTE ON FUNCTION public.admin_update_user(uuid, text, text, numeric, numeric, numeric, integer, boolean, boolean, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_update_user(uuid, text, text, numeric, numeric, numeric, integer, boolean, boolean, text) TO service_role;
 
+
+
+-- =====================================================================
+-- 6. CORRECCIÓN EN create_payment: GARANTIZAR AMORTIZACIÓN COMPLETA Y TOLERANCIA
+-- =====================================================================
+CREATE OR REPLACE FUNCTION public.create_payment(
+  p_invoice_id   uuid,
+  p_client_id    uuid,
+  p_amount       numeric,
+  p_payment_date date,
+  p_method       text,
+  p_caja_id      uuid,
+  p_client_uuid  uuid DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $func$
+DECLARE
+  v_saldo           numeric;
+  v_status          text;
+  v_usuario_id      uuid;
+  v_caja_estado     text;
+  v_caja_usuario_id uuid;
+  v_mov_id          uuid;
+  v_pay_id          uuid;
+  v_nuevo_saldo     numeric;
+  v_monto_restante  numeric;
+  v_saldo_cuota     numeric;
+  r_cuota           RECORD;
+BEGIN
+  -- Validar que el usuario que ejecuta la operacion no este inhabilitado
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND activo IS FALSE) THEN
+    RAISE EXCEPTION 'USUARIO_INHABILITADO: Tu cuenta se encuentra inhabilitada';
+  END IF;
+
+  -- Idempotencia por client_uuid
+  IF p_client_uuid IS NOT NULL THEN
+    SELECT id INTO v_pay_id
+    FROM public.payments
+    WHERE client_uuid = p_client_uuid
+    LIMIT 1;
+
+    IF v_pay_id IS NOT NULL THEN
+      RETURN v_pay_id;
+    END IF;
+  END IF;
+
+  -- Idempotencia de ventana de 5 minutos (fallback si client_uuid es nulo)
+  IF p_client_uuid IS NULL THEN
+    SELECT id INTO v_pay_id
+    FROM public.payments
+    WHERE invoice_id = p_invoice_id
+      AND amount = ROUND(p_amount, 2)
+      AND method = p_method
+      AND payment_date = p_payment_date
+      AND created_at >= (now() - interval '5 minutes')
+    ORDER BY created_at DESC
+    LIMIT 1;
+
+    IF v_pay_id IS NOT NULL THEN
+      RETURN v_pay_id;
+    END IF;
+  END IF;
+
+  -- Validacion de monto no negativo
+  IF p_amount < 0 THEN
+    RAISE EXCEPTION 'El monto del pago debe ser mayor o igual a 0';
+  END IF;
+
+  -- Factura con bloqueo FOR UPDATE
+  SELECT saldo, status, usuario_id
+  INTO v_saldo, v_status, v_usuario_id
+  FROM public.invoice
+  WHERE id = p_invoice_id
+  FOR UPDATE;
+
+  IF v_usuario_id IS NULL THEN
+    RAISE EXCEPTION 'FACTURA_NOT_FOUND: factura % no existe', p_invoice_id;
+  END IF;
+
+  -- CASO 1: NO PAGO (Visita sin cobro, amount = 0 o method = 'nopago')
+  IF p_amount = 0 OR p_method = 'nopago' THEN
+    INSERT INTO public.payments (
+      invoice_id, client_id, amount, payment_date, method, client_uuid
+    ) VALUES (
+      p_invoice_id,
+      p_client_id,
+      0,
+      p_payment_date,
+      'nopago',
+      p_client_uuid
+    )
+    RETURNING id INTO v_pay_id;
+
+    -- Movimiento puramente informativo en caja con monto 0 (no altera saldo_final)
+    IF p_caja_id IS NOT NULL THEN
+      INSERT INTO public.cash_movements (caja_id, tipo, descripcion, monto, client_uuid)
+      VALUES (
+        p_caja_id,
+        'nopago',
+        'Visita sin cobro - factura ' || p_invoice_id::text,
+        0,
+        p_client_uuid
+      );
+    END IF;
+
+    RETURN v_pay_id;
+  END IF;
+
+  -- CASO 2: ABONO / PAGO REAL (amount > 0)
+  IF v_status = 'pagado' THEN
+    RAISE EXCEPTION 'FACTURA_PAGADA: la factura % ya esta completamente pagada', p_invoice_id;
+  END IF;
+
+  -- Tolerancia de redondeo: si excede por hasta $1, ajustar al saldo exacto
+  IF p_amount > v_saldo THEN
+    IF (p_amount - v_saldo) <= 1.0 THEN
+      p_amount := v_saldo;
+    ELSE
+      RAISE EXCEPTION 'El monto del pago (%) excede el saldo de la factura (%)', p_amount, v_saldo;
+    END IF;
+  END IF;
+
+  -- Validar caja abierta
+  SELECT estado, usuario_id INTO v_caja_estado, v_caja_usuario_id
+  FROM public.cajas WHERE id = p_caja_id;
+
+  IF v_caja_estado IS NULL THEN
+    RAISE EXCEPTION 'CAJA_NOT_FOUND: la caja % no existe', p_caja_id;
+  END IF;
+
+  IF v_caja_estado <> 'abierta' THEN
+    RAISE EXCEPTION 'CAJA_CERRADA: no se pueden registrar pagos en una caja cerrada';
+  END IF;
+
+  -- Insertar movimiento real de caja
+  INSERT INTO public.cash_movements (
+    caja_id, tipo, descripcion, monto, client_uuid
+  ) VALUES (
+    p_caja_id,
+    'pago',
+    'Cobro factura ' || p_invoice_id::text,
+    ROUND(p_amount, 2),
+    p_client_uuid
+  )
+  RETURNING id INTO v_mov_id;
+
+  -- Sumar saldo a la caja
+  UPDATE public.cajas
+    SET saldo_final = COALESCE(saldo_final, 0) + ROUND(p_amount, 2)
+    WHERE id = p_caja_id;
+
+  -- Insertar registro de pago
+  INSERT INTO public.payments (
+    invoice_id, client_id, amount, payment_date, method, cash_movement_id, client_uuid
+  ) VALUES (
+    p_invoice_id,
+    p_client_id,
+    ROUND(p_amount, 2),
+    p_payment_date,
+    p_method,
+    v_mov_id,
+    p_client_uuid
+  )
+  RETURNING id INTO v_pay_id;
+
+  -- Descontar saldo de la factura
+  v_nuevo_saldo := GREATEST(ROUND(v_saldo - p_amount, 2), 0);
+
+  UPDATE public.invoice
+    SET
+      saldo  = v_nuevo_saldo,
+      status = CASE WHEN v_nuevo_saldo <= 0 THEN 'pagado' ELSE status END
+    WHERE id = p_invoice_id;
+
+  -- ==================================================================
+  -- DISTRIBUCIÓN PROGRESIVA DE ABONOS ENTRE CUOTAS PENDIENTES
+  -- ==================================================================
+  v_monto_restante := ROUND(p_amount, 2);
+
+  FOR r_cuota IN (
+    SELECT id, monto, COALESCE(monto_pagado, 0) AS monto_pagado
+    FROM public.cuotas
+    WHERE invoice_id = p_invoice_id
+      AND estado IN ('pendiente', 'parcial', 'abonada')
+    ORDER BY numero ASC
+    FOR UPDATE
+  ) LOOP
+    EXIT WHEN v_monto_restante <= 0;
+
+    v_saldo_cuota := r_cuota.monto - r_cuota.monto_pagado;
+    IF v_saldo_cuota <= 0 THEN
+      CONTINUE;
+    END IF;
+
+    IF v_monto_restante >= v_saldo_cuota THEN
+      -- Cubre la totalidad del saldo pendiente de esta cuota
+      UPDATE public.cuotas
+      SET
+        estado       = 'pagada',
+        monto_pagado = r_cuota.monto,
+        payment_id   = v_pay_id
+      WHERE id = r_cuota.id;
+
+      v_monto_restante := v_monto_restante - v_saldo_cuota;
+    ELSE
+      -- Abono parcial a la cuota
+      UPDATE public.cuotas
+      SET
+        estado       = 'parcial',
+        monto_pagado = r_cuota.monto_pagado + v_monto_restante,
+        payment_id   = v_pay_id
+      WHERE id = r_cuota.id;
+
+      v_monto_restante := 0;
+    END IF;
+  END LOOP;
+
+  -- Si el saldo restante de la factura llegó a 0 (pago total), asegurar que TODAS las cuotas queden como 'pagada'
+  IF v_nuevo_saldo <= 0 THEN
+    UPDATE public.cuotas
+    SET
+      estado       = 'pagada',
+      monto_pagado = monto,
+      payment_id   = COALESCE(payment_id, v_pay_id)
+    WHERE invoice_id = p_invoice_id
+      AND estado <> 'pagada';
+  END IF;
+
+  RETURN v_pay_id;
+END;
+$func$;
+
+GRANT EXECUTE ON FUNCTION public.create_payment(uuid, uuid, numeric, date, text, uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_payment(uuid, uuid, numeric, date, text, uuid, uuid) TO service_role;

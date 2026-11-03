@@ -27,8 +27,11 @@ import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 function StatusBadge({ estado }) {
   const map = {
     pagada: { bg: '#E8F5E9', color: apple.colors.success, label: 'PAGADA' },
+    pagado: { bg: '#E8F5E9', color: apple.colors.success, label: 'PAGADA' },
     abonada: { bg: '#FFF8E1', color: apple.colors.warning, label: 'ABONADA' },
+    parcial: { bg: '#FFF8E1', color: apple.colors.warning, label: 'ABONADA' },
     pendiente: { bg: '#F2F2F7', color: apple.colors.secondaryLabel, label: 'PENDIENTE' },
+    vencida: { bg: '#FFEBEE', color: apple.colors.danger, label: 'VENCIDA' },
   };
   const s = map[(estado || '').toLowerCase()] || map.pendiente;
   return (
@@ -92,11 +95,36 @@ export default function CreditDetail({ route, navigation }) {
           }
           const localPagos = await getData(
             db,
-            `SELECT id, valor AS amount, horaDispositivo AS payment_date, tipo AS method
-             FROM pagos WHERE idFactura = ? ORDER BY horaDispositivo DESC`,
+            `SELECT id, valor AS amount, horaDispositivo AS payment_date, tipo AS method, estadoMovil
+             FROM pagos WHERE idFactura = ? AND (tipo IS NULL OR tipo != 'nopago') ORDER BY horaDispositivo DESC, id DESC`,
             [invoiceId]
           );
-          setPagos(localPagos || []);
+
+          var initialPagos = (localPagos || []).map(p => ({
+            id: p.id,
+            amount: Number(p.amount || 0),
+            payment_date: p.payment_date,
+            method: p.method,
+            estadoMovil: p.estadoMovil,
+          }));
+
+          if (initialPagos.length === 0 && row.pagos) {
+            try {
+              const parsed = typeof row.pagos === 'string' ? JSON.parse(row.pagos) : row.pagos;
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                initialPagos = parsed
+                  .filter(p => (p.tipo || p.method) !== 'nopago' && Number(p.amount || p.valor || 0) > 0)
+                  .map((p, idx) => ({
+                    id: p.id || `remote-${idx}`,
+                    amount: Number(p.amount || p.valor || 0),
+                    payment_date: p.payment_date || p.horaDispositivo || p.created_at,
+                    method: p.method || p.tipo || 'efectivo',
+                    estadoMovil: 'sincronizado',
+                  }));
+              }
+            } catch {}
+          }
+          setPagos(initialPagos);
 
           const localCuotas = await getData(
             db,
@@ -105,7 +133,11 @@ export default function CreditDetail({ route, navigation }) {
             [invoiceId]
           );
           if (localCuotas && localCuotas.length > 0) {
-            setCuotas(localCuotas);
+            if (Number(row.saldo) <= 0 || (row.estado || '').toLowerCase() === 'pagado' || (row.estado || '').toLowerCase() === 'pagada') {
+              setCuotas(localCuotas.map(c => ({ ...c, estado: 'pagada', monto_pagado: c.monto })));
+            } else {
+              setCuotas(localCuotas);
+            }
           }
         }
       } catch (err) {
@@ -151,15 +183,30 @@ export default function CreditDetail({ route, navigation }) {
               .eq('invoice_id', invoiceId)
               .order('numero', { ascending: true });
             if (cs && cs.length > 0) {
-              setCuotas(cs);
-              for (const itemC of cs) {
-                try {
-                  await db.executeSql(
-                    `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [String(itemC.id), String(invoiceId), itemC.numero, itemC.fecha_vencimiento, Number(itemC.monto), itemC.estado || 'pendiente', Number(itemC.monto_pagado || 0)]
-                  );
-                } catch {}
+              const isPaidInFull = (inv.saldo != null && Number(inv.saldo) <= 0) || (inv.status || '').toLowerCase() === 'pagado';
+              if (isPaidInFull) {
+                const pagadas = cs.map(c => ({ ...c, estado: 'pagada', monto_pagado: c.monto }));
+                setCuotas(pagadas);
+                for (const itemC of pagadas) {
+                  try {
+                    await db.executeSql(
+                      `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                      [String(itemC.id), String(invoiceId), itemC.numero, itemC.fecha_vencimiento, Number(itemC.monto), 'pagada', Number(itemC.monto)]
+                    );
+                  } catch {}
+                }
+              } else {
+                setCuotas(cs);
+                for (const itemC of cs) {
+                  try {
+                    await db.executeSql(
+                      `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                      [String(itemC.id), String(invoiceId), itemC.numero, itemC.fecha_vencimiento, Number(itemC.monto), itemC.estado || 'pendiente', Number(itemC.monto_pagado || 0)]
+                    );
+                  } catch {}
+                }
               }
             }
 
@@ -167,8 +214,20 @@ export default function CreditDetail({ route, navigation }) {
               .from('payments')
               .select('id, amount, payment_date, method, created_at')
               .eq('invoice_id', invoiceId)
+              .gt('amount', 0)
               .order('payment_date', { ascending: false });
-            if (ps) setPagos(ps);
+            if (ps) {
+              const remotePagos = ps.map(p => ({
+                id: p.id,
+                amount: Number(p.amount || 0),
+                payment_date: p.payment_date || p.created_at,
+                method: p.method,
+              }));
+              const pendingLocal = (typeof initialPagos !== 'undefined' ? initialPagos : []).filter(lp => lp.estadoMovil !== 'sincronizado' && Number(lp.amount) > 0);
+              const remoteIds = new Set(remotePagos.map(p => String(p.id)));
+              const unSynced = pendingLocal.filter(lp => !remoteIds.has(String(lp.id)));
+              setPagos([...unSynced, ...remotePagos]);
+            }
           }
         } catch {
           // Fallback silencioso a datos locales si no hay red
@@ -235,7 +294,7 @@ export default function CreditDetail({ route, navigation }) {
 
   const totalPagado = pagos.reduce((a, p) => a + Number(p.amount || 0), 0);
   const saldoActual = Number(invoice?.saldo ?? saldoInicial ?? 0);
-  const isCreditCompleted = saldoActual <= 0 || (invoice?.status || '').toLowerCase() === 'pagado';
+  const isCreditCompleted = saldoActual <= 0 || (invoice?.status || '').toLowerCase() === 'pagado' || (invoice?.status || '').toLowerCase() === 'pagada';
 
   const handleRenewPress = () => {
     navigation.navigate('CrearCliente', {
