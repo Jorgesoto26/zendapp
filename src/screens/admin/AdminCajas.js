@@ -17,7 +17,9 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
-import { getAdminCajas, abrirCajasMasivo, getAdminOpenCajasCount } from '../../services/adminService';
+import { getAdminCajas, abrirCajasMasivo, getAdminOpenCajasCount, getAdminOpenCajas } from '../../services/adminService';
+import { getDeviceTimezone } from '../../services/cajaService';
+import { FormatMoneyDecimales } from '../../utils/utilities';
 import { CajaCard } from './components/CajaCard';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { eventBus, EVENTS } from '../../utils/eventBus';
@@ -30,6 +32,25 @@ const getYesterdayIso = () => {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+};
+
+const formatReadableDateTime = (isoStr) => {
+  if (!isoStr) return 'Fecha no disponible';
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return String(isoStr).slice(0, 16);
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day}/${month}/${year} ${hours}:${minutes} ${ampm}`;
+  } catch {
+    return String(isoStr).slice(0, 16);
+  }
 };
 
 const formatReadableDate = (isoStr) => {
@@ -65,6 +86,7 @@ export default function AdminCajas() {
   const [opening, setOpening] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [adminOpenCount, setAdminOpenCount] = useState(0);
+  const [adminOpenCajas, setAdminOpenCajas] = useState([]);
 
   // Filtros de fecha exclusivos: 'hoy' (defecto), 'ayer', 'custom' (Requisito 5)
   const [selectedDate, setSelectedDate] = useState(getTodayIso());
@@ -112,27 +134,37 @@ export default function AdminCajas() {
     loadData(true);
   };
 
-  const handlePressAbrirMasivo = () => {
-    const todayIso = getTodayIso();
-    const cajaHoyAdmin = cajas.find(
-      (c) => c.usuario_id === userId && (
-        c.fecha_apertura && c.fecha_apertura.slice(0, 10) === todayIso
-      )
-    );
-
-    if (!cajaHoyAdmin && adminOpenCount >= 3) {
-      appAlert(
-        'Tienes 3 cajas abiertas',
-        'Ya alcanzaste el límite de 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas anteriores antes de poder realizar una nueva apertura.'
-      );
-      return;
+  const handlePressAbrirMasivo = async () => {
+    setOpening(true);
+    let openCajasList = [];
+    try {
+      openCajasList = await getAdminOpenCajas(userId);
+      setAdminOpenCajas(openCajasList || []);
+      setAdminOpenCount(openCajasList ? openCajasList.length : 0);
+    } catch {} finally {
+      setOpening(false);
     }
 
-    const mensaje = cajaHoyAdmin
-      ? cajaHoyAdmin.estado === 'cerrada'
-        ? `Tienes una caja cerrada con fecha de hoy. Al ejecutar la apertura masiva, se reabrirá tu caja de hoy y las cajas de hoy de tus vendedores subordinados.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
-        : `Ya tienes una caja abierta para hoy. Se reutilizará como referencia y se abrirán las cajas de tus vendedores subordinados activos que aún no tengan caja abierta.\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`
-      : `¿Deseas abrir las cajas de todos los vendedores activos y una nueva caja para ti con la fecha de hoy?\n\nActualmente tienes ${adminOpenCount} de 3 cajas permitidas abiertas.`;
+    const currentOpen = openCajasList && openCajasList.length > 0 ? openCajasList[0] : null;
+    const todayStr = getTodayIso();
+    const cajaDateStr = currentOpen?.fecha_corta || (currentOpen?.fecha_apertura ? currentOpen.fecha_apertura.slice(0, 10) : '');
+
+    let mensaje = '';
+    if (currentOpen && cajaDateStr === todayStr) {
+      mensaje = 'Ya tienes tu caja activa abierta para el día de hoy.\n\n' +
+        'Al ejecutar la apertura masiva, se verificarán y abrirán las cajas de hoy para todos tus vendedores subordinados que no tengan caja abierta.\n\n' +
+        '¿Deseas continuar?';
+    } else if (currentOpen && cajaDateStr !== todayStr) {
+      const dStr = currentOpen.fecha_formateada || formatReadableDateTime(currentOpen.fecha_apertura);
+      mensaje = `Tienes una caja abierta de una fecha anterior (${dStr}).\n\n` +
+        'El sistema cerrará automáticamente esa caja anterior y creará tu caja de hoy, además de abrir las cajas para todos tus vendedores subordinados activos.\n\n' +
+        '¿Deseas realizar la apertura masiva?';
+    } else {
+      mensaje = 'Al ejecutar la apertura masiva:\n' +
+        '• Se creará tu caja abierta para el día de hoy.\n' +
+        '• Se abrirán las cajas de hoy para todos tus vendedores subordinados activos.\n\n' +
+        '¿Deseas continuar?';
+    }
 
     appAlert(
       'Apertura Masiva de Cajas',
@@ -145,11 +177,12 @@ export default function AdminCajas() {
             setOpening(true);
             try {
               const res = await abrirCajasMasivo();
-              const detalle = res.admin_caja_reabierta
-                ? `Se reabrió tu caja de hoy. Vendedores: ${res.vendedores_cajas_reabiertas || 0} reabiertas, ${res.vendedores_cajas_abiertas || 0} nuevas.`
-                : res.admin_caja_reutilizada
-                ? `Se reutilizó tu caja de hoy. Vendedores: ${res.vendedores_cajas_reabiertas || 0} reabiertas, ${res.vendedores_cajas_abiertas || 0} nuevas.`
-                : `Se abrieron ${res.cajas_abiertas} caja(s) correctamente, incluyendo tu nueva caja del día.`;
+              let detalle = '';
+              if (res.admin_caja_reutilizada) {
+                detalle = `Tu caja de hoy ya estaba activa. Se abrieron ${res.vendedores_cajas_abiertas || 0} caja(s) de vendedores.`;
+              } else {
+                detalle = `Se crearon ${res.cajas_abiertas} caja(s) correctamente (Tu caja de hoy + ${res.vendedores_cajas_abiertas || 0} de vendedores).`;
+              }
               appAlert('¡Apertura exitosa!', detalle);
               loadData(true);
             } catch (err) {
@@ -236,7 +269,7 @@ export default function AdminCajas() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Gestión de Cajas</Text>
           <Text style={styles.headerSubtitle}>
-            Supervisión diaria · {adminOpenCount}/3 cajas admin abiertas
+            Supervisión diaria · {adminOpenCount > 0 ? 'Caja activa' : 'Sin caja activa'}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -253,6 +286,48 @@ export default function AdminCajas() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Banner informativo de cajas abiertas con acceso directo a fechas */}
+      {adminOpenCajas && adminOpenCajas.length > 0 && (
+        <View style={styles.openCajasBanner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Icon
+              name={adminOpenCount >= 3 ? 'exclamation-circle' : 'info-circle'}
+              size={13}
+              color={adminOpenCount >= 3 ? apple.colors.danger : apple.colors.blue}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.openCajasBannerTitle, adminOpenCount >= 3 && { color: apple.colors.danger }]}>
+              'Tu caja activa actual (toca para ver):'
+            </Text>
+          </View>
+          <View style={styles.openCajasPillsRow}>
+            {adminOpenCajas.map((c, idx) => {
+              const fCorta = c.fecha_corta || (c.fecha_apertura ? c.fecha_apertura.slice(0, 10) : '');
+              const isCurrent = selectedDate === fCorta;
+              return (
+                <TouchableOpacity
+                  key={c.id || idx}
+                  style={[styles.openCajaPill, isCurrent && styles.openCajaPillActive]}
+                  onPress={() => {
+                    if (fCorta) setSelectedDate(fCorta);
+                  }}
+                >
+                  <Icon
+                    name="folder-open-o"
+                    size={11}
+                    color={isCurrent ? '#fff' : (adminOpenCount >= 3 ? apple.colors.danger : apple.colors.blue)}
+                    style={{ marginRight: 5 }}
+                  />
+                  <Text style={[styles.openCajaPillText, isCurrent && styles.openCajaPillTextActive]}>
+                    {c.fecha_formateada || formatReadableDateTime(c.fecha_apertura)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       {/* Selector de Filtros Exclusivos: Hoy, Ayer, Fecha específica (Requisito 5) */}
       <View style={styles.filterSection}>
@@ -673,6 +748,50 @@ const styles = StyleSheet.create({
     marginTop: 12,
     alignItems: 'center',
     paddingVertical: 8,
+  },
+  openCajasBanner: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    padding: 10,
+    backgroundColor: apple.colors.secondarySystemBackground,
+    borderRadius: apple.radius.m,
+    borderWidth: 1,
+    borderColor: apple.colors.separator,
+  },
+  openCajasBannerTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: apple.colors.label,
+  },
+  openCajasPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  openCajaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: apple.colors.fill,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: apple.radius.s,
+    borderWidth: 0.5,
+    borderColor: apple.colors.separator,
+  },
+  openCajaPillActive: {
+    backgroundColor: apple.colors.blue,
+    borderColor: apple.colors.blue,
+  },
+  openCajaPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  openCajaPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   cancelModalText: {
     color: apple.colors.secondaryLabel,

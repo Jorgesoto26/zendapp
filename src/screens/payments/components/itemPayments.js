@@ -6,7 +6,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import Toast from 'react-native-toast-message';
 import Geolocation from 'react-native-geolocation-service';
 import { getDbConnection, updateData, insertTables, getData } from '../../../database/db';
-import { IdInsertion, getDateOdooMilisec, getDate, Capitalize, FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric } from '../../../utils/utilities';
+import { IdInsertion, getDateOdooMilisec, getDate, Capitalize, FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, generateUUID } from '../../../utils/utilities';
 import { getCajaActual } from '../../../services/cajaService';
 import { apple } from '../../../theme/appleTheme';
 import { appAlert } from '../../../components/AppAlert';
@@ -34,12 +34,70 @@ const getCurrentLocationSafe = () =>
     }
   });
 
+
+const ensureLocalCuotas = async (db, invoiceId, saldoTotal, valorCuota, cuotasPagasCount) => {
+  try {
+    let rows = await getData(
+      db,
+      `SELECT id, numero, monto, COALESCE(monto_pagado, 0) AS monto_pagado, estado
+       FROM cuotas WHERE invoice_id = ? ORDER BY numero ASC`,
+      [String(invoiceId)]
+    );
+    if (rows && rows.length > 0) return rows;
+
+    const fRows = await getData(
+      db,
+      `SELECT valorInicial, valorCuota, num_cuotas, saldo, cuotasPagas, fecha, periodicidad FROM facturas WHERE id = ?`,
+      [String(invoiceId)]
+    );
+    if (!fRows || fRows.length === 0) return [];
+    const f = fRows[0];
+    const total = Number(f.valorInicial || f.saldo || saldoTotal || 0);
+    const vCuota = Number(f.valorCuota || valorCuota || 0);
+    const nCuotas = Number(f.num_cuotas) || (vCuota > 0 ? Math.round(total / vCuota) : 0);
+    if (nCuotas <= 0 || vCuota <= 0) return [];
+
+    const cMonto = Math.floor(total / nCuotas);
+    const cResto = total - (cMonto * (nCuotas - 1));
+    const pagas = Number(f.cuotasPagas || cuotasPagasCount || 0);
+
+    for (let i = 1; i <= nCuotas; i++) {
+      const val = (i === nCuotas) ? cResto : cMonto;
+      const isYaPaga = i <= pagas;
+      await db.executeSql(
+        `INSERT OR IGNORE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          `cuota_${invoiceId}_${i}`,
+          String(invoiceId),
+          i,
+          new Date().toISOString().slice(0, 10),
+          val,
+          isYaPaga ? 'pagada' : 'pendiente',
+          isYaPaga ? val : 0,
+        ]
+      );
+    }
+
+    return await getData(
+      db,
+      `SELECT id, numero, monto, COALESCE(monto_pagado, 0) AS monto_pagado, estado
+       FROM cuotas WHERE invoice_id = ? ORDER BY numero ASC`,
+      [String(invoiceId)]
+    );
+  } catch (e) {
+    console.log('Error ensureLocalCuotas:', e);
+    return [];
+  }
+};
+
 const buildPaymentData = async ({ tipo, valor, idFactura, nombre, secuencia }) => {
   const pos = await getCurrentLocationSafe();
   const idInsert = await IdInsertion();
   const currentDate = getDateOdooMilisec();
   const caja = await getCajaActual();
   const currentCajaId = caja?.id || '1';
+  const clientUuid = generateUUID();
   return {
     pago: {
       id: idInsert,
@@ -55,6 +113,7 @@ const buildPaymentData = async ({ tipo, valor, idFactura, nombre, secuencia }) =
       nombre: Capitalize(nombre),
       secuencia_pago: secuencia,
       idCaja: currentCajaId,
+      client_uuid: clientUuid,
     },
     detalle: {
       id: idInsert,
@@ -169,14 +228,7 @@ const ItemPayments = memo(({
       let ncp = cuotasPagas;
       if (tipo !== 'nopago' && valorPago > 0) {
         try {
-          const cuotasRows = await getData(
-            db,
-            `SELECT id, numero, monto, COALESCE(monto_pagado, 0) AS monto_pagado, estado
-             FROM cuotas
-             WHERE invoice_id = ?
-             ORDER BY numero ASC`,
-            [String(id)]
-          );
+          const cuotasRows = await ensureLocalCuotas(db, id, saldo, valorCuota, cuotasPagas);
 
           if (cuotasRows && cuotasRows.length > 0) {
             if (ns <= 0) {
@@ -247,8 +299,8 @@ const ItemPayments = memo(({
 
       try {
         await db.executeSql(
-          `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre)
-           VALUES (?, ?, ?, ?, ?, 'actualizado', ?, ?, ?, ?)`,
+          `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre, client_uuid)
+           VALUES (?, ?, ?, ?, ?, 'actualizado', ?, ?, ?, ?, ?)`,
           [
             pago.id,
             descMov,
@@ -259,6 +311,7 @@ const ItemPayments = memo(({
             nowIso,
             String(id),
             clienteDesc,
+            pago.client_uuid,
           ]
         );
       } catch (errMov) {
@@ -498,7 +551,7 @@ const ItemPayments = memo(({
                 <Icon name="times" size={13} color={apple.colors.danger} /><Text style={styles.actionTextDanger}> No pago</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineWarning]} onPress={() => setModalParcial(true)}>
-                <Icon name="adjust" size={13} color={apple.colors.warning} /><Text style={styles.actionTextWarning}> Parcial</Text>
+                <Icon name="adjust" size={13} color={apple.colors.warning} /><Text style={styles.actionTextWarning}> Abono / Total</Text>
               </TouchableOpacity>
             </View>
           ) : (

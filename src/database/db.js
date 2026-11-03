@@ -113,6 +113,17 @@ export async function ensureDatabaseIntegrity(db) {
     // Asegurar columnas en pagos
     await ensureColumnExists(db, 'pagos', 'latitud', 'TEXT');
     await ensureColumnExists(db, 'pagos', 'longitud', 'TEXT');
+    await ensureColumnExists(db, 'pagos', 'client_uuid', 'TEXT');
+    await ensureColumnExists(db, 'pagos', 'sync_id', 'TEXT');
+
+    // Asegurar columnas en detallesCaja
+    await ensureColumnExists(db, 'detallesCaja', 'client_uuid', 'TEXT');
+
+    // Asegurar columnas en cuotas
+    await ensureColumnExists(db, 'cuotas', 'payment_id', 'TEXT');
+
+    // Asegurar columnas en movimientos
+    await ensureColumnExists(db, 'movimientos', 'client_uuid', 'TEXT');
 
     // Tablas de multimedia y organizaciones locales
     await db.executeSql(`CREATE TABLE IF NOT EXISTS evidencias_locales (

@@ -286,7 +286,7 @@ export const EvaluationDataSend = async () => {
         usersCliente,
     ] = await Promise.all([
         getData(db, `SELECT COUNT(*) as count FROM movimientos WHERE estadoMovil IN ('actualizado', 'enviando')`),
-        getData(db, `SELECT COUNT(*) as count FROM pagos WHERE estadoMovil IN ('actualizado', 'enviando')`),
+        getData(db, `SELECT COUNT(*) as count FROM pagos WHERE estadoMovil IN ('actualizado', 'enviando') OR ((CAST(id AS INTEGER) < 0 OR id LIKE '-%') AND (sync_id IS NULL OR sync_id = '' OR sync_id NOT LIKE '%-%-%-%-%'))`),
         getData(db, `SELECT COUNT(*) as count FROM users WHERE estadoMovil IN ('actualizado', 'enviando')`),
     ]);
 
@@ -609,4 +609,17 @@ export const getAndIncrementConsecutivo = async (db) => {
     next = 1;
   }
   return next;
+};
+
+
+/**
+ * Generador de UUID v4 estándar conforme a RFC4122 para identificación única
+ * e idempotente de operaciones offline (pagos, movimientos, ventas).
+ */
+export const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 };

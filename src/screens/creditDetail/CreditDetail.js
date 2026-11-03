@@ -126,12 +126,36 @@ export default function CreditDetail({ route, navigation }) {
           }
           setPagos(initialPagos);
 
-          const localCuotas = await getData(
+          let localCuotas = await getData(
             db,
             `SELECT id, numero, fecha_vencimiento, monto, estado, monto_pagado
              FROM cuotas WHERE invoice_id = ? ORDER BY numero ASC`,
             [invoiceId]
           );
+          if ((!localCuotas || localCuotas.length === 0) && row.num_cuotas && Number(row.num_cuotas) > 0) {
+            try {
+              const total = Number(row.valorInicial || row.saldo || 0);
+              const vCuota = Number(row.valorCuota || 0);
+              const nCuotas = Number(row.num_cuotas);
+              const pagas = Number(row.cuotasPagas || 0);
+              if (nCuotas > 0 && total > 0) {
+                const cMonto = Math.floor(total / nCuotas);
+                const cResto = total - (cMonto * (nCuotas - 1));
+                for (let i = 1; i <= nCuotas; i++) {
+                  const val = (i === nCuotas) ? cResto : cMonto;
+                  const isYaPaga = i <= pagas;
+                  await db.executeSql(
+                    `INSERT OR IGNORE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [`cuota_${invoiceId}_${i}`, String(invoiceId), i, row.fecha || new Date().toISOString().slice(0, 10), val, isYaPaga ? 'pagada' : 'pendiente', isYaPaga ? val : 0]
+                  );
+                }
+                localCuotas = await getData(db, `SELECT id, numero, fecha_vencimiento, monto, estado, monto_pagado FROM cuotas WHERE invoice_id = ? ORDER BY numero ASC`, [invoiceId]);
+              }
+            } catch (errSyn) {
+              console.log('Error sintetizando cuotas en CreditDetail:', errSyn);
+            }
+          }
           if (localCuotas && localCuotas.length > 0) {
             if (Number(row.saldo) <= 0 || (row.estado || '').toLowerCase() === 'pagado' || (row.estado || '').toLowerCase() === 'pagada') {
               setCuotas(localCuotas.map(c => ({ ...c, estado: 'pagada', monto_pagado: c.monto })));
@@ -182,7 +206,16 @@ export default function CreditDetail({ route, navigation }) {
               .select('id, numero, fecha_vencimiento, monto, estado, monto_pagado')
               .eq('invoice_id', invoiceId)
               .order('numero', { ascending: true });
-            if (cs && cs.length > 0) {
+
+            // Verificar si hay pagos pendientes locales antes de sobreescribir cuotas
+            const pendCheck = await getData(
+              db,
+              `SELECT COUNT(*) as c FROM pagos WHERE idFactura = ? AND estadoMovil != 'sincronizado'`,
+              [invoiceId]
+            );
+            const hasPendingOffline = Number(pendCheck?.[0]?.c || 0) > 0;
+
+            if (cs && cs.length > 0 && !hasPendingOffline) {
               const isPaidInFull = (inv.saldo != null && Number(inv.saldo) <= 0) || (inv.status || '').toLowerCase() === 'pagado';
               if (isPaidInFull) {
                 const pagadas = cs.map(c => ({ ...c, estado: 'pagada', monto_pagado: c.monto }));
@@ -225,7 +258,7 @@ export default function CreditDetail({ route, navigation }) {
               }));
               const pendingLocal = (typeof initialPagos !== 'undefined' ? initialPagos : []).filter(lp => lp.estadoMovil !== 'sincronizado' && Number(lp.amount) > 0);
               const remoteIds = new Set(remotePagos.map(p => String(p.id)));
-              const unSynced = pendingLocal.filter(lp => !remoteIds.has(String(lp.id)));
+              const unSynced = pendingLocal.filter(lp => !remoteIds.has(String(lp.id)) && (!lp.sync_id || !remoteIds.has(String(lp.sync_id))));
               setPagos([...unSynced, ...remotePagos]);
             }
           }

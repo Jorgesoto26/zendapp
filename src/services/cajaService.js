@@ -3,6 +3,14 @@ import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { getDbConnection, getData } from '../database/db';
 import { eventBus, EVENTS } from '../utils/eventBus';
 
+export const getDeviceTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota';
+  } catch {
+    return 'America/Bogota';
+  }
+};
+
 export async function computeCajaSaldo(db, caja) {
   if (!caja || !caja.id) return caja;
   try {
@@ -151,6 +159,23 @@ export async function getCajaActual() {
     const session = await ensureAuthenticatedSession();
     const userId = session?.user?.id;
     if (userId) {
+      const tz = getDeviceTimezone();
+
+      // Transición JIT: auto-cierra caja del día previo y resuelve caja de hoy
+      try {
+        const { data: jitData, error: jitError } = await supabase.rpc('rpc_check_or_open_caja', {
+          p_user_id: userId,
+          p_timezone: tz,
+        });
+
+        if (!jitError && jitData?.success && jitData?.caja) {
+          await saveCajaLocal(db, jitData.caja, userId);
+          return await computeCajaSaldo(db, jitData.caja);
+        }
+      } catch (eJit) {
+        console.log('rpc_check_or_open_caja fallback query:', eJit);
+      }
+
       const { data, error } = await supabase
         .from('cajas')
         .select('*')
@@ -230,28 +255,27 @@ export async function getHistorialCajas(limit = 20, offset = 0) {
   }
 }
 
-export async function checkOrAutoOpenVendedorCaja(userId, profile) {
-  const modoApertura = profile?.modo_apertura_caja || 'admin_masivo';
-  if (profile?.rol !== 'vendedor' || modoApertura !== 'vendedor_dia') {
-    return null;
-  }
+export async function checkOrAutoOpenCaja(userId, profile) {
   const db = await getDbConnection();
-  // Verificar si ya tiene caja abierta local
-  const localOpen = await getData(db, `SELECT * FROM cajas WHERE estado = 'abierta' AND (usuario_id = ? OR usuario_id IS NULL) LIMIT 1`, [userId]);
-  if (localOpen && localOpen.length > 0) return localOpen[0];
+  const tz = getDeviceTimezone();
 
   try {
-    const { data, error } = await supabase.rpc('rpc_check_or_open_vendedor_caja', {
-      p_vendedor_id: userId,
+    const { data, error } = await supabase.rpc('rpc_check_or_open_caja', {
+      p_user_id: userId,
+      p_timezone: tz,
     });
     if (!error && data?.success && data?.caja) {
       await saveCajaLocal(db, data.caja, userId);
       return data.caja;
     }
   } catch (e) {
-    console.log('rpc_check_or_open_vendedor_caja catch:', e);
+    console.log('rpc_check_or_open_caja catch:', e);
   }
   return null;
+}
+
+export async function checkOrAutoOpenVendedorCaja(userId, profile) {
+  return await checkOrAutoOpenCaja(userId, profile);
 }
 
 export async function abrirCaja(saldoInicial = 0) {
@@ -274,44 +298,33 @@ export async function abrirCaja(saldoInicial = 0) {
 
   const saldoNum = Number(saldoInicial) || 0;
 
+  // Regla de negocio estricta: 1 sola caja abierta a la vez por usuario (admin o vendedor)
+  const { data: abiertas } = await supabase
+    .from('cajas')
+    .select('id')
+    .eq('usuario_id', userId)
+    .eq('estado', 'abierta');
+
+  if (abiertas && abiertas.length >= 1) {
+    throw new Error('Ya tienes una caja abierta actualmente. Solo se permite tener 1 caja abierta a la vez.');
+  }
+
   if (isVendedorDia) {
     const maxCaja = Number(profile?.dinero_max_caja) || 0;
     if (maxCaja > 0 && saldoNum > maxCaja) {
-      throw new Error(`El saldo inicial ($${saldoNum.toLocaleString('es-CO')}) excede tu límite permitido por caja ($${maxCaja.toLocaleString('es-CO')}).`);
-    }
-
-    // Verificar que no tenga caja abierta hoy
-    const { data: abiertasVendedor } = await supabase
-      .from('cajas')
-      .select('id')
-      .eq('usuario_id', userId)
-      .eq('estado', 'abierta');
-
-    if (abiertasVendedor && abiertasVendedor.length > 0) {
-      throw new Error('Ya tienes una caja abierta. No se permite abrir más de una caja simultánea para tu usuario.');
-    }
-  } else {
-    // El admin puede tener hasta 3 cajas abiertas simultáneamente
-    const { data: abiertas } = await supabase
-      .from('cajas')
-      .select('id')
-      .eq('usuario_id', userId)
-      .eq('estado', 'abierta');
-
-    if (abiertas && abiertas.length >= 3) {
-      throw new Error('Tienes 3 cajas abiertas al mismo tiempo. Debes cerrar al menos una de tus cajas antes de poder abrir una nueva.');
+      throw new Error(`El saldo inicial (${saldoNum.toLocaleString('es-CO')}) excede tu límite permitido por caja (${maxCaja.toLocaleString('es-CO')}).`);
     }
   }
 
   // Validar que el usuario solo tenga una caja en el día:
   // Si hoy ya tiene una caja cerrada, reabrirla en lugar de crear una nueva
-  const todayBogotaIso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const todayIso = new Date().toLocaleDateString('en-CA', { timeZone: getDeviceTimezone() });
   const { data: cajaHoy } = await supabase
     .from('cajas')
     .select('*')
     .eq('usuario_id', userId)
-    .gte('fecha_apertura', `${todayBogotaIso}T00:00:00-05:00`)
-    .lte('fecha_apertura', `${todayBogotaIso}T23:59:59.999-05:00`)
+    .gte('fecha_apertura', `${todayIso}T00:00:00-05:00`)
+    .lte('fecha_apertura', `${todayIso}T23:59:59.999-05:00`)
     .order('fecha_apertura', { ascending: false })
     .limit(1)
     .maybeSingle();

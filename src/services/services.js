@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 import { updateData, insertOrReplaceData, getDbConnection, getData, insertTables } from '../database/db';
 import { supabase } from '../lib/supabase';
-import { getCajaActual, saveCajaLocal, saveMovimientoLocal, getPendingSyncCount } from './cajaService';
+import { getCajaActual, saveCajaLocal, saveMovimientoLocal, getPendingSyncCount, getDeviceTimezone } from './cajaService';
 import { clearAllLocalData } from '../utils/clearLocal';
 import { EvaluationDataSend } from '../utils/utilities';
 import { setAuthServiceRunning } from '../context/AuthContext';
@@ -252,9 +252,26 @@ export const AuthService = async (db, email, password) => {
     }
 
     const isAdmin = profile?.rol === 'admin' || profile?.rol === 'superadmin';
-    let tieneCajaAbierta = caja && caja.id && caja.estado === 'abierta';
+    let tieneCajaAbierta = false;
+    const tz = getDeviceTimezone();
 
-    if (!isAdmin && !tieneCajaAbierta) {
+    // Transición JIT en login: verifica caja abierta, auto-cierra si es de día previo
+    // y crea la de hoy (con cascada al admin si es vendedor para que nunca quede bloqueado)
+    try {
+      const { data: jitRes, error: jitErr } = await supabase.rpc('rpc_check_or_open_caja', {
+        p_user_id: userId,
+        p_timezone: tz,
+      });
+
+      if (!jitErr && jitRes?.success && jitRes?.caja) {
+        tieneCajaAbierta = true;
+        caja = jitRes.caja;
+      }
+    } catch (eAuto) {
+      console.log('Error en rpc_check_or_open_caja durante login:', eAuto);
+    }
+
+    if (!tieneCajaAbierta) {
       try {
         const { data: dbCaja } = await supabase
           .from('cajas')
@@ -269,34 +286,16 @@ export const AuthService = async (db, email, password) => {
           caja = dbCaja;
         }
       } catch (e) {
-        console.log('Error verificando caja abierta en Supabase:', e);
+        console.log('Error verificando caja abierta fallback:', e);
       }
     }
 
     if (!isAdmin && !tieneCajaAbierta) {
-      // Si el modo de apertura es 'vendedor_dia', intentar auto-apertura del día
-      if (profile?.modo_apertura_caja === 'vendedor_dia') {
-        try {
-          const { data: autoRes, error: autoErr } = await supabase.rpc('rpc_check_or_open_vendedor_caja', {
-            p_vendedor_id: userId,
-          });
-          if (!autoErr && autoRes?.success && autoRes?.caja) {
-            tieneCajaAbierta = true;
-            caja = autoRes.caja;
-          }
-        } catch (eAuto) {
-          console.log('Error en rpc_check_or_open_vendedor_caja durante login:', eAuto);
-        }
-      }
-
-      // Si sigue sin caja y no está en modo 'vendedor_dia', exigir apertura del admin
-      if (!tieneCajaAbierta) {
-        await supabase.auth.signOut();
-        return {
-          success: false,
-          message: 'No puedes iniciar sesion porque no tienes una caja abierta. Tu administrador debe realizar la apertura de tu caja antes de que puedas comenzar a trabajar.',
-        };
-      }
+      await supabase.auth.signOut();
+      return {
+        success: false,
+        message: 'No puedes iniciar sesión porque no tienes una caja abierta ni se pudo auto-abrir tu jornada. Verifica tu conexión a internet o contacta al administrador.',
+      };
     }
 
     if (profile) {
@@ -509,13 +508,23 @@ export const saveInvoice = async (invoices) => {
     try {
       for (const item of tableContent) {
         await db.executeSql(sql, Object.values(item));
-        if (item.estadoMovil === 'actualizado') {
-          try {
-            await db.executeSql(
-              `UPDATE pagos SET estadoMovil = 'sincronizado' WHERE idFactura = ? AND estadoMovil = 'enviando'`,
-              [item.id]
-            );
-          } catch {}
+      }
+
+      // Persistir cuotas si vienen en el payload remoto y no hay pagos locales pendientes
+      for (const raw of invoices) {
+        if (Array.isArray(raw.cuotas) && raw.cuotas.length > 0 && raw.id) {
+          const invIdStr = String(raw.id);
+          const pendRows = await getData(db, `SELECT COUNT(*) as c FROM pagos WHERE idFactura = ? AND estadoMovil != 'sincronizado'`, [invIdStr]);
+          const hasPend = Number(pendRows?.[0]?.c || 0) > 0;
+          if (!hasPend) {
+            for (const c of raw.cuotas) {
+              await db.executeSql(
+                `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [String(c.id), invIdStr, c.numero, c.fecha_vencimiento, Number(c.monto), c.estado || 'pendiente', Number(c.monto_pagado || 0)]
+              );
+            }
+          }
         }
       }
       await db.executeSql('COMMIT');

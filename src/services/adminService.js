@@ -1,6 +1,7 @@
 // src/services/adminService.js
 import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { getDbConnection } from '../database/db';
+import { getDeviceTimezone } from './cajaService';
 
 /**
  * Obtiene la lista de usuarios subordinados (vendedores y administradores)
@@ -122,7 +123,7 @@ export const updateAdminUser = async (userId, userData) => {
 
     if (!directErr) {
       if (hasNewPassword) {
-        throw new Error('Se actualizaron los datos del perfil, pero para cambiar la contraseña se requiere aplicar la migración en Supabase.');
+        throw new Error('Se actualizaron los datos del perfil, pero para cambiar la contraseï¿½a se requiere aplicar la migraciï¿½n en Supabase.');
       }
       return { success: true, user_id: userId };
     }
@@ -198,7 +199,10 @@ export const getAdminCajas = async (fechaIni = null, fechaFin = null) => {
  */
 export const abrirCajasMasivo = async () => {
   await ensureAuthenticatedSession();
-  const { data, error } = await supabase.rpc('admin_abrir_cajas_masivo');
+  const tz = getDeviceTimezone();
+  const { data, error } = await supabase.rpc('admin_abrir_cajas_masivo', {
+    p_timezone: tz,
+  });
   if (error) throw new Error(error.message || 'Error al abrir cajas');
   return data;
 };
@@ -339,6 +343,45 @@ export const trasladarCartera = async (vendedorOrigenId, vendedorDestinoId) => {
 /**
  * Obtiene el conteo exacto de cajas abiertas del administrador autenticado (mximo 3 permitidas)
  */
+/**
+ * Obtiene la lista detallada de cajas abiertas del administrador con sus fechas y saldos
+ */
+export const getAdminOpenCajas = async (targetUserId = null) => {
+  try {
+    let uid = targetUserId;
+    if (!uid) {
+      const { data: authData } = await supabase.auth.getUser();
+      uid = authData?.user?.id;
+    }
+    if (!uid) return [];
+
+    const tz = getDeviceTimezone();
+    try {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_get_open_cajas', {
+        p_admin_id: uid,
+        p_timezone: tz,
+      });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        return rpcData;
+      }
+    } catch {}
+
+    const { data, error } = await supabase
+      .from('cajas')
+      .select('id, fecha_apertura, saldo_inicial, saldo_final, estado')
+      .eq('usuario_id', uid)
+      .eq('estado', 'abierta')
+      .order('fecha_apertura', { ascending: true });
+
+    if (!error && Array.isArray(data)) {
+      return data;
+    }
+  } catch (e) {
+    console.log('Error obteniendo cajas abiertas admin:', e);
+  }
+  return [];
+};
+
 export const getAdminOpenCajasCount = async (targetUserId = null) => {
   try {
     // 1. Intentar RPC optimizada si est disponible en Supabase
@@ -492,20 +535,19 @@ export const reabrirCajaAdmin = async (cajaId) => {
     }
   }
 
-  // 3. Validar que el usuario no tenga ya otra caja abierta actualmente
-  const { data: openOther } = await supabase
+  // 3. Validar regla de negocio estricta: 1 sola caja abierta a la vez por usuario (admin o vendedor)
+  const { data: openBox } = await supabase
     .from('cajas')
     .select('id, fecha_apertura')
     .eq('usuario_id', currentBox.usuario_id)
     .eq('estado', 'abierta')
     .neq('id', cajaId)
-    .order('fecha_apertura', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (openOther) {
-    const fechaFormatted = formatFechaAperturaReadable(openOther.fecha_apertura);
-    throw new Error(`El usuario ya tiene otra caja abierta actualmente con fecha de apertura: ${fechaFormatted}. Debe cerrarla antes de reabrir esta caja.`);
+  if (openBox) {
+    const fechaStr = openBox.fecha_apertura ? openBox.fecha_apertura.slice(0, 16) : '';
+    throw new Error(`El usuario ya tiene otra caja abierta actualmente (${fechaStr}). Solo se permite tener 1 caja abierta a la vez. Debe cerrar la caja activa antes de poder reabrir esta.`);
   }
 
   // 4. Invocar RPC en Supabase

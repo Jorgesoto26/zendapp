@@ -7,7 +7,7 @@ import { appAlert } from '../components/AppAlert';
 import { saveCajaLocal, saveMovimientoLocal } from '../services/cajaService';
 import { syncPendingEvidencias } from '../services/multimediaService';
 import { eventBus, EVENTS } from './eventBus';
-import { EvaluationDataSend } from './utilities';
+import { EvaluationDataSend, generateUUID } from './utilities';
 
 // Colecciones en memoria para el lote actual
 let globalSyncCollection = [];
@@ -381,13 +381,58 @@ const SendPay = async () => {
   const db = await getDbConnection();
   await db.executeSql(`UPDATE pagos SET estadoMovil = 'actualizado' WHERE estadoMovil = 'enviando'`);
 
+  // Auto-recuperación de pagos locales que quedaron falsamente marcados como 'sincronizado'
+  // por la colisión histórica de UUID o fallos previos y no existen en Supabase
+  try {
+    const orphanPagos = await getData(
+      db,
+      `SELECT id, idFactura, valor, tipo FROM pagos 
+       WHERE (CAST(id AS INTEGER) < 0 OR id LIKE '-%') 
+         AND (sync_id IS NULL OR sync_id = '' OR sync_id NOT LIKE '%-%-%-%-%')`
+    );
+    if (orphanPagos && orphanPagos.length > 0) {
+      for (const op of orphanPagos) {
+        const val = parseFloat(op.valor) || 0;
+        let query = supabase.from('payments').select('id').eq('invoice_id', op.idFactura);
+        if (op.tipo === 'nopago' || val === 0) {
+          query = query.eq('amount', 0);
+        } else {
+          query = query.eq('amount', val);
+        }
+        const { data: remoteMatches } = await query;
+        if (!remoteMatches || remoteMatches.length === 0) {
+          // No existe en Supabase: fue un falso positivo. Re-armar con UUID v4 nuevo.
+          const freshUuid = generateUUID();
+          await db.executeSql(
+            `UPDATE pagos SET estadoMovil = 'actualizado', client_uuid = ?, sync_id = NULL WHERE id = ?`,
+            [freshUuid, op.id]
+          );
+          console.log(`Pago huérfano local ${op.id} ($${val}) re-armado automáticamente para sincronización.`);
+        } else {
+          // Ya existe en Supabase: fijar su sync_id real
+          await db.executeSql(
+            `UPDATE pagos SET sync_id = ?, estadoMovil = 'sincronizado' WHERE id = ?`,
+            [remoteMatches[0].id, op.id]
+          );
+        }
+      }
+    }
+  } catch (errOrphan) {
+    console.log('Error verificando pagos huérfanos:', errOrphan);
+  }
+
   const pagos = await getData(db, `SELECT * FROM pagos WHERE estadoMovil = 'actualizado' ORDER BY horaDispositivo ASC`);
   if (!pagos || pagos.length === 0) return true;
 
   for (const p of pagos) {
     await db.executeSql(`UPDATE pagos SET estadoMovil = 'enviando' WHERE id = ?`, [p.id]);
+    const pUuid = p.client_uuid || (typeof generateUUID === 'function' ? generateUUID() : null);
+    if (!p.client_uuid && pUuid) {
+      try { await db.executeSql(`UPDATE pagos SET client_uuid = ? WHERE id = ?`, [pUuid, p.id]); } catch {}
+    }
     const payload = {
       id: p.id,
+      client_uuid: pUuid,
       detalle: {
         tipo: p.tipo,
         valor: parseFloat(p.valor),
@@ -397,6 +442,7 @@ const SendPay = async () => {
         idFactura: p.idFactura,
         descripcion: p.descripcion || '',
         secuencia_pago: p.secuencia_pago,
+        client_uuid: pUuid,
       },
     };
     addToSyncCollection(payload, p.id, 'payment');
@@ -411,7 +457,13 @@ const SendMovimientos = async () => {
   const db = await getDbConnection();
   await db.executeSql(`UPDATE movimientos SET estadoMovil = 'actualizado' WHERE estadoMovil = 'enviando'`);
 
-  const movs = await getData(db, `SELECT * FROM movimientos WHERE estadoMovil = 'actualizado' ORDER BY COALESCE(horaDispositivo, fecha) ASC`);
+  const movs = await getData(
+    db,
+    `SELECT * FROM movimientos 
+     WHERE estadoMovil = 'actualizado' 
+       AND (idFactura IS NULL OR idFactura = '' OR tipo NOT IN ('pago', 'nopago'))
+     ORDER BY COALESCE(horaDispositivo, fecha) ASC`
+  );
   if (!movs || movs.length === 0) return true;
 
   for (const m of movs) {
@@ -498,7 +550,7 @@ const sendCollectedItems = async (sessionParam = null) => {
           if (!clientId) throw new Error('No se pudo obtener client_id de la factura');
           if (!cajaId) throw new Error('No hay caja abierta para el usuario');
 
-          const localPaymentUuid = `00000000-0000-4000-8000-${Math.abs(Number(item.id) || 1).toString(16).padStart(12, '0')}`;
+          const localPaymentUuid = item.detalle?.client_uuid || item.client_uuid || (typeof generateUUID === 'function' ? generateUUID() : `00000000-0000-4000-8000-${Math.abs(Number(item.id) || 1).toString(16).padStart(12, '0')}`);
           const pDate = new Date().toISOString().slice(0, 10);
 
           if (item.detalle.tipo === 'nopago' || Number(item.detalle.valor) === 0) {
@@ -693,8 +745,8 @@ const processResponseAndUpdateTables = async (response) => {
       const facturaId = mapping.idFactura || item.factura;
       try {
         await db.executeSql(
-          `UPDATE pagos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ? OR (idFactura = ? AND estadoMovil IN ('enviando', 'actualizado'))`,
-          [item.idv, item.idv, facturaId || '']
+          `UPDATE pagos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ?`,
+          [item.idv, item.idv]
         );
       } catch (err) {
         console.log('Error updating pagos sincronizado:', err);
@@ -702,19 +754,25 @@ const processResponseAndUpdateTables = async (response) => {
       }
       try {
         await db.executeSql(
-          `UPDATE detallesCaja SET estado = 'sincronizado' WHERE id = ? OR id = '' || ? OR (facturaId = ? AND estado != 'sincronizado')`,
-          [item.idv, item.idv, facturaId || '']
+          `UPDATE detallesCaja SET estado = 'sincronizado' WHERE id = ? OR id = '' || ?`,
+          [item.idv, item.idv]
         );
       } catch { }
 
       try {
         await db.executeSql(
-          `UPDATE movimientos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ? OR (idFactura = ? AND tipo = 'pago')`,
+          `UPDATE movimientos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ? OR (idFactura = ? AND tipo IN ('pago', 'nopago'))`,
           [item.idv, item.idv, facturaId || '']
         );
       } catch {}
 
-      try { await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ? OR id = '' || ?`, [item.idn, item.idv, item.idv]); } catch { }
+      try { 
+        if (item.idn) {
+          await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ? OR id = '' || ?`, [String(item.idn), item.idv, item.idv]);
+        }
+      } catch (eSyncId) {
+        console.log('Error setting sync_id:', eSyncId);
+      }
 
       if (facturaId) {
         try {
@@ -812,15 +870,35 @@ export const SyncCajaAndMovimientos = async () => {
     const userId = session.user.id;
     const db = await getDbConnection();
 
-    // 1. Obtener la caja activa del usuario en Supabase
-    const { data: caja, error: cajaErr } = await supabase
-      .from('cajas')
-      .select('*')
-      .eq('usuario_id', userId)
-      .eq('estado', 'abierta')
-      .order('fecha_apertura', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // 1. Obtener / auto-transicionar la caja activa del usuario en Supabase con JIT
+    let caja = null;
+    let cajaErr = null;
+    try {
+      const { getDeviceTimezone } = require('../services/cajaService');
+      const tz = getDeviceTimezone();
+      const { data: jitData, error: jitErr } = await supabase.rpc('rpc_check_or_open_caja', {
+        p_user_id: userId,
+        p_timezone: tz,
+      });
+      if (!jitErr && jitData?.success && jitData?.caja) {
+        caja = jitData.caja;
+      }
+    } catch (eJit) {
+      console.log('SyncCajaAndMovimientos JIT fallback:', eJit);
+    }
+
+    if (!caja) {
+      const res = await supabase
+        .from('cajas')
+        .select('*')
+        .eq('usuario_id', userId)
+        .eq('estado', 'abierta')
+        .order('fecha_apertura', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      caja = res.data;
+      cajaErr = res.error;
+    }
 
     if (!cajaErr && caja) {
       await saveCajaLocal(db, caja, userId);
