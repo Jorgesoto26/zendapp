@@ -529,6 +529,14 @@ const sendCollectedItems = async (sessionParam = null) => {
           results.push({ idv: item.id, idn: data, ok: true });
         } else if (mapping.type === 'movimiento') {
           let targetCajaId = item.detalle.idCaja || null;
+          if (targetCajaId) {
+            try {
+              const { data: cCheck } = await supabase.from('cajas').select('id, estado').eq('id', targetCajaId).maybeSingle();
+              if (!cCheck || cCheck.estado !== 'abierta') {
+                targetCajaId = null;
+              }
+            } catch {}
+          }
           if (!targetCajaId) {
             const { data: caja } = await supabase.from('cajas').select('id').eq('usuario_id', session.user.id).eq('estado', 'abierta').order('fecha_apertura', { ascending: false }).limit(1).maybeSingle();
             targetCajaId = caja?.id || null;

@@ -106,6 +106,7 @@ const ItemPayments = memo(({
   tipoTramitado: propTipoTramitado,
   valorPagado: propValorPagado,
   pendienteSync: propPendienteSync,
+  onShowReceipt,
 }) => {
   const navigation = useNavigation();
   const { profile } = useAuth() || {};
@@ -243,7 +244,7 @@ const ItemPayments = memo(({
           ? `${profile.nombre} ${profile.apellidos || profile.apellido || ''}`.trim()
           : 'Vendedor';
 
-        setReceiptData({
+        const receiptPayload = {
           id: pago.id,
           idFactura: id,
           clienteNombre: name || nombreUno || 'Cliente',
@@ -257,8 +258,14 @@ const ItemPayments = memo(({
           orgLogo: orgData.logo,
           metodo: 'Efectivo',
           isPendingSync: true,
-        });
-        setShowReceiptModal(true);
+        };
+
+        if (onShowReceipt) {
+          onShowReceipt(receiptPayload);
+        } else {
+          setReceiptData(receiptPayload);
+          setShowReceiptModal(true);
+        }
       }
 
       onPaymentSuccess?.();
@@ -269,7 +276,7 @@ const ItemPayments = memo(({
     } finally {
       setLoading(false);
     }
-  }, [id, saldo, cuotasPagas, saldoVencido, nombreUno, name, documento, profile, onPaymentSuccess]);
+  }, [id, saldo, cuotasPagas, saldoVencido, nombreUno, name, documento, profile, onPaymentSuccess, onShowReceipt]);
 
   const handleOpenReceiptForTramitado = useCallback(async () => {
     try {
@@ -300,7 +307,7 @@ const ItemPayments = memo(({
         ? `${profile.nombre} ${profile.apellidos || profile.apellido || ''}`.trim()
         : 'Vendedor';
 
-      setReceiptData({
+      const receiptPayload = {
         id: pId,
         idFactura: id,
         clienteNombre: name || nombreUno || 'Cliente',
@@ -314,12 +321,18 @@ const ItemPayments = memo(({
         orgLogo: orgData.logo,
         metodo: 'Efectivo',
         isPendingSync: (propPendienteSync !== undefined ? propPendienteSync : pendienteSync),
-      });
-      setShowReceiptModal(true);
+      };
+
+      if (onShowReceipt) {
+        onShowReceipt(receiptPayload);
+      } else {
+        setReceiptData(receiptPayload);
+        setShowReceiptModal(true);
+      }
     } catch (e) {
       console.log('Error opening receipt for tramitado:', e);
     }
-  }, [id, name, nombreUno, documento, valorPagado, saldo, profile, propPendienteSync, pendienteSync]);
+  }, [id, name, nombreUno, documento, valorPagado, saldo, profile, propPendienteSync, pendienteSync, onShowReceipt]);
 
   const textoChip = estadoMovil === 'actualizado' && tipoTramitado ? tipoTramitado : paymentType;
   const valorAMostrar = estadoMovil === 'actualizado' ? valorPagado : amount;
@@ -475,11 +488,13 @@ const ItemPayments = memo(({
           </View>
         </View>
       </Modal>
-      <PaymentReceiptModal
-        visible={showReceiptModal}
-        onClose={() => setShowReceiptModal(false)}
-        receiptData={receiptData}
-      />
+      {!onShowReceipt && (
+        <PaymentReceiptModal
+          visible={showReceiptModal}
+          onClose={() => setShowReceiptModal(false)}
+          receiptData={receiptData}
+        />
+      )}
     </Animated.View>
   );
 }, (a, b) =>
@@ -490,7 +505,8 @@ const ItemPayments = memo(({
   a.pendienteSync === b.pendienteSync &&
   a.tipoTramitado === b.tipoTramitado &&
   a.valorPagado === b.valorPagado &&
-  a.documento === b.documento
+  a.documento === b.documento &&
+  a.onShowReceipt === b.onShowReceipt
 );
 
 export default ItemPayments;

@@ -17,6 +17,7 @@ import { clearAllLocalData } from '../../utils/clearLocal';
 import { getInvoice } from '../../services/services';
 import { supabase } from '../../lib/supabase';
 import { getSignedUrl } from '../../services/multimediaService';
+import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 
 const mapPaymentType = (id) => ({ 1: 'MENSUAL', 2: 'SEMANAL', 3: 'QUINCENAL' }[id] || '—');
 const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
@@ -147,6 +148,13 @@ export default function Payments() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [segmentWidth, setSegmentWidth] = useState(0);
   const [orgLogo, setOrgLogo] = useState(null);
+  const [receiptModalVisible, setReceiptModalVisible] = useState(false);
+  const [activeReceipt, setActiveReceipt] = useState(null);
+
+  const handleShowReceipt = useCallback((receipt) => {
+    setActiveReceipt(receipt);
+    setReceiptModalVisible(true);
+  }, []);
 
   // Animaciones 100% nativas en GPU (0 lag, 0 consumo innecesario)
   const slideAnim = useRef(new Animated.Value(0)).current; // 0 = pendiente, 1 = tramitados
@@ -466,6 +474,7 @@ export default function Payments() {
                 valorPagado={item.valorPagado}
                 pendienteSync={item.pendienteSync}
                 onPaymentSuccess={loadClients}
+                onShowReceipt={handleShowReceipt}
               />
             )}
             ListEmptyComponent={
@@ -491,6 +500,12 @@ export default function Payments() {
           </View>
         </View>
       </Modal>
+
+      <PaymentReceiptModal
+        visible={receiptModalVisible}
+        onClose={() => setReceiptModalVisible(false)}
+        receiptData={activeReceipt}
+      />
     </SafeAreaView>
   );
 }

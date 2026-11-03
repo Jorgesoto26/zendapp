@@ -303,6 +303,38 @@ export async function abrirCaja(saldoInicial = 0) {
     }
   }
 
+  // Validar que el usuario solo tenga una caja en el día:
+  // Si hoy ya tiene una caja cerrada, reabrirla en lugar de crear una nueva
+  const todayBogotaIso = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const { data: cajaHoy } = await supabase
+    .from('cajas')
+    .select('*')
+    .eq('usuario_id', userId)
+    .gte('fecha_apertura', `${todayBogotaIso}T00:00:00-05:00`)
+    .lte('fecha_apertura', `${todayBogotaIso}T23:59:59.999-05:00`)
+    .order('fecha_apertura', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (cajaHoy) {
+    if (cajaHoy.estado === 'abierta') {
+      return cajaHoy;
+    } else {
+      const { data: reabierta, error: errReabrir } = await supabase
+        .from('cajas')
+        .update({ estado: 'abierta', fecha_cierre: null, saldo_final: null })
+        .eq('id', cajaHoy.id)
+        .select()
+        .single();
+      if (errReabrir) throw errReabrir;
+      if (reabierta) {
+        const db = await getDbConnection();
+        await saveCajaLocal(db, reabierta, userId);
+      }
+      return reabierta;
+    }
+  }
+
   const { data, error } = await supabase
     .from('cajas')
     .insert([{ usuario_id: userId, estado: 'abierta', saldo_inicial: saldoNum, saldo_final: saldoNum }])

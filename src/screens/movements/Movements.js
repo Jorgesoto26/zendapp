@@ -306,6 +306,8 @@ export default function MovementsScreen() {
       );
     }
 
+    const isPagoNoPago = editingItem?.tipo === 'pago' && parseMoneyToNumeric(editMonto) === 0;
+
     setSavingEdit(true);
     try {
       await updateCashMovement({
@@ -313,7 +315,7 @@ export default function MovementsScreen() {
         monto,
         cajaId: caja?.id,
         profile,
-        motivo: 'Edición de movimiento',
+        motivo: isPagoNoPago ? 'Cambio a No Pago' : 'Edición de movimiento',
       });
 
       setEditModalVisible(false);
@@ -324,7 +326,7 @@ export default function MovementsScreen() {
       eventBus.emit(EVENTS.MOVEMENT_CHANGED);
       await load(true);
       Toast.show({
-        text1: 'Movimiento actualizado',
+        text1: isPagoNoPago ? 'Pago convertido a No Pago' : 'Movimiento actualizado',
         text2: 'Cambios guardados correctamente.',
       });
     } catch (e) {
@@ -591,16 +593,6 @@ export default function MovementsScreen() {
               onPress={() => handleDeleteVenta(item)}
             >
               <Icon name="trash-o" size={16} color={apple.colors.danger} />
-            </TouchableOpacity>
-          )}
-
-          {isPago && permiteModificarPagos && (
-            <TouchableOpacity
-              style={styles.actionBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              onPress={() => handleRevertPago(item)}
-            >
-              <Icon name="undo" size={15} color={apple.colors.warning} />
             </TouchableOpacity>
           )}
         </View>
@@ -880,7 +872,7 @@ export default function MovementsScreen() {
               )}
               {editingItem?.tipo === 'pago' && (
                 <Text style={styles.readOnlyHint}>
-                  Si ingresas $0, este pago se convertirá automáticamente en No Pago.
+                  Si borras el monto o ingresas $0, este pago se convertirá en No Pago.
                 </Text>
               )}
               {editingItem?.tipo === 'nopago' && (
@@ -905,8 +897,21 @@ export default function MovementsScreen() {
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditModalVisible(false)}>
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={savingEdit}>
-                {savingEdit ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Actualizar</Text>}
+              <TouchableOpacity
+                style={[
+                  styles.saveBtn,
+                  editingItem?.tipo === 'pago' && parseMoneyToNumeric(editMonto) === 0 && { backgroundColor: apple.colors.danger }
+                ]}
+                onPress={handleSaveEdit}
+                disabled={savingEdit}
+              >
+                {savingEdit ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveText}>
+                    {editingItem?.tipo === 'pago' && parseMoneyToNumeric(editMonto) === 0 ? 'No Pago' : 'Actualizar'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
