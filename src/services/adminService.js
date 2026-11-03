@@ -29,6 +29,7 @@ export const createAdminUser = async (userData) => {
     max_cuotas = 30,
     permite_borrar_venta = false,
     permite_modificar_pagos = false,
+    saldo_inicial_caja = 0,
   } = userData;
 
   const { data, error } = await supabase.rpc('admin_create_user', {
@@ -43,6 +44,7 @@ export const createAdminUser = async (userData) => {
     p_max_cuotas: parseInt(max_cuotas, 10) || 30,
     p_permite_borrar_venta: !!permite_borrar_venta,
     p_permite_modificar_pagos: !!permite_modificar_pagos,
+    p_saldo_inicial: parseFloat(saldo_inicial_caja) || 0,
   });
 
   if (error) throw new Error(error.message || 'Error al crear usuario');
@@ -119,6 +121,9 @@ export const updateAdminUser = async (userId, userData) => {
       .eq('id', userId);
 
     if (!directErr) {
+      if (hasNewPassword) {
+        throw new Error('Se actualizaron los datos del perfil, pero para cambiar la contraseña se requiere aplicar la migración en Supabase.');
+      }
       return { success: true, user_id: userId };
     }
     error = directErr;
@@ -513,7 +518,7 @@ export const reabrirCajaAdmin = async (cajaId) => {
     console.warn('admin_reabrir_caja RPC no encontrada, aplicando reapertura directa con RLS...');
     const { error: updErr } = await supabase
       .from('cajas')
-      .update({ estado: 'abierta', fecha_cierre: null, saldo_final: null })
+      .update({ estado: 'abierta', fecha_cierre: null })
       .eq('id', cajaId);
 
     if (updErr) throw new Error(updErr.message || 'Error al reabrir la caja');
@@ -527,7 +532,7 @@ export const reabrirCajaAdmin = async (cajaId) => {
   try {
     const db = await getDbConnection();
     await db.executeSql(
-      `UPDATE cajas SET estado = 'abierta', fecha_cierre = NULL, saldo_final = NULL WHERE id = ?`,
+      `UPDATE cajas SET estado = 'abierta', fecha_cierre = NULL WHERE id = ?`,
       [String(cajaId)]
     );
   } catch (eSql) {

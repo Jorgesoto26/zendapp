@@ -128,7 +128,7 @@ export const AuthService = async (db, email, password) => {
         console.log('Error verificando caja local offline:', e);
       }
 
-      if (!isAdmin && !tieneCajaAbierta && cachedModoApertura !== 'vendedor_dia') {
+      if (!isAdmin && !tieneCajaAbierta) {
         return {
           success: false,
           message: 'No tienes una caja abierta en este telefono para trabajar sin conexion. Conectate a internet para que tu administrador realice la apertura de tu caja.',
@@ -290,7 +290,7 @@ export const AuthService = async (db, email, password) => {
       }
 
       // Si sigue sin caja y no está en modo 'vendedor_dia', exigir apertura del admin
-      if (!tieneCajaAbierta && profile?.modo_apertura_caja !== 'vendedor_dia') {
+      if (!tieneCajaAbierta) {
         await supabase.auth.signOut();
         return {
           success: false,

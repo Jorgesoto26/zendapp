@@ -966,25 +966,27 @@ const CrearCliente = () => {
                 ))}
               </View>
 
-              {/* Accesos rápidos para Plazo (Requisito 4.1: 24, 30, 45) */}
+              {/* Accesos rápidos para Plazo (Solo para modalidad diaria: 24, 30, 45) */}
               <View style={styles.quickLabelRow}>
                 <Text style={styles.fieldLabel}>{cuotasLabel}</Text>
-                <View style={styles.quickButtonsRow}>
-                  {[24, 30, 45].map(q => {
-                    const isSelected = String(formData.numCuotas) === String(q);
-                    return (
-                      <TouchableOpacity
-                        key={q}
-                        style={[styles.quickBtn, isSelected && styles.quickBtnActive]}
-                        onPress={() => handleSelectQuickCuotas(q)}
-                      >
-                        <Text style={[styles.quickBtnText, isSelected && styles.quickBtnTextActive]}>
-                          {q}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                {periodicidad === 'diario' && (
+                  <View style={styles.quickButtonsRow}>
+                    {[24, 30, 45].map(q => {
+                      const isSelected = String(formData.numCuotas) === String(q);
+                      return (
+                        <TouchableOpacity
+                          key={q}
+                          style={[styles.quickBtn, isSelected && styles.quickBtnActive]}
+                          onPress={() => handleSelectQuickCuotas(q)}
+                        >
+                          <Text style={[styles.quickBtnText, isSelected && styles.quickBtnTextActive]}>
+                            {q}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
 
               {/* Campo numérico editable para cantidad de pagos (1 a 90) */}

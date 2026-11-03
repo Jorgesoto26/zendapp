@@ -438,7 +438,11 @@ const SendMovimientos = async () => {
 
 const addToSyncCollection = (item, originalId, type) => {
   const tempId = idCounter--;
+  const syncKey = `${type}_${originalId}`;
+  item._syncKey = syncKey;
+  item._syncType = type;
   const info = { originalId, type, idFactura: item.detalle?.idFactura };
+  idMapping.set(syncKey, info);
   idMapping.set(originalId, info);
   idMapping.set(String(originalId), info);
   if (typeof originalId === 'string' && !isNaN(Number(originalId))) {
@@ -464,9 +468,9 @@ const sendCollectedItems = async (sessionParam = null) => {
 
     const results = [];
     for (const item of globalSyncCollection) {
-      const mapping = idMapping.get(item.id);
+      const mapping = (item._syncKey ? idMapping.get(item._syncKey) : null) || idMapping.get(item.id) || { type: item._syncType || 'payment' };
       try {
-        if (mapping.type === 'payment') {
+        if (mapping.type === 'payment' || item._syncType === 'payment') {
           let clientId = null;
           let cajaId = null;
           try {
@@ -508,7 +512,7 @@ const sendCollectedItems = async (sessionParam = null) => {
               p_client_uuid: localPaymentUuid,
             });
             if (rpcErr) throw rpcErr;
-            results.push({ idv: item.id, idn: rpcId, ok: true });
+            results.push({ idv: item.id, idn: rpcId, ok: true, syncKey: item._syncKey, type: 'payment', factura: item.detalle.idFactura });
             continue;
           }
 
@@ -526,7 +530,7 @@ const sendCollectedItems = async (sessionParam = null) => {
           });
 
           if (error) throw error;
-          results.push({ idv: item.id, idn: data, ok: true });
+          results.push({ idv: item.id, idn: data, ok: true, syncKey: item._syncKey, type: 'payment', factura: item.detalle.idFactura });
         } else if (mapping.type === 'movimiento') {
           let targetCajaId = item.detalle.idCaja || null;
           if (targetCajaId) {
@@ -576,7 +580,7 @@ const sendCollectedItems = async (sessionParam = null) => {
             }
 
             if (error) throw error;
-            results.push({ idv: item.id, idn: mv?.id || item.id, ok: true });
+            results.push({ idv: item.id, idn: mv?.id || item.id, ok: true, syncKey: item._syncKey, type: 'movimiento' });
           } else {
             // Edición de movimiento existente sin crear duplicados (Requisitos 3, 6)
             let pendingAudit = null;
@@ -679,11 +683,13 @@ const sendCollectedItems = async (sessionParam = null) => {
 const processResponseAndUpdateTables = async (response) => {
   const db = await getDbConnection();
   for (const item of response) {
-    const mapping = idMapping.get(item.idv)
+    const mapping = (item.syncKey ? idMapping.get(item.syncKey) : null)
+      || idMapping.get(item.idv)
       || idMapping.get(String(item.idv))
-      || (typeof item.idv === 'string' && !isNaN(Number(item.idv)) ? idMapping.get(Number(item.idv)) : null);
+      || (typeof item.idv === 'string' && !isNaN(Number(item.idv)) ? idMapping.get(Number(item.idv)) : null)
+      || (item.type ? { type: item.type } : null);
     if (!mapping) continue;
-    if (mapping.type === 'payment') {
+    if (mapping.type === 'payment' || item.type === 'payment') {
       const facturaId = mapping.idFactura || item.factura;
       try {
         await db.executeSql(

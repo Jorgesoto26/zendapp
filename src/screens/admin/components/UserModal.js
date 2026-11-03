@@ -31,6 +31,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
   const [maxCuotas, setMaxCuotas] = useState('30');
   const [permiteBorrarVenta, setPermiteBorrarVenta] = useState(false);
   const [permiteModificarPagos, setPermiteModificarPagos] = useState(false);
+  const [saldoInicialCaja, setSaldoInicialCaja] = useState('0');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
       setMaxCuotas('30');
       setPermiteBorrarVenta(false);
       setPermiteModificarPagos(false);
+      setSaldoInicialCaja(formatMoneyInput('0'));
     }
   }, [editingUser, visible]);
 
@@ -93,6 +95,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
         max_cuotas: parseInt(cleanMoneyValue(maxCuotas) || '30', 10),
         permite_borrar_venta: permiteBorrarVenta,
         permite_modificar_pagos: permiteModificarPagos,
+        saldo_inicial_caja: parseMoneyToNumeric(saldoInicialCaja),
       });
       onClose();
     } finally {
@@ -214,6 +217,19 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
               </View>
             )}
 
+            {!isEditing && (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Saldo Inicial de Caja (Base entregada)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={saldoInicialCaja}
+                  onChangeText={t => setSaldoInicialCaja(formatMoneyInput(t))}
+                  keyboardType="numeric"
+                  placeholder="$ 0"
+                  placeholderTextColor={apple.colors.tertiaryLabel}
+                />
+              </View>
+            )}
             {/* Límites Financieros */}
             <Text style={styles.sectionTitle}>Límites y Topes</Text>
             <View style={styles.fieldRow}>

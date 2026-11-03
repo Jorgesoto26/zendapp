@@ -45,7 +45,7 @@ const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
     pendienteSync = (p.estadoMovil !== 'sincronizado');
   } else if (isActualizado) {
     tipoTramitado = 'PAGO';
-    pendienteSync = false;
+    pendienteSync = true;
   }
 
   return {
@@ -269,7 +269,7 @@ export default function Payments() {
     }
   };
 
-  const filteredClients = useMemo(() => clients.filter(c => (showPending ? (c.estadoMovil === 'pendiente' && c.saldo > 0 && c.estadoPago !== 'cancel') : c.estadoMovil === 'actualizado') && c.name.toLowerCase().includes(searchText.toLowerCase())), [clients, showPending, searchText]);
+  const filteredClients = useMemo(() => clients.filter(c => (showPending ? (c.estadoMovil === 'pendiente' && c.saldo > 0 && c.estadoPago !== 'cancel') : (c.tipoTramitado != null || c.estadoMovil === 'actualizado')) && c.name.toLowerCase().includes(searchText.toLowerCase())), [clients, showPending, searchText]);
 
   // Interpolación de posición para el fondo animado del segment (acelerado por GPU)
   const screenWidth = Dimensions.get('window').width;

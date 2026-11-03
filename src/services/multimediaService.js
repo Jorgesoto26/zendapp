@@ -1,5 +1,5 @@
 // src/services/multimediaService.js
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import { decode } from 'base64-arraybuffer';
@@ -69,6 +69,30 @@ export async function compressImage(sourceUri, profileKey = 'DOCUMENT') {
  * Abre la cámara del dispositivo para capturar una fotografía
  */
 export async function capturePhotoFromCamera(profileKey = 'DOCUMENT') {
+  // Solicitar permiso en tiempo de ejecución en Android
+  if (Platform.OS === 'android') {
+    try {
+      const hasPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+      if (!hasPermission) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Permiso de Cámara',
+            message: 'Zenda necesita acceso a la cámara para capturar fotografías y evidencias.',
+            buttonPositive: 'Aceptar',
+            buttonNegative: 'Cancelar',
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          throw new Error('Permiso de cámara denegado por el usuario');
+        }
+      }
+    } catch (permErr) {
+      if (permErr.message && permErr.message.includes('denegado')) throw permErr;
+      console.log('Error verificando permisos de cámara:', permErr);
+    }
+  }
+
   const profile = COMPRESSION_PROFILES[profileKey] || COMPRESSION_PROFILES.DOCUMENT;
 
   const options = {
@@ -160,6 +184,35 @@ export async function pickPhotoFromGallery(profileKey = 'DOCUMENT') {
     console.log('pickPhotoFromGallery error:', err);
     throw err;
   }
+}
+
+/**
+ * Función unificada para seleccionar o capturar imágenes (cámara o galería)
+ * Utilizada por Movements.js y OrganizationModal.js
+ */
+export async function pickImage(sourceType = 'camera', profileKey = 'DOCUMENT') {
+  let photo = null;
+  if (sourceType === 'camera') {
+    photo = await capturePhotoFromCamera(profileKey);
+  } else {
+    photo = await pickPhotoFromGallery(profileKey);
+  }
+
+  if (!photo || photo.cancelled) {
+    return { cancelled: true };
+  }
+
+  return {
+    cancelled: false,
+    localUri: photo.uri,
+    remotePath: photo.uri,
+    base64: photo.base64,
+    fileName: photo.fileName,
+    fileSize: photo.fileSize,
+    type: photo.type,
+    width: photo.width,
+    height: photo.height,
+  };
 }
 
 /**
@@ -442,4 +495,8 @@ export async function syncPendingEvidencias() {
     return { synced: 0, failed: 0 };
   }
 }
+
+// Alias de conveniencia para OrganizationModal y otros componentes
+export const getSignedUrl = getSignedEvidenceUrl;
+
 

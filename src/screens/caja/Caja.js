@@ -86,6 +86,11 @@ export default function CajaScreen() {
       setMovimientos(movs || []);
       const hist = (await getHistorialCajas(20, 0)) || [];
       setHistorial(hist);
+      if (!actual && hist.length > 0) {
+        const lastCaja = hist[0];
+        const prevSaldo = lastCaja?.saldo_final != null ? Number(lastCaja.saldo_final) : Number(lastCaja?.saldo_inicial || 0);
+        setSaldoInicial(formatMoneyInput(String(prevSaldo)));
+      }
       await loadPendingClients();
       hasLoadedOnce.current = true;
     } catch (e) {
@@ -403,12 +408,17 @@ export default function CajaScreen() {
                 <Text style={[styles.emptyTitle, { fontSize: 18, marginTop: 10 }]}>Caja cerrada</Text>
                 {canOpenCaja ? (
                   <>
-                    <Text style={[styles.emptySub, { marginBottom: 16 }]}>Ingresa el saldo inicial para iniciar jornada</Text>
+                    <Text style={[styles.emptySub, { marginBottom: 16 }]}>
+                      {!isAdmin
+                        ? 'Saldo inicial fijado según el saldo final de la caja del día anterior'
+                        : 'Ingresa el saldo inicial para iniciar jornada'}
+                    </Text>
                     <View style={styles.inputRow}>
                       <TextInput
-                        style={styles.input}
+                        style={[styles.input, !isAdmin && { backgroundColor: apple.colors.fill, color: apple.colors.secondaryLabel }]}
                         value={saldoInicial}
-                        onChangeText={t => setSaldoInicial(formatMoneyInput(t))}
+                        onChangeText={isAdmin ? (t => setSaldoInicial(formatMoneyInput(t))) : undefined}
+                        editable={isAdmin}
                         keyboardType="numeric"
                         placeholder="$ 0"
                         placeholderTextColor={apple.colors.tertiaryLabel}
