@@ -181,7 +181,7 @@ export default function AdminCajas() {
         setCalYear(parseInt(parts[0], 10));
         setCalMonth(parseInt(parts[1], 10) - 1);
       }
-    } catch {}
+    } catch { }
     setCustomDateInput(selectedDate);
     setDateModalVisible(true);
   };
@@ -488,6 +488,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   filterSection: {
+    alignSelf: 'center',
     paddingHorizontal: apple.spacing.l,
     paddingVertical: 8,
     backgroundColor: apple.colors.bg,
