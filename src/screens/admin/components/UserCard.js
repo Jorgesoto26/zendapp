@@ -9,7 +9,7 @@ const formatMoney = (val) => {
   return '$' + num.toLocaleString('es-CO');
 };
 
-export const UserCard = ({ user, onEdit, onToggle }) => {
+export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
   const isAdmin = user.rol === 'admin';
   const isActive = user.activo !== false;
 
@@ -27,12 +27,20 @@ export const UserCard = ({ user, onEdit, onToggle }) => {
                 {user.nombre} {user.apellido || ''}
               </Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
               <View style={[styles.badge, isAdmin ? styles.badgeAdmin : styles.badgeVendedor]}>
                 <Text style={[styles.badgeText, isAdmin ? styles.badgeTextAdmin : styles.badgeTextVendedor]}>
                   {user.rol?.toUpperCase()}
                 </Text>
               </View>
+              {Boolean(isAdmin || user.tiene_subordinados) ? (
+                <View style={styles.teamBadge}>
+                  <Icon name="users" size={10} color="#5856D6" style={{ marginRight: 3 }} />
+                  <Text style={styles.teamBadgeText}>
+                    {user.cantidad_subordinados || 0} a cargo
+                  </Text>
+                </View>
+              ) : null}
               {user.email ? (
                 <Text style={styles.userEmail} numberOfLines={1}>
                   {user.email}
@@ -45,6 +53,35 @@ export const UserCard = ({ user, onEdit, onToggle }) => {
         {/* Indicador de estado */}
         <View style={[styles.statusDot, { backgroundColor: isActive ? apple.colors.success : apple.colors.danger }]} />
       </View>
+
+      {/* Botón Explorar Equipo Subordinado */}
+      {Boolean(isAdmin || user.tiene_subordinados) && (
+        <TouchableOpacity
+          style={styles.btnHierarchy}
+          onPress={() => onNavigateHierarchy && onNavigateHierarchy(user)}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <View style={styles.hierarchyIconCircle}>
+              <Icon name="sitemap" size={12} color="#5856D6" />
+            </View>
+            <View style={{ marginLeft: 9, flex: 1 }}>
+              <Text style={styles.hierarchyTitle}>
+                Ver equipo a cargo
+              </Text>
+              <Text style={styles.hierarchySubtitle}>
+                {user.cantidad_subordinados > 0
+                  ? `${user.cantidad_subordinados} subordinado${user.cantidad_subordinados > 1 ? 's' : ''} directo${user.cantidad_subordinados > 1 ? 's' : ''}`
+                  : 'Sin subordinados asignados'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.hierarchyArrow}>
+            <Text style={styles.hierarchyActionText}>Explorar</Text>
+            <Icon name="chevron-right" size={11} color="#5856D6" style={{ marginLeft: 4 }} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Límites y Permisos */}
       <View style={styles.divider} />
@@ -269,5 +306,64 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginLeft: 5,
+  },
+  teamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0EFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  teamBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#5856D6',
+  },
+  btnHierarchy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8F8FD',
+    borderWidth: 1,
+    borderColor: '#E4E2F8',
+    borderRadius: apple.radius.s,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginTop: 10,
+  },
+  hierarchyIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#EAE8FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hierarchyTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3B3988',
+  },
+  hierarchySubtitle: {
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+    marginTop: 1,
+  },
+  hierarchyArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D4D2F2',
+  },
+  hierarchyActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5856D6',
   },
 });

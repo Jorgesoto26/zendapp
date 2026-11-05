@@ -28,9 +28,10 @@ const formatFechaApertura = (dateStr) => {
   }
 };
 
-export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
+export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy }) => {
   const isOpen = caja.estado === 'abierta';
   const isAdmin = caja.rol_usuario === 'admin' || caja.rol_usuario === 'superadmin';
+  const hasTeam = !isMyCaja && Boolean(isAdmin || caja.tiene_subordinados);
   const progreso = parseFloat(caja.progreso_visitas) || 0;
   const retirosGastos = (parseFloat(caja.valor_retiros) || 0) + (parseFloat(caja.valor_gastos) || 0);
 
@@ -53,7 +54,17 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
                   {caja.nombre_usuario} {isMyCaja ? '(Mi Caja)' : ''}
                 </Text>
               </View>
-              <Text style={styles.roleText}>{caja.rol_usuario?.toUpperCase()}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
+                <Text style={styles.roleText}>{caja.rol_usuario?.toUpperCase()}</Text>
+                {hasTeam ? (
+                  <View style={styles.teamBadge}>
+                    <Icon name="users" size={10} color="#5856D6" style={{ marginRight: 3 }} />
+                    <Text style={styles.teamBadgeText}>
+                      {caja.cantidad_subordinados || 0} a cargo
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
             </View>
           </View>
         </View>
@@ -66,6 +77,33 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
           </Text>
         </View>
       </View>
+
+      {/* Botón Explorar Cajas del Equipo Subordinado */}
+      {hasTeam && (
+        <TouchableOpacity
+          style={styles.btnHierarchy}
+          onPress={() => onNavigateHierarchy && onNavigateHierarchy(caja)}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <View style={styles.hierarchyIconCircle}>
+              <Icon name="sitemap" size={12} color="#5856D6" />
+            </View>
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={styles.hierarchyTitle}>Ver cajas del equipo</Text>
+              <Text style={styles.hierarchySubtitle}>
+                {caja.cantidad_subordinados > 0
+                  ? `${caja.cantidad_subordinados} usuario${caja.cantidad_subordinados > 1 ? 's' : ''} a cargo`
+                  : 'Equipo subordinado'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.hierarchyArrow}>
+            <Text style={styles.hierarchyActionText}>Explorar</Text>
+            <Icon name="chevron-right" size={11} color="#5856D6" style={{ marginLeft: 4 }} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Fecha de apertura */}
       <View style={styles.fechaRow}>
@@ -340,5 +378,65 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: apple.colors.blue,
+  },
+  teamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0EFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  teamBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#5856D6',
+  },
+  btnHierarchy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8F8FD',
+    borderWidth: 1,
+    borderColor: '#E4E2F8',
+    borderRadius: apple.radius.s,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  hierarchyIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EAE8FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hierarchyTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3B3988',
+  },
+  hierarchySubtitle: {
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+    marginTop: 1,
+  },
+  hierarchyArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D4D2F2',
+  },
+  hierarchyActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5856D6',
   },
 });

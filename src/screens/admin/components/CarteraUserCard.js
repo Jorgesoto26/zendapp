@@ -9,12 +9,26 @@ const formatMoney = (val) => {
   return '$' + num.toLocaleString('es-CO');
 };
 
-export const CarteraUserCard = ({ item, onPress }) => {
+export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
   const isAdmin = item.rol === 'admin';
   const isActive = item.activo !== false;
+  const hasTeam = Boolean(isAdmin || item.tiene_subordinados);
+
+  const handleCardPress = () => {
+    // Si es admin con subordinados y no tiene créditos propios directos, navegar directo a la jerarquía
+    if (hasTeam && (!item.total_creditos || parseInt(item.total_creditos, 10) === 0)) {
+      if (onNavigateHierarchy) {
+        onNavigateHierarchy(item);
+        return;
+      }
+    }
+    if (onPress) {
+      onPress(item);
+    }
+  };
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => onPress(item)}>
+    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={handleCardPress}>
       {/* Cabecera */}
       <View style={styles.header}>
         <View style={styles.userTitleRow}>
@@ -25,12 +39,20 @@ export const CarteraUserCard = ({ item, onPress }) => {
             <Text style={styles.userName} numberOfLines={1}>
               {item.nombre} {item.apellido || ''}
             </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
               <View style={[styles.badge, isAdmin ? styles.badgeAdmin : styles.badgeVendedor]}>
                 <Text style={[styles.badgeText, isAdmin ? styles.badgeTextAdmin : styles.badgeTextVendedor]}>
                   {item.rol?.toUpperCase()}
                 </Text>
               </View>
+              {hasTeam ? (
+                <View style={styles.teamBadge}>
+                  <Icon name="users" size={10} color="#5856D6" style={{ marginRight: 3 }} />
+                  <Text style={styles.teamBadgeText}>
+                    {item.cantidad_subordinados || 0} a cargo
+                  </Text>
+                </View>
+              ) : null}
               <Text style={styles.creditsCount}>
                 {item.total_creditos || 0} créditos
               </Text>
@@ -43,6 +65,33 @@ export const CarteraUserCard = ({ item, onPress }) => {
           <Icon name="chevron-right" size={13} color={apple.colors.tertiaryLabel} style={{ marginLeft: 10 }} />
         </View>
       </View>
+
+      {/* Botón Explorar Cartera del Equipo Subordinado */}
+      {hasTeam && (
+        <TouchableOpacity
+          style={styles.btnHierarchy}
+          onPress={() => onNavigateHierarchy && onNavigateHierarchy(item)}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <View style={styles.hierarchyIconCircle}>
+              <Icon name="sitemap" size={12} color="#5856D6" />
+            </View>
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={styles.hierarchyTitle}>Ver cartera del equipo</Text>
+              <Text style={styles.hierarchySubtitle}>
+                {item.cantidad_subordinados > 0
+                  ? `${item.cantidad_subordinados} usuario${item.cantidad_subordinados > 1 ? 's' : ''} a cargo`
+                  : 'Sin usuarios asignados'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.hierarchyArrow}>
+            <Text style={styles.hierarchyActionText}>Explorar</Text>
+            <Icon name="chevron-right" size={11} color="#5856D6" style={{ marginLeft: 4 }} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.divider} />
 
@@ -190,5 +239,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: apple.colors.label,
+  },
+  teamBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0EFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  teamBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#5856D6',
+  },
+  btnHierarchy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8F8FD',
+    borderWidth: 1,
+    borderColor: '#E4E2F8',
+    borderRadius: apple.radius.s,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  hierarchyIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EAE8FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hierarchyTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3B3988',
+  },
+  hierarchySubtitle: {
+    fontSize: 11,
+    color: apple.colors.secondaryLabel,
+    marginTop: 1,
+  },
+  hierarchyArrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#D4D2F2',
+  },
+  hierarchyActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5856D6',
   },
 });

@@ -11,8 +11,9 @@ import {
   RefreshControl,
   TouchableOpacity,
   Alert,
+  BackHandler,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
@@ -20,6 +21,7 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { getCarteraSummary } from '../../services/adminService';
 import { CarteraUserCard } from './components/CarteraUserCard';
+import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -28,16 +30,44 @@ const formatMoney = (val) => {
 
 export default function AdminCartera() {
   const navigation = useNavigation();
-  const { signOut } = useAuth();
+  const { userId, signOut } = useAuth();
+  const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mi Cartera' }]);
   const [summary, setSummary] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
 
+  useEffect(() => {
+    if (userId) {
+      setHierarchyStack((prev) => (prev.length === 0 ? [{ id: userId, name: 'Mi Cartera' }] : prev));
+    }
+  }, [userId]);
+
+  const currentParent = hierarchyStack[hierarchyStack.length - 1];
+
+  const handleLogout = useCallback(() => {
+    setShowLogout(true);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (hierarchyStack.length > 1) {
+          setHierarchyStack((prev) => prev.slice(0, -1));
+          return true;
+        }
+        handleLogout();
+        return true;
+      });
+      return () => sub.remove();
+    }, [handleLogout, hierarchyStack.length])
+  );
+
   const loadData = useCallback(async () => {
     try {
-      const data = await getCarteraSummary();
+      const targetParentId = hierarchyStack.length > 1 ? hierarchyStack[hierarchyStack.length - 1].id : null;
+      const data = await getCarteraSummary(targetParentId);
       setSummary(data || []);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudo cargar la cartera');
@@ -45,11 +75,27 @@ export default function AdminCartera() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [hierarchyStack]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleNavigateHierarchy = (subAdmin) => {
+    setLoading(true);
+    setHierarchyStack((prev) => [
+      ...prev,
+      {
+        id: subAdmin.usuario_id || subAdmin.id,
+        name: `${subAdmin.nombre || ''} ${subAdmin.apellido || ''}`.trim() || 'Administrador',
+      },
+    ]);
+  };
+
+  const handlePopHierarchy = (targetIndex) => {
+    setLoading(true);
+    setHierarchyStack((prev) => prev.slice(0, targetIndex + 1));
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -82,6 +128,7 @@ export default function AdminCartera() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Cartera</Text>
           <Text style={styles.headerSubtitle}>
+            {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             Saldos consolidados al corte
           </Text>
         </View>
@@ -93,6 +140,13 @@ export default function AdminCartera() {
           <Icon name="sign-out" size={17} color={apple.colors.danger} />
         </TouchableOpacity>
       </View>
+
+      {/* Breadcrumb de Navegación Jerárquica */}
+      <HierarchyBreadcrumb
+        stack={hierarchyStack}
+        onPop={handlePopHierarchy}
+        rootTitle="Mi Cartera"
+      />
 
       {/* Global Summary Card */}
       <View style={styles.globalCard}>
@@ -144,7 +198,11 @@ export default function AdminCartera() {
           data={filteredSummary}
           keyExtractor={(item) => String(item.usuario_id || item.id)}
           renderItem={({ item }) => (
-            <CarteraUserCard item={item} onPress={handleSelectUser} />
+            <CarteraUserCard
+              item={item}
+              onPress={handleSelectUser}
+              onNavigateHierarchy={handleNavigateHierarchy}
+            />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

@@ -28,8 +28,11 @@ import {
 import { UserCard } from './components/UserCard';
 import { UserModal } from './components/UserModal';
 import OrganizationModal from './components/OrganizationModal';
+import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 
 export default function AdminUsuarios() {
+  const { userId, signOut } = useAuth();
+  const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mi Equipo' }]);
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [search, setSearch] = useState('');
@@ -40,7 +43,14 @@ export default function AdminUsuarios() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [orgModalVisible, setOrgModalVisible] = useState(false);
-  const { signOut } = useAuth();
+
+  useEffect(() => {
+    if (userId) {
+      setHierarchyStack((prev) => (prev.length === 0 ? [{ id: userId, name: 'Mi Equipo' }] : prev));
+    }
+  }, [userId]);
+
+  const currentParent = hierarchyStack[hierarchyStack.length - 1];
 
   const handleLogout = useCallback(() => {
     setShowLogout(true);
@@ -49,16 +59,21 @@ export default function AdminUsuarios() {
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (hierarchyStack.length > 1) {
+          setHierarchyStack((prev) => prev.slice(0, -1));
+          return true;
+        }
         handleLogout();
         return true;
       });
       return () => sub.remove();
-    }, [handleLogout])
+    }, [handleLogout, hierarchyStack.length])
   );
 
   const loadUsers = useCallback(async () => {
     try {
-      const data = await getSubordinates();
+      const targetParentId = hierarchyStack.length > 1 ? hierarchyStack[hierarchyStack.length - 1].id : null;
+      const data = await getSubordinates(targetParentId);
       setUsers(data || []);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudieron cargar los usuarios');
@@ -66,11 +81,27 @@ export default function AdminUsuarios() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [hierarchyStack]);
 
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
+
+  const handleNavigateHierarchy = (subAdmin) => {
+    setLoading(true);
+    setHierarchyStack((prev) => [
+      ...prev,
+      {
+        id: subAdmin.id,
+        name: `${subAdmin.nombre || ''} ${subAdmin.apellido || ''}`.trim() || 'Administrador',
+      },
+    ]);
+  };
+
+  const handlePopHierarchy = (targetIndex) => {
+    setLoading(true);
+    setHierarchyStack((prev) => prev.slice(0, targetIndex + 1));
+  };
 
   useEffect(() => {
     let list = users.filter((u) => {
@@ -124,7 +155,11 @@ export default function AdminUsuarios() {
         await updateAdminUser(editingUser.id, formData);
         appAlert('Éxito', 'Usuario actualizado correctamente');
       } else {
-        await createAdminUser(formData);
+        const payload = {
+          ...formData,
+          superior_id: hierarchyStack.length > 1 ? hierarchyStack[hierarchyStack.length - 1].id : null,
+        };
+        await createAdminUser(payload);
         appAlert('Éxito', 'Usuario creado exitosamente');
       }
       loadUsers();
@@ -144,6 +179,7 @@ export default function AdminUsuarios() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Usuarios</Text>
           <Text style={styles.headerSubtitle}>
+            {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             {activosCount} activos · {inactivosCount} inactivos
           </Text>
         </View>
@@ -167,6 +203,13 @@ export default function AdminUsuarios() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Breadcrumb de Navegación Jerárquica */}
+      <HierarchyBreadcrumb
+        stack={hierarchyStack}
+        onPop={handlePopHierarchy}
+        rootTitle="Mi Equipo"
+      />
 
       {/* Segmented Filter Activos / Inactivos (Requisito 2) */}
       <View style={styles.segment}>
@@ -218,7 +261,12 @@ export default function AdminUsuarios() {
           data={filteredUsers}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <UserCard user={item} onEdit={handleEdit} onToggle={handleToggle} />
+            <UserCard
+              user={item}
+              onEdit={handleEdit}
+              onToggle={handleToggle}
+              onNavigateHierarchy={handleNavigateHierarchy}
+            />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

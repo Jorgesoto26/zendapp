@@ -11,16 +11,25 @@ import {
   RefreshControl,
   TextInput,
   Modal,
+  BackHandler,
+  ScrollView,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
-import { getAdminCajas, abrirCajasMasivo, getAdminOpenCajasCount, getAdminOpenCajas } from '../../services/adminService';
+import {
+  getAdminCajas,
+  abrirCajasMasivo,
+  getAdminOpenCajasCount,
+  getAdminOpenCajas,
+  getSubordinates,
+} from '../../services/adminService';
 import { getDeviceTimezone } from '../../services/cajaService';
 import { FormatMoneyDecimales } from '../../utils/utilities';
 import { CajaCard } from './components/CajaCard';
+import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 
@@ -79,6 +88,8 @@ const MONTH_NAMES = [
 export default function AdminCajas() {
   const navigation = useNavigation();
   const { userId, signOut } = useAuth();
+  const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mis Cajas' }]);
+  const [subAdmins, setSubAdmins] = useState([]);
 
   const [cajas, setCajas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +98,15 @@ export default function AdminCajas() {
   const [showLogout, setShowLogout] = useState(false);
   const [adminOpenCount, setAdminOpenCount] = useState(0);
   const [adminOpenCajas, setAdminOpenCajas] = useState([]);
+
+  useEffect(() => {
+    if (userId) {
+      setHierarchyStack((prev) => (prev.length === 0 ? [{ id: userId, name: 'Mis Cajas' }] : prev));
+    }
+  }, [userId]);
+
+  const currentParent = hierarchyStack[hierarchyStack.length - 1];
+  const currentParentId = currentParent?.id || userId;
 
   // Filtros de fecha exclusivos: 'hoy' (defecto), 'ayer', 'custom' (Requisito 5)
   const [selectedDate, setSelectedDate] = useState(getTodayIso());
@@ -101,26 +121,70 @@ export default function AdminCajas() {
   const isAyer = selectedDate === getYesterdayIso();
   const isCustom = !isHoy && !isAyer;
 
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (hierarchyStack.length > 1) {
+          setHierarchyStack((prev) => prev.slice(0, -1));
+          return true;
+        }
+        setShowLogout(true);
+        return true;
+      });
+      return () => sub.remove();
+    }, [hierarchyStack.length])
+  );
+
   const loadData = useCallback(async (isRefresh = false) => {
     if (!isRefresh) setLoading(true);
     try {
-      const data = await getAdminCajas(selectedDate, selectedDate);
+      const targetParentId = hierarchyStack.length > 1 ? hierarchyStack[hierarchyStack.length - 1].id : null;
+      const data = await getAdminCajas(selectedDate, selectedDate, targetParentId);
       setCajas(data || []);
-      const openCount = await getAdminOpenCajasCount(userId);
+      const openCount = await getAdminOpenCajasCount(targetParentId || userId);
       setAdminOpenCount(openCount);
+
+      // Obtener subordinados directos que son administradores o tienen equipo a cargo
+      try {
+        const subs = await getSubordinates(targetParentId);
+        setSubAdmins((subs || []).filter((s) => s.rol === 'admin' || s.tiene_subordinados));
+      } catch {
+        setSubAdmins([]);
+      }
     } catch (err) {
       appAlert('Error', err.message || 'No se pudieron cargar las cajas');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedDate, userId]);
+  }, [selectedDate, userId, hierarchyStack]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [loadData])
   );
+
+  const handleNavigateHierarchy = (subAdmin) => {
+    setLoading(true);
+    setHierarchyStack((prev) => [
+      ...prev,
+      {
+        id: subAdmin.usuario_id || subAdmin.id,
+        name: subAdmin.nombre_usuario || subAdmin.nombre || 'Administrador',
+      },
+    ]);
+  };
+
+  const handlePopHierarchy = (targetIndex) => {
+    setLoading(true);
+    setHierarchyStack((prev) => prev.slice(0, targetIndex + 1));
+  };
+
+  const subAdminsWithoutCaja = useMemo(() => {
+    const cajaUserIds = new Set((cajas || []).map((c) => c.usuario_id));
+    return (subAdmins || []).filter((s) => !cajaUserIds.has(s.id));
+  }, [subAdmins, cajas]);
 
   useEffect(() => {
     const unsub = eventBus.on(EVENTS.MOVEMENT_CHANGED, () => {
@@ -176,7 +240,8 @@ export default function AdminCajas() {
           onPress: async () => {
             setOpening(true);
             try {
-              const res = await abrirCajasMasivo();
+              const targetParentId = hierarchyStack.length > 1 ? hierarchyStack[hierarchyStack.length - 1].id : null;
+              const res = await abrirCajasMasivo(targetParentId);
               let detalle = '';
               if (res.admin_caja_reutilizada) {
                 detalle = `Tu caja de hoy ya estaba activa. Se abrieron ${res.vendedores_cajas_abiertas || 0} caja(s) de vendedores.`;
@@ -269,6 +334,7 @@ export default function AdminCajas() {
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Gestión de Cajas</Text>
           <Text style={styles.headerSubtitle}>
+            {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             Supervisión diaria · {adminOpenCount > 0 ? 'Caja activa' : 'Sin caja activa'}
           </Text>
         </View>
@@ -286,6 +352,47 @@ export default function AdminCajas() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Breadcrumb de Navegación Jerárquica */}
+      <HierarchyBreadcrumb
+        stack={hierarchyStack}
+        onPop={handlePopHierarchy}
+        rootTitle="Mis Cajas"
+      />
+
+      {/* Sub-administradores con equipo a cargo sin caja registrada en esta fecha */}
+      {subAdminsWithoutCaja && subAdminsWithoutCaja.length > 0 && (
+        <View style={styles.subTeamsBar}>
+          <View style={styles.subTeamsTitleRow}>
+            <Icon name="sitemap" size={12} color="#5856D6" style={{ marginRight: 6 }} />
+            <Text style={styles.subTeamsLabel}>Otros equipos a cargo:</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.subTeamsScroll}
+          >
+            {subAdminsWithoutCaja.map((adm) => (
+              <TouchableOpacity
+                key={adm.id}
+                style={styles.subTeamChip}
+                onPress={() =>
+                  handleNavigateHierarchy({
+                    usuario_id: adm.id,
+                    nombre_usuario: `${adm.nombre} ${adm.apellido || ''}`.trim(),
+                  })
+                }
+                activeOpacity={0.7}
+              >
+                <Icon name="shield" size={10} color="#5856D6" style={{ marginRight: 4 }} />
+                <Text style={styles.subTeamChipText}>
+                  {adm.nombre} ({adm.cantidad_subordinados || 0}) ➔
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Banner informativo de cajas abiertas con acceso directo a fechas */}
       {adminOpenCajas && adminOpenCajas.length > 0 && (
@@ -391,8 +498,9 @@ export default function AdminCajas() {
           renderItem={({ item }) => (
             <CajaCard
               caja={item}
-              isMyCaja={item.usuario_id === userId}
+              isMyCaja={item.usuario_id === currentParentId}
               onPress={handleSelectCaja}
+              onNavigateHierarchy={handleNavigateHierarchy}
             />
           )}
           contentContainerStyle={styles.listContent}
@@ -797,5 +905,45 @@ const styles = StyleSheet.create({
     color: apple.colors.secondaryLabel,
     fontWeight: '600',
     fontSize: 13,
+  },
+  subTeamsBar: {
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 4,
+    padding: 8,
+    backgroundColor: '#F7F6FD',
+    borderRadius: apple.radius.m,
+    borderWidth: 1,
+    borderColor: '#E6E4F7',
+  },
+  subTeamsTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  subTeamsLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#3B3988',
+  },
+  subTeamsScroll: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  subTeamChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D8D5F5',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginRight: 6,
+  },
+  subTeamChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5856D6',
   },
 });

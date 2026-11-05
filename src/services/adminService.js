@@ -5,10 +5,12 @@ import { getDeviceTimezone } from './cajaService';
 
 /**
  * Obtiene la lista de usuarios subordinados (vendedores y administradores)
+ * @param {string|null} parentId - ID del administrador padre (opcional, null = usuario en sesión)
  */
-export const getSubordinates = async () => {
+export const getSubordinates = async (parentId = null) => {
   await ensureAuthenticatedSession();
-  const { data, error } = await supabase.rpc('admin_get_subordinates');
+  const params = parentId ? { p_parent_id: parentId } : {};
+  const { data, error } = await supabase.rpc('admin_get_subordinates', params);
   if (error) throw new Error(error.message || 'Error al obtener usuarios');
   return data || [];
 };
@@ -31,9 +33,10 @@ export const createAdminUser = async (userData) => {
     permite_borrar_venta = false,
     permite_modificar_pagos = false,
     saldo_inicial_caja = 0,
+    superior_id = null,
   } = userData;
 
-  const { data, error } = await supabase.rpc('admin_create_user', {
+  const rpcParams = {
     p_email: email,
     p_password: password,
     p_nombre: nombre,
@@ -46,11 +49,18 @@ export const createAdminUser = async (userData) => {
     p_permite_borrar_venta: !!permite_borrar_venta,
     p_permite_modificar_pagos: !!permite_modificar_pagos,
     p_saldo_inicial: parseFloat(saldo_inicial_caja) || 0,
-  });
+  };
+
+  if (superior_id) {
+    rpcParams.p_superior_id = superior_id;
+  }
+
+  const { data, error } = await supabase.rpc('admin_create_user', rpcParams);
 
   if (error) throw new Error(error.message || 'Error al crear usuario');
   return data;
 };
+
 
 /**
  * Actualiza permisos y datos de un subordinado
@@ -148,10 +158,12 @@ export const toggleAdminUser = async (userId) => {
 
 /**
  * Obtiene el resumen de cartera agrupado por vendedores
+ * @param {string|null} parentId - ID del administrador padre (opcional, null = usuario en sesión)
  */
-export const getCarteraSummary = async () => {
+export const getCarteraSummary = async (parentId = null) => {
   await ensureAuthenticatedSession();
-  const { data, error } = await supabase.rpc('admin_get_cartera_summary');
+  const params = parentId ? { p_parent_id: parentId } : {};
+  const { data, error } = await supabase.rpc('admin_get_cartera_summary', params);
   if (error) throw new Error(error.message || 'Error al obtener cartera');
   return data || [];
 };
@@ -182,13 +194,20 @@ export const castigarCartera = async (invoiceId) => {
 
 /**
  * Obtiene la lista de cajas (con métricas calculadas)
+ * @param {string|null} fechaIni - Fecha inicial ISO (YYYY-MM-DD)
+ * @param {string|null} fechaFin - Fecha final ISO (YYYY-MM-DD)
+ * @param {string|null} parentId - ID del administrador padre (opcional, null = usuario en sesión)
  */
-export const getAdminCajas = async (fechaIni = null, fechaFin = null) => {
+export const getAdminCajas = async (fechaIni = null, fechaFin = null, parentId = null) => {
   await ensureAuthenticatedSession();
-  const { data, error } = await supabase.rpc('admin_get_cajas', {
+  const rpcParams = {
     p_fecha_ini: fechaIni,
     p_fecha_fin: fechaFin,
-  });
+  };
+  if (parentId) {
+    rpcParams.p_parent_id = parentId;
+  }
+  const { data, error } = await supabase.rpc('admin_get_cajas', rpcParams);
   if (error) throw new Error(error.message || 'Error al obtener cajas');
   return data || [];
 };
@@ -196,13 +215,18 @@ export const getAdminCajas = async (fechaIni = null, fechaFin = null) => {
 /**
  * Apertura masiva de cajas para todos los subordinados que no tengan caja abierta.
  * El saldo inicial se calcula automáticamente del saldo final anterior o 0 si es la primera caja.
+ * @param {string|null} adminId - ID del administrador cuyo equipo se abrirá (opcional)
  */
-export const abrirCajasMasivo = async () => {
+export const abrirCajasMasivo = async (adminId = null) => {
   await ensureAuthenticatedSession();
   const tz = getDeviceTimezone();
-  const { data, error } = await supabase.rpc('admin_abrir_cajas_masivo', {
+  const rpcParams = {
     p_timezone: tz,
-  });
+  };
+  if (adminId) {
+    rpcParams.p_admin_id = adminId;
+  }
+  const { data, error } = await supabase.rpc('admin_abrir_cajas_masivo', rpcParams);
   if (error) throw new Error(error.message || 'Error al abrir cajas');
   return data;
 };
@@ -292,7 +316,7 @@ export const getAdminOrganizacion = async () => {
         .maybeSingle();
       if (org) return org;
     }
-  } catch {}
+  } catch { }
 
   return {
     nombre: 'ZENDA',
@@ -364,7 +388,7 @@ export const getAdminOpenCajas = async (targetUserId = null) => {
       if (!rpcErr && Array.isArray(rpcData)) {
         return rpcData;
       }
-    } catch {}
+    } catch { }
 
     const { data, error } = await supabase
       .from('cajas')
@@ -389,7 +413,7 @@ export const getAdminOpenCajasCount = async (targetUserId = null) => {
     if (!rpcErr && typeof rpcCount === 'number') {
       return rpcCount;
     }
-  } catch {}
+  } catch { }
 
   // 2. Consulta directa a tabla cajas filtrando estrictamente por el usuario administrador
   try {
