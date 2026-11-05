@@ -58,6 +58,25 @@ export async function saveCajaLocal(db, caja, userId = null) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [String(caja.id), estado, saldoIni, saldoFin, fecha, fechaCierre, uid, fecha, adminCajaId]
     );
+
+    // Si la caja actual está abierta, asegurar que cualquier caja anterior en SQLite quede como 'cerrada'
+    if (estado === 'abierta') {
+      try {
+        if (uid) {
+          await db.executeSql(
+            `UPDATE cajas SET estado = 'cerrada' WHERE id <> ? AND (usuario_id = ? OR usuario_id IS NULL OR usuario_id = '')`,
+            [String(caja.id), uid]
+          );
+        } else {
+          await db.executeSql(
+            `UPDATE cajas SET estado = 'cerrada' WHERE id <> ?`,
+            [String(caja.id)]
+          );
+        }
+      } catch (errClose) {
+        console.log('Error actualizando cajas anteriores a cerrada en SQLite:', errClose);
+      }
+    }
   } catch (err) {
     try {
       await db.executeSql(
@@ -74,7 +93,8 @@ export async function saveCajaLocal(db, caja, userId = null) {
 
 export async function saveMovimientoLocal(db, m, cajaId = null, estadoMovil = 'sincronizado') {
   if (!m || !m.id) return;
-  const targetCajaId = cajaId || m.caja_id || m.idCaja || null;
+  // Respetar SIEMPRE el caja_id propio del movimiento si ya existe; usar cajaId solo como fallback
+  const targetCajaId = m.caja_id || m.idCaja || cajaId || null;
   const fecha = m.fecha || m.horaDispositivo || new Date().toISOString();
   const cid = targetCajaId ? String(targetCajaId) : null;
   const tipo = m.tipo || 'ingreso';
@@ -170,6 +190,32 @@ export async function getCajaActual() {
 
         if (!jitError && jitData?.success && jitData?.caja) {
           await saveCajaLocal(db, jitData.caja, userId);
+
+          // Si la caja de hoy es nueva, reconciliar SQLite para purgar cualquier
+          // movimiento sincronizado que hubiera quedado mal etiquetado con el id de esta caja nueva
+          try {
+            const { data: serverMovs } = await supabase
+              .from('cash_movements')
+              .select('id')
+              .eq('caja_id', jitData.caja.id);
+
+            const validIds = (serverMovs || []).map(sm => String(sm.id));
+            if (validIds.length > 0) {
+              const pl = validIds.map(() => '?').join(',');
+              await db.executeSql(
+                `DELETE FROM movimientos WHERE (idCaja = ? OR caja_id = ?) AND estadoMovil = 'sincronizado' AND id NOT IN (${pl})`,
+                [String(jitData.caja.id), String(jitData.caja.id), ...validIds]
+              );
+            } else {
+              await db.executeSql(
+                `DELETE FROM movimientos WHERE (idCaja = ? OR caja_id = ?) AND estadoMovil = 'sincronizado'`,
+                [String(jitData.caja.id), String(jitData.caja.id)]
+              );
+            }
+          } catch (eClean) {
+            console.log('Error reconciliando movimientos de nueva caja en SQLite:', eClean);
+          }
+
           return await computeCajaSaldo(db, jitData.caja);
         } else if (jitData?.caja_cerrada_hoy) {
           try {
@@ -552,27 +598,29 @@ export async function cerrarCaja(cajaId, { validateRoute = false } = {}) {
   return { id: cajaId, estado: 'cerrada', saldo_final: saldoFinal, fecha_cierre: fechaCierre };
 }
 
-export async function getMovimientosCaja(cajaId, limit = 50, offset = 0) {
+export async function getMovimientosCaja(cajaId, limit = 50, offset = 0, forceRemote = false) {
   if (!cajaId) return [];
   const db = await getDbConnection();
 
-  // 1. OFFLINE-FIRST: Leer de inmediato desde SQLite local para respuesta instantánea
-  try {
-    const rows = await getData(
-      db,
-      `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, estadoMovil
-       FROM movimientos
-       WHERE (idCaja = ? OR caja_id = ?)
-       ORDER BY COALESCE(horaDispositivo, fecha) DESC
-       LIMIT ? OFFSET ?`,
-      [String(cajaId), String(cajaId), limit, offset]
-    );
-    if (rows && rows.length > 0) return rows;
-  } catch (err) {
-    console.log('getMovimientosCaja local query error:', err);
+  // 1. OFFLINE-FIRST: Leer de inmediato desde SQLite local para respuesta instantánea (si no se forzó consulta remota)
+  if (!forceRemote) {
+    try {
+      const rows = await getData(
+        db,
+        `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, estadoMovil
+         FROM movimientos
+         WHERE (idCaja = ? OR caja_id = ?)
+         ORDER BY COALESCE(horaDispositivo, fecha) DESC
+         LIMIT ? OFFSET ?`,
+        [String(cajaId), String(cajaId), limit, offset]
+      );
+      if (rows && rows.length > 0) return rows;
+    } catch (err) {
+      console.log('getMovimientosCaja local query error:', err);
+    }
   }
 
-  // 2. Si no había datos locales y hay conexión, consultar Supabase
+  // 2. Si no había datos locales o se forzó refresco, consultar Supabase
   try {
     const net = await NetInfo.fetch();
     if (net.isConnected) {
@@ -583,7 +631,26 @@ export async function getMovimientosCaja(cajaId, limit = 50, offset = 0) {
         .order('fecha', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      if (!error && data) {
+      if (!error && Array.isArray(data)) {
+        // Reconciliar SQLite: eliminar movimientos sincronizados que no pertenezcan a esta caja en Supabase
+        try {
+          const remoteIds = data.map(m => String(m.id));
+          if (remoteIds.length > 0) {
+            const pl = remoteIds.map(() => '?').join(',');
+            await db.executeSql(
+              `DELETE FROM movimientos WHERE (idCaja = ? OR caja_id = ?) AND estadoMovil = 'sincronizado' AND id NOT IN (${pl})`,
+              [String(cajaId), String(cajaId), ...remoteIds]
+            );
+          } else {
+            await db.executeSql(
+              `DELETE FROM movimientos WHERE (idCaja = ? OR caja_id = ?) AND estadoMovil = 'sincronizado'`,
+              [String(cajaId), String(cajaId)]
+            );
+          }
+        } catch (eRec) {
+          console.log('getMovimientosCaja reconciliacion SQLite error:', eRec);
+        }
+
         for (const m of data) {
           await saveMovimientoLocal(db, m, cajaId, 'sincronizado');
         }
@@ -594,5 +661,19 @@ export async function getMovimientosCaja(cajaId, limit = 50, offset = 0) {
     console.log('getMovimientosCaja: error servidor, usando fallback SQLite:', err);
   }
 
-  return [];
+  // Fallback final a SQLite
+  try {
+    const rows = await getData(
+      db,
+      `SELECT id, tipo, descripcion, monto, COALESCE(horaDispositivo, fecha) AS fecha, estadoMovil
+       FROM movimientos
+       WHERE (idCaja = ? OR caja_id = ?)
+       ORDER BY COALESCE(horaDispositivo, fecha) DESC
+       LIMIT ? OFFSET ?`,
+      [String(cajaId), String(cajaId), limit, offset]
+    );
+    return rows || [];
+  } catch {
+    return [];
+  }
 }

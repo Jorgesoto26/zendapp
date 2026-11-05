@@ -92,7 +92,13 @@ export default function MovementsScreen() {
     try {
       const actual = await getCajaActual();
       setCaja(actual);
-      const movs = await listMovimientos({ cajaId: actual?.id || null, limit: 50, offset: 0, search: search.trim() });
+      const movs = await listMovimientos({
+        cajaId: actual?.id || null,
+        limit: 50,
+        offset: 0,
+        search: search.trim(),
+        forceRemote: isRefresh,
+      });
       setItems(movs || []);
       hasLoadedOnce.current = true;
     } catch (e) {

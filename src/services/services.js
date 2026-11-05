@@ -322,7 +322,8 @@ export const AuthService = async (db, email, password) => {
     if (Array.isArray(movimientos) && movimientos.length > 0) {
       for (const m of movimientos) {
         if (!m || !m.id) continue;
-        await saveMovimientoLocal(db, m, caja?.id, 'sincronizado');
+        const movCajaId = m.caja_id || m.idCaja || null;
+        await saveMovimientoLocal(db, m, movCajaId, 'sincronizado');
       }
     }
 

@@ -82,7 +82,7 @@ export default function CajaScreen() {
     try {
       const actual = await getCajaActual();
       setCaja(actual);
-      const movs = actual ? await getMovimientosCaja(actual.id, 50, 0) : [];
+      const movs = actual ? await getMovimientosCaja(actual.id, 50, 0, isRefresh) : [];
       setMovimientos(movs || []);
       const hist = (await getHistorialCajas(20, 0)) || [];
       setHistorial(hist);
@@ -410,7 +410,7 @@ export default function CajaScreen() {
                   <>
                     <Text style={[styles.emptySub, { marginBottom: 16 }]}>
                       {!isAdmin
-                        ? 'Saldo inicial fijado según el saldo final de la caja del día anterior'
+                        ? 'Saldo inicial fijado segï¿½n el saldo final de la caja del dï¿½a anterior'
                         : 'Ingresa el saldo inicial para iniciar jornada'}
                     </Text>
                     <View style={styles.inputRow}>
