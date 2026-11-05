@@ -25,6 +25,8 @@ import {
 } from '../../services/adminService';
 import { formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
 import { eventBus, EVENTS } from '../../utils/eventBus';
+import { supabase } from '../../lib/supabase';
+import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -59,6 +61,11 @@ export default function AdminCajaDetalle() {
   const [savingMov, setSavingMov] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // Visor de evidencias multimedia
+  const [evidenceModalVisible, setEvidenceModalVisible] = useState(false);
+  const [evidenceUri, setEvidenceUri] = useState(null);
+  const [evidenceTitle, setEvidenceTitle] = useState('Evidencia');
+
   // Subordinados abiertos (Requisito 7)
   const [subModalVisible, setSubModalVisible] = useState(false);
   const [openSubordinates, setOpenSubordinates] = useState([]);
@@ -92,7 +99,126 @@ export default function AdminCajaDetalle() {
     const cajaId = caja.caja_id || caja.id;
     try {
       const data = await getCajaMovements(cajaId);
-      setMovements(data || []);
+      const rawMovements = data || [];
+
+      // Identificar ventas para enriquecer con cliente, interés, plazo y cuotas pagadas
+      const invoiceIds = Array.from(
+        new Set(
+          rawMovements
+            .filter((m) => m.tipo === 'venta')
+            .map((m) => {
+              const match = (m.descripcion || '').match(
+                /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+              );
+              return match ? match[0] : null;
+            })
+            .filter(Boolean)
+        )
+      );
+
+      let invoicesMap = {};
+      let cuotasMap = {};
+
+      if (invoiceIds.length > 0) {
+        try {
+          const { data: invList } = await supabase
+            .from('invoice')
+            .select(`
+              id,
+              amount,
+              saldo,
+              capital_amount,
+              periodicidad,
+              num_cuotas,
+              tasa_interes,
+              client_id,
+              clients (
+                id,
+                nombre,
+                apellido,
+                alias,
+                documento,
+                foto_documento_path
+              )
+            `)
+            .in('id', invoiceIds);
+
+          if (invList) {
+            for (const inv of invList) {
+              invoicesMap[inv.id] = inv;
+            }
+          }
+        } catch (eInv) {
+          console.log('Error obteniendo facturas enriquecidas:', eInv);
+        }
+
+        try {
+          const { data: cuotasList } = await supabase
+            .from('cuotas')
+            .select('invoice_id, estado')
+            .in('invoice_id', invoiceIds);
+
+          if (cuotasList) {
+            for (const c of cuotasList) {
+              if (!cuotasMap[c.invoice_id]) {
+                cuotasMap[c.invoice_id] = { total: 0, pagadas: 0 };
+              }
+              cuotasMap[c.invoice_id].total++;
+              if (c.estado === 'pagada') {
+                cuotasMap[c.invoice_id].pagadas++;
+              }
+            }
+          }
+        } catch (eCuotas) {
+          console.log('Error obteniendo cuotas enriquecidas:', eCuotas);
+        }
+      }
+
+      // Enriquecer cada movimiento de tipo venta
+      const enriched = rawMovements.map((m) => {
+        if (m.tipo !== 'venta') return m;
+
+        const match = (m.descripcion || '').match(
+          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+        );
+        const invId = match ? match[0] : null;
+        if (!invId || !invoicesMap[invId]) {
+          return {
+            ...m,
+            cleanTitle: 'Venta de Crédito',
+            invoiceData: null,
+          };
+        }
+
+        const inv = invoicesMap[invId];
+        const cli = inv.clients;
+        const clientName = [cli?.nombre, cli?.apellido].filter(Boolean).join(' ') || cli?.alias || 'Cliente';
+        const clientAlias = cli?.alias ? ` (${cli.alias})` : '';
+        const totalCuotas = Number(inv.num_cuotas) || cuotasMap[invId]?.total || 0;
+        let pagadas = cuotasMap[invId]?.pagadas;
+        if (pagadas == null) {
+          const amt = Number(inv.amount) || 0;
+          const sld = Number(inv.saldo) || 0;
+          pagadas = amt > 0 && totalCuotas > 0 ? Math.max(0, Math.round(((amt - sld) / amt) * totalCuotas)) : 0;
+        }
+
+        return {
+          ...m,
+          cleanTitle: `Venta: ${clientName}${clientAlias}`,
+          invoiceData: {
+            id: inv.id,
+            clientName: `${clientName}${clientAlias}`,
+            documento: cli?.documento,
+            tasa_interes: inv.tasa_interes != null ? `${inv.tasa_interes}%` : '20%',
+            periodicidad: inv.periodicidad || 'diario',
+            num_cuotas: totalCuotas,
+            cuotasPagadas: pagadas,
+            foto_documento_path: cli?.foto_documento_path || null,
+          },
+        };
+      });
+
+      setMovements(enriched);
     } catch (err) {
       appAlert('Error', err.message || 'No se pudieron cargar los movimientos');
     } finally {
@@ -109,14 +235,20 @@ export default function AdminCajaDetalle() {
     let list = movements;
     if (selectedType !== 'todos') {
       if (selectedType === 'gasto') {
-        list = list.filter((m) => m.tipo === 'retiro' && m.descripcion?.toLowerCase().includes('gasto'));
+        list = list.filter((m) => m.tipo === 'gasto' || (m.tipo === 'retiro' && m.descripcion?.toLowerCase().includes('gasto')));
       } else {
         list = list.filter((m) => m.tipo === selectedType);
       }
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((m) => m.descripcion?.toLowerCase().includes(q));
+      list = list.filter(
+        (m) =>
+          m.descripcion?.toLowerCase().includes(q) ||
+          m.cleanTitle?.toLowerCase().includes(q) ||
+          m.invoiceData?.clientName?.toLowerCase().includes(q) ||
+          m.invoiceData?.documento?.includes(q)
+      );
     }
     setFiltered(list);
   }, [search, selectedType, movements]);
@@ -238,8 +370,8 @@ export default function AdminCajaDetalle() {
     try {
       await createAdminCajaMovement({
         cajaId,
-        tipo: movTipo === 'gasto' ? 'retiro' : movTipo,
-        descripcion: movTipo === 'gasto' ? `[Gasto] ${movDesc.trim()}` : movDesc.trim(),
+        tipo: movTipo,
+        descripcion: movDesc.trim(),
         monto: montoNum,
       });
       setModalVisible(false);
@@ -387,8 +519,86 @@ export default function AdminCajaDetalle() {
           data={filtered}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => {
+            if (item.tipo === 'venta') {
+              const inv = item.invoiceData;
+              const hasPhoto = !!inv?.foto_documento_path;
+              return (
+                <TouchableOpacity
+                  style={styles.movCardVenta}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (inv?.id) {
+                      navigation.navigate('CreditDetail', { invoiceId: inv.id });
+                    }
+                  }}
+                >
+                  <View style={[styles.movIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                    <Icon name="shopping-bag" size={15} color="#D97706" />
+                  </View>
+
+                  <View style={{ flex: 1, marginHorizontal: 10 }}>
+                    <Text style={styles.movDescVenta} numberOfLines={1}>
+                      {item.cleanTitle || 'Venta de Crédito'}
+                    </Text>
+
+                    {/* Fila de Parámetros: Interés, Plazo, Cuotas Pagadas */}
+                    <View style={styles.ventaMetricsRow}>
+                      <View style={styles.ventaBadge}>
+                        <Icon name="percent" size={9} color={apple.colors.secondaryLabel} style={{ marginRight: 3 }} />
+                        <Text style={styles.ventaBadgeText}>
+                          {inv?.tasa_interes || '20%'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.ventaBadge}>
+                        <Icon name="calendar-o" size={9} color={apple.colors.secondaryLabel} style={{ marginRight: 3 }} />
+                        <Text style={styles.ventaBadgeText}>
+                          {inv?.num_cuotas || 0} {inv?.periodicidad || 'diarias'}
+                        </Text>
+                      </View>
+
+                      <View style={[styles.ventaBadge, { backgroundColor: '#E8F5E9' }]}>
+                        <Icon name="check-circle-o" size={9} color={apple.colors.success} style={{ marginRight: 3 }} />
+                        <Text style={[styles.ventaBadgeText, { color: apple.colors.success }]}>
+                          {inv?.cuotasPagadas ?? 0}/{inv?.num_cuotas || 0} pagadas
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.movTime}>{formatDate(item.fecha || item.created_at)}</Text>
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                    <Text style={[styles.movAmount, { color: apple.colors.danger }]}>
+                      -{formatMoney(item.monto)}
+                    </Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      {hasPhoto && (
+                        <TouchableOpacity
+                          style={styles.btnMiniPhoto}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={() => {
+                            setEvidenceUri(inv.foto_documento_path);
+                            setEvidenceTitle(`Documento: ${inv.clientName}`);
+                            setEvidenceModalVisible(true);
+                          }}
+                        >
+                          <Icon name="camera" size={11} color={apple.colors.blue} />
+                          <Text style={styles.btnMiniPhotoText}>Doc</Text>
+                        </TouchableOpacity>
+                      )}
+                      <Icon name="chevron-right" size={11} color={apple.colors.tertiaryLabel} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            }
+
             const isPositive = item.tipo === 'ingreso' || item.tipo === 'pago';
-            const isGasto = item.tipo === 'retiro' && item.descripcion?.toLowerCase().includes('gasto');
+            const isGasto = item.tipo === 'gasto' || (item.tipo === 'retiro' && item.descripcion?.toLowerCase().includes('gasto'));
+            const hasEvidencia = !!item.evidencia_path;
+
             return (
               <View style={styles.movCard}>
                 <View style={styles.movIconWrap}>
@@ -396,8 +606,6 @@ export default function AdminCajaDetalle() {
                     name={
                       item.tipo === 'pago'
                         ? 'money'
-                        : item.tipo === 'venta'
-                        ? 'shopping-bag'
                         : isGasto
                         ? 'tag'
                         : item.tipo === 'ingreso'
@@ -405,7 +613,7 @@ export default function AdminCajaDetalle() {
                         : 'arrow-up'
                     }
                     size={15}
-                    color={isPositive ? apple.colors.success : apple.colors.danger}
+                    color={isPositive ? apple.colors.success : isGasto ? '#EA580C' : apple.colors.danger}
                   />
                 </View>
                 <View style={{ flex: 1, marginHorizontal: 10 }}>
@@ -414,9 +622,25 @@ export default function AdminCajaDetalle() {
                   </Text>
                   <Text style={styles.movTime}>{formatDate(item.fecha || item.created_at)}</Text>
                 </View>
-                <Text style={[styles.movAmount, { color: isPositive ? apple.colors.success : apple.colors.danger }]}>
-                  {isPositive ? '+' : '-'}{formatMoney(item.monto)}
-                </Text>
+                <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                  <Text style={[styles.movAmount, { color: isPositive ? apple.colors.success : apple.colors.danger }]}>
+                    {isPositive ? '+' : '-'}{formatMoney(item.monto)}
+                  </Text>
+                  {hasEvidencia && (
+                    <TouchableOpacity
+                      style={[styles.btnMiniPhoto, { marginTop: 4 }]}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => {
+                        setEvidenceUri(item.evidencia_path);
+                        setEvidenceTitle('Evidencia de Movimiento');
+                        setEvidenceModalVisible(true);
+                      }}
+                    >
+                      <Icon name="camera" size={11} color={apple.colors.blue} />
+                      <Text style={styles.btnMiniPhotoText}>Foto</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             );
           }}
@@ -565,6 +789,18 @@ export default function AdminCajaDetalle() {
           </View>
         </View>
       </Modal>
+
+      {/* Visor de Evidencia Multimedia */}
+      <EvidencePreviewModal
+        visible={evidenceModalVisible}
+        onClose={() => {
+          setEvidenceModalVisible(false);
+          setEvidenceUri(null);
+        }}
+        readOnly={true}
+        initialUri={evidenceUri}
+        title={evidenceTitle}
+      />
     </SafeAreaView>
   );
 }
@@ -725,6 +961,56 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     ...apple.shadow.subtle,
     ...apple.border.card,
+  },
+  movCardVenta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: apple.colors.card,
+    borderRadius: apple.radius.s,
+    padding: 12,
+    marginBottom: 8,
+    ...apple.shadow.subtle,
+    ...apple.border.card,
+  },
+  movDescVenta: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: apple.colors.label,
+  },
+  ventaMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  ventaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: apple.colors.bgGrouped,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ventaBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: apple.colors.label,
+  },
+  btnMiniPhoto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EBF5FF',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  btnMiniPhotoText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: apple.colors.blue,
   },
   movIconWrap: {
     width: 32,

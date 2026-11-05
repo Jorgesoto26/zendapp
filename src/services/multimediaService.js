@@ -390,18 +390,48 @@ export async function uploadEvidence({
 export async function getSignedEvidenceUrl(filePath, expiresInSeconds = 3600) {
   if (!filePath) return null;
 
-  // Si ya es una URI local de archivo (offline), retornarla directamente
-  if (filePath.startsWith('file://') || filePath.startsWith('content://')) {
+  // Si ya es una URI local de archivo o web, retornarla directamente
+  if (
+    typeof filePath === 'string' &&
+    (filePath.startsWith('file://') ||
+     filePath.startsWith('content://') ||
+     filePath.startsWith('http://') ||
+     filePath.startsWith('https://') ||
+     filePath.startsWith('data:'))
+  ) {
     return filePath;
   }
 
+  let cleanPath = String(filePath).trim();
+  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
+  if (cleanPath.startsWith('Evidencias/')) cleanPath = cleanPath.replace(/^Evidencias\//, '');
+
+  // 1. Revisar caché local en SQLite evidencias_locales (Offline-first)
+  try {
+    const db = await getDbConnection();
+    await ensureEvidenciasLocalTable(db);
+    const rows = await getData(
+      db,
+      `SELECT local_path FROM evidencias_locales WHERE file_path = ? OR id = ? OR local_path = ? LIMIT 1`,
+      [cleanPath, cleanPath, cleanPath]
+    );
+    if (rows && rows.length > 0 && rows[0].local_path) {
+      return rows[0].local_path;
+    }
+  } catch (e) {
+    // Continuar a Supabase Storage
+  }
+
+  // 2. Generar URL firmada desde Supabase Storage
   try {
     const session = await ensureAuthenticatedSession();
-    if (!session) return null;
+    if (!session) {
+      console.log('Advertencia: getSignedEvidenceUrl sin sesión activa de Supabase');
+    }
 
     const { data, error } = await supabase.storage
       .from('Evidencias')
-      .createSignedUrl(filePath, expiresInSeconds);
+      .createSignedUrl(cleanPath, expiresInSeconds);
 
     if (error) {
       console.log('Error creando URL firmada en Supabase Storage:', error.message);

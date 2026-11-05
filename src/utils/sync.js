@@ -910,7 +910,26 @@ export const SyncCajaAndMovimientos = async () => {
         .eq('caja_id', caja.id)
         .order('fecha', { ascending: false });
 
-      if (!movErr && movements && movements.length > 0) {
+      if (!movErr && Array.isArray(movements)) {
+        // Reconciliar SQLite: eliminar movimientos sincronizados que ya no existan en Supabase (ej. ventas anuladas)
+        try {
+          const remoteIds = movements.map(m => String(m.id));
+          if (remoteIds.length > 0) {
+            const placeholders = remoteIds.map(() => '?').join(',');
+            await db.executeSql(
+              `DELETE FROM movimientos WHERE (idCaja = ? OR caja_id = ?) AND estadoMovil = 'sincronizado' AND id NOT IN (${placeholders})`,
+              [String(caja.id), String(caja.id), ...remoteIds]
+            );
+          } else {
+            await db.executeSql(
+              `DELETE FROM movimientos WHERE (idCaja = ? OR caja_id = ?) AND estadoMovil = 'sincronizado'`,
+              [String(caja.id), String(caja.id)]
+            );
+          }
+        } catch (eCleanMov) {
+          console.log('Error reconciliando movimientos eliminados en SQLite:', eCleanMov);
+        }
+
         for (const m of movements) {
           await saveMovimientoLocal(db, m, caja.id, 'sincronizado');
         }

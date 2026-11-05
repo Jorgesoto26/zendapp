@@ -172,7 +172,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress }) => {
           </>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={styles.verMovText}>Movimientos</Text>
+          <Text style={styles.verMovText}>Movimientos{caja.total_movimientos != null ? ` (${caja.total_movimientos})` : ''}</Text>
           <Icon name="chevron-right" size={11} color={apple.colors.blue} style={{ marginLeft: 4 }} />
         </View>
       </View>

@@ -266,6 +266,12 @@ export const AuthService = async (db, email, password) => {
       if (!jitErr && jitRes?.success && jitRes?.caja) {
         tieneCajaAbierta = true;
         caja = jitRes.caja;
+      } else if (jitRes?.caja_cerrada_hoy) {
+        await supabase.auth.signOut();
+        return {
+          success: false,
+          message: jitRes.message || 'Tu caja del día de hoy ya se encuentra cerrada. Solo tu administrador puede realizar la reapertura de tu caja.',
+        };
       }
     } catch (eAuto) {
       console.log('Error en rpc_check_or_open_caja durante login:', eAuto);

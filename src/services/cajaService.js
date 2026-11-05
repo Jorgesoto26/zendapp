@@ -171,6 +171,11 @@ export async function getCajaActual() {
         if (!jitError && jitData?.success && jitData?.caja) {
           await saveCajaLocal(db, jitData.caja, userId);
           return await computeCajaSaldo(db, jitData.caja);
+        } else if (jitData?.caja_cerrada_hoy) {
+          try {
+            await db.executeSql(`UPDATE cajas SET estado = 'cerrada' WHERE usuario_id = ?`, [userId]);
+          } catch {}
+          return null;
         }
       } catch (eJit) {
         console.log('rpc_check_or_open_caja fallback query:', eJit);
@@ -330,21 +335,10 @@ export async function abrirCaja(saldoInicial = 0) {
     .maybeSingle();
 
   if (cajaHoy) {
-    if (cajaHoy.estado === 'abierta') {
-      return cajaHoy;
+    if (cajaHoy.estado === 'cerrada') {
+      throw new Error('Tu caja del día de hoy ya se encuentra cerrada. Solo tu administrador puede realizar la reapertura de tu caja.');
     } else {
-      const { data: reabierta, error: errReabrir } = await supabase
-        .from('cajas')
-        .update({ estado: 'abierta', fecha_cierre: null, saldo_final: null })
-        .eq('id', cajaHoy.id)
-        .select()
-        .single();
-      if (errReabrir) throw errReabrir;
-      if (reabierta) {
-        const db = await getDbConnection();
-        await saveCajaLocal(db, reabierta, userId);
-      }
-      return reabierta;
+      return cajaHoy;
     }
   }
 

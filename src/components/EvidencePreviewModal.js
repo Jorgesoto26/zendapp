@@ -22,6 +22,7 @@ export default function EvidencePreviewModal({
   onClose,
   title = 'Evidencia Multimedia',
   imageUri,
+  initialUri,
   filePath,
   readOnly = false,
   onTakePhoto,
@@ -30,35 +31,54 @@ export default function EvidencePreviewModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [resolvedUri, setResolvedUri] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
     async function resolve() {
-      if (imageUri) {
-        setResolvedUri(imageUri);
+      setLoadError(false);
+      const raw = imageUri || initialUri || filePath;
+      if (!raw) {
+        setResolvedUri(null);
         return;
       }
-      if (filePath) {
-        setLoading(true);
-        try {
-          const signed = await getSignedEvidenceUrl(filePath);
-          if (isMounted) setResolvedUri(signed);
-        } catch (e) {
-          console.log('Error resolving signed url in EvidencePreviewModal:', e);
-        } finally {
-          if (isMounted) setLoading(false);
-        }
-      } else {
-        setResolvedUri(null);
+
+      // Si ya es un esquema directo reconocible por React Native
+      if (
+        typeof raw === 'string' &&
+        (raw.startsWith('file://') ||
+         raw.startsWith('content://') ||
+         raw.startsWith('http://') ||
+         raw.startsWith('https://') ||
+         raw.startsWith('data:'))
+      ) {
+        setResolvedUri(raw);
+        return;
+      }
+
+      // Si es una ruta relativa o remota de Storage
+      setLoading(true);
+      try {
+        const signed = await getSignedEvidenceUrl(raw);
+        if (isMounted) setResolvedUri(signed || null);
+      } catch (e) {
+        console.log('Error resolving signed url in EvidencePreviewModal:', e);
+        if (isMounted) setResolvedUri(null);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     }
     if (visible) {
       resolve();
+    } else {
+      setResolvedUri(null);
+      setLoading(false);
+      setLoadError(false);
     }
     return () => {
       isMounted = false;
     };
-  }, [visible, imageUri, filePath]);
+  }, [visible, imageUri, initialUri, filePath]);
 
   if (!visible) return null;
 
@@ -78,11 +98,17 @@ export default function EvidencePreviewModal({
           <View style={styles.imageBox}>
             {loading ? (
               <ActivityIndicator size="large" color={apple.colors.blue} />
+            ) : loadError ? (
+              <View style={styles.emptyBox}>
+                <Icon name="exclamation-circle" size={48} color={apple.colors.danger} />
+                <Text style={styles.emptyText}>No se pudo cargar la imagen</Text>
+              </View>
             ) : resolvedUri ? (
               <Image
                 source={{ uri: resolvedUri }}
                 style={styles.image}
                 resizeMode="contain"
+                onError={() => setLoadError(true)}
               />
             ) : (
               <View style={styles.emptyBox}>

@@ -64,7 +64,7 @@ export default function LoginScreen() {
       if (!dbRef.current) dbRef.current = await getDbConnection();
       const result = await AuthService(dbRef.current, email, password);
       if (!result.success) {
-        const title = (result.message && result.message.toLowerCase().includes('caja')) ? 'Caja requerida' : 'Error';
+        const title = (result.message && result.message.toLowerCase().includes('cerrada')) ? 'Caja cerrada' : (result.message && result.message.toLowerCase().includes('caja')) ? 'Caja requerida' : 'Error';
         appAlert(title, result.message);
       } else if (result.session) {
         if (result.isOffline) {
