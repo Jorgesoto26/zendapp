@@ -270,14 +270,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   globalCard: {
-    backgroundColor: zendapp.colors.carbon,
+    backgroundColor: 'rgba(30, 30, 31, 0.90)',
     borderRadius: 14,
     marginHorizontal: 16,
     marginTop: 10,
     marginBottom: 8,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#2D2D2E',
+    borderColor: 'rgba(50, 50, 52, 0.8)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -342,10 +342,10 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     marginHorizontal: 16,
     marginVertical: 8,
     paddingHorizontal: 12,

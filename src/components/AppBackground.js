@@ -11,7 +11,7 @@ export default function AppBackground() {
     <Image
       source={require('../assets/images/fondoGeneral.png')}
       style={styles.background}
-      resizeMode="stretch"
+      resizeMode="cover"
     />
   );
 }

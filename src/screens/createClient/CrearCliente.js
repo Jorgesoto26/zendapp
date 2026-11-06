@@ -1205,7 +1205,7 @@ const CrearCliente = () => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1, backgroundColor: 'transparent' },
   scroll: { padding: 16, paddingBottom: 40 },
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
   renewBtn: {
@@ -1215,7 +1215,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(254, 242, 242, 0.90)',
     borderWidth: 1,
     borderColor: '#FECACA',
     ...Platform.select({
@@ -1226,7 +1226,7 @@ const styles = StyleSheet.create({
   renewalBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(254, 242, 242, 0.90)',
     padding: 12,
     borderRadius: 12,
     marginBottom: 14,
@@ -1244,13 +1244,13 @@ const styles = StyleSheet.create({
   pageTitle: { fontSize: 22, fontWeight: '800', color: '#1E1E1F', letterSpacing: -0.3 },
   pageSub: { fontSize: 13, color: '#667085', marginTop: 4, marginBottom: 16, lineHeight: 18 },
   section: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     overflow: 'hidden',
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: { shadowColor: '#101828', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 0 },
@@ -1448,13 +1448,13 @@ const styles = StyleSheet.create({
 
   // Quote preview card
   quoteCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     overflow: 'hidden',
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: { shadowColor: '#101828', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
       android: { elevation: 0 },

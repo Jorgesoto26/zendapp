@@ -21,12 +21,15 @@ export const zendapp = {
     carbonMuted: '#48484A',
     carbonSurface: '#242426',
 
-    // Superficies y Fondos
-    bg: '#ECEFF3',
-    bgGrouped: '#E2E6EC',
-    card: '#FFFFFF',
-    fill: '#E8ECF2',
-    inputBg: '#FFFFFF',
+    // Superficies y Fondos (Translucidez Glassmorphism para dejar ver el fondo institucional)
+    bg: 'transparent',
+    bgGrouped: 'transparent',
+    card: 'rgba(255, 255, 255, 0.88)',
+    cardSolid: '#FFFFFF',
+    cardTranslucent: 'rgba(255, 255, 255, 0.88)',
+    cardSubtle: 'rgba(248, 249, 250, 0.75)',
+    fill: 'rgba(232, 236, 242, 0.75)',
+    inputBg: 'rgba(255, 255, 255, 0.92)',
 
     // Tipografía y Contraste
     textPrimary: '#1E1E1F',

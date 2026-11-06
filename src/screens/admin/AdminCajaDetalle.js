@@ -904,11 +904,11 @@ const styles = StyleSheet.create({
   },
   summaryBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: 'rgba(234, 236, 240, 0.8)',
   },
   summaryCol: {
     flex: 1,
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 10,
     overflow: 'hidden',
     marginHorizontal: 16,
@@ -944,7 +944,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 40,
     borderWidth: 1.2,
-    borderColor: '#D8DCE4',
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   searchIcon: {
     marginRight: 8,
@@ -1017,12 +1017,12 @@ const styles = StyleSheet.create({
   movCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1.2,
-    borderColor: '#D8DCE4',
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#101828',
@@ -1038,12 +1038,12 @@ const styles = StyleSheet.create({
   movCardVenta: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1.2,
-    borderColor: '#D8DCE4',
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#101828',

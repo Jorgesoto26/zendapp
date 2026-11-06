@@ -11,6 +11,8 @@ export const apple = {
     bg: zendapp.colors.bg,
     bgGrouped: zendapp.colors.bgGrouped,
     card: zendapp.colors.card,
+    cardTranslucent: zendapp.colors.cardTranslucent,
+    surfaceSubtle: zendapp.colors.surfaceSubtle,
 
     // Accent - Zendapp Brand Red (#EE272D)
     blue: zendapp.colors.primary,

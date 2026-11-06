@@ -220,12 +220,12 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -360,10 +360,10 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(248, 249, 250, 0.75)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: 'rgba(234, 236, 240, 0.8)',
     padding: 8,
   },
   gridLabel: {
@@ -417,9 +417,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(248, 249, 250, 0.75)',
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: 'rgba(234, 236, 240, 0.8)',
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,

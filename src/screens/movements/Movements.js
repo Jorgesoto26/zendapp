@@ -612,7 +612,7 @@ export default function MovementsScreen() {
   if (loading && items.length === 0) {
     return (
       <SafeAreaView style={styles.root}>
-      <AppBackground />
+        <AppBackground />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Movimientos</Text>
           <Text style={styles.headerSub}>
@@ -641,6 +641,7 @@ export default function MovementsScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Movimientos</Text>
@@ -1074,26 +1075,26 @@ export default function MovementsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: apple.colors.bgGrouped },
+  root: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
-    backgroundColor: apple.colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.90)',
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
     borderBottomWidth: 0.5,
-    borderColor: apple.colors.separator,
+    borderColor: 'rgba(216, 220, 228, 0.8)',
   },
   headerTitle: { fontSize: 24, fontWeight: '700', color: apple.colors.label },
   headerSub: { fontSize: 13, color: apple.colors.secondaryLabel, marginTop: 2 },
   controls: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     margin: 16,
     marginBottom: 10,
     padding: 12,
     borderRadius: apple.radius.l,
-    borderWidth: 1,
-    borderColor: '#E8EAED',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   searchRow: { flexDirection: 'row', gap: 8 },
   searchWrap: {
@@ -1101,10 +1102,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: apple.colors.fill,
+    backgroundColor: 'rgba(232, 236, 242, 0.75)',
     borderRadius: apple.radius.s,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: 'rgba(216, 220, 228, 0.8)',
     paddingHorizontal: 12,
     height: 40,
   },
@@ -1121,9 +1122,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: apple.colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: 'rgba(216, 220, 228, 0.8)',
   },
   chipActive: { backgroundColor: apple.colors.blue, borderColor: apple.colors.blue },
   chipText: { fontSize: 12, fontWeight: '600', color: apple.colors.secondaryLabel, textTransform: 'capitalize' },
@@ -1131,15 +1132,15 @@ const styles = StyleSheet.create({
 
   row: {
     flexDirection: 'row',
-    backgroundColor: apple.colors.card,
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     marginHorizontal: 16,
     marginTop: 8,
     padding: 14,
     borderRadius: apple.radius.m,
     gap: 12,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E8EAED',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   badge: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   rowTopLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -1170,9 +1171,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 50 },
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    marginTop: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: apple.radius.l,
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
+  },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: apple.colors.label, marginTop: 10 },
-  emptySub: { fontSize: 13, color: apple.colors.tertiaryLabel, marginTop: 4 },
+  emptySub: { fontSize: 13, color: apple.colors.tertiaryLabel, marginTop: 4, textAlign: 'center' },
 
   fab: {
     position: 'absolute',

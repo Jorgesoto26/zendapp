@@ -410,10 +410,10 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     marginHorizontal: 16,
     marginVertical: 8,
     paddingHorizontal: 12,

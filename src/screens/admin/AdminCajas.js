@@ -687,9 +687,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   filterChipActive: {
     backgroundColor: zendapp.colors.primary,

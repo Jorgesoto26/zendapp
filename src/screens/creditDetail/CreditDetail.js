@@ -394,6 +394,7 @@ export default function CreditDetail({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -680,14 +681,14 @@ export default function CreditDetail({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8F9FB' },
+  root: { flex: 1, backgroundColor: 'transparent' },
   twoBlockContainer: {
     flex: 1,
     flexDirection: 'column',
   },
   blockOneWrapper: {
     flex: 1.15,
-    backgroundColor: '#F8F9FB',
+    backgroundColor: 'transparent',
   },
   blockOneScroll: {
     flex: 1,
@@ -713,7 +714,7 @@ const styles = StyleSheet.create({
   },
   blockTwoWrapper: {
     flex: 1,
-    backgroundColor: '#F8F9FB',
+    backgroundColor: 'transparent',
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 12,
@@ -733,18 +734,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.90)',
     borderBottomWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: 'rgba(234, 236, 240, 0.8)',
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   backText: { color: '#EE272D', fontSize: 15, fontWeight: '700' },
   headerTitle: { fontSize: 16, fontWeight: '800', color: '#1E1E1F', flex: 1, textAlign: 'center' },
   cardContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     padding: 14,
     ...Platform.select({
       ios: {
@@ -782,10 +783,10 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   summaryBox: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(248, 249, 250, 0.75)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: 'rgba(234, 236, 240, 0.8)',
     overflow: 'hidden',
     padding: 10,
     alignItems: 'center',
@@ -827,10 +828,10 @@ const styles = StyleSheet.create({
   totalPagosBadge: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   totalPagosText: { fontSize: 11, fontWeight: '700', color: '#059669' },
   tableCardContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -844,7 +845,7 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  tableHead: { flexDirection: 'row', backgroundColor: '#F8F9FA', paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderColor: '#EAECF0' },
+  tableHead: { flexDirection: 'row', backgroundColor: 'rgba(248, 249, 250, 0.75)', paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderColor: 'rgba(234, 236, 240, 0.8)' },
   th: { fontSize: 10, fontWeight: '700', color: '#667085', letterSpacing: 0.5 },
   tr: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
   td: { fontSize: 13, color: '#1E1E1F' },

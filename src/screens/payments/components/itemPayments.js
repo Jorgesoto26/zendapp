@@ -16,8 +16,8 @@ import { SyncWithSupabase } from '../../../utils/sync';
 import { useAuth } from '../../../context/AuthContext';
 import PaymentReceiptModal from '../../../components/PaymentReceiptModal';
 
-const getStatusColor = (tipo) => ({ pago: zendapp.colors.success, 'no pago': zendapp.colors.primary, parcial: zendapp.colors.warning, pendiente: '#D0D5DD' }[ (tipo||'').toLowerCase().trim()] || '#D0D5DD');
-const getStatusBg = (tipo) => ({ pago: '#ECFDF5', 'no pago': '#FEF2F2', parcial: '#FFFBEB', pendiente: '#F8F9FA' }[ (tipo||'').toLowerCase().trim()] || '#F8F9FA');
+const getStatusColor = (tipo) => ({ pago: zendapp.colors.success, 'no pago': zendapp.colors.primary, parcial: zendapp.colors.warning, pendiente: '#D0D5DD' }[(tipo || '').toLowerCase().trim()] || '#D0D5DD');
+const getStatusBg = (tipo) => ({ pago: '#ECFDF5', 'no pago': '#FEF2F2', parcial: '#FFFBEB', pendiente: '#F8F9FA' }[(tipo || '').toLowerCase().trim()] || '#F8F9FA');
 
 const getCurrentLocationSafe = () =>
   new Promise((res) => {
@@ -194,7 +194,7 @@ const ItemPayments = memo(({
           setTipoTramitado(tipo);
           setValorPagado(vp);
           setPendienteSync(!!pendiente);
-        } catch {}
+        } catch { }
       })();
     }
   }, [propTipoTramitado, propValorPagado, propPendienteSync, estadoMovil, id]);
@@ -208,7 +208,7 @@ const ItemPayments = memo(({
         if (tipo) setTipoTramitado(tipo);
         if (vp !== undefined) setValorPagado(vp);
         setPendienteSync(!!pendiente);
-      } catch {}
+      } catch { }
     });
     return () => unsub();
   }, [id]);
@@ -341,8 +341,8 @@ const ItemPayments = memo(({
 
       // Disparar sincronizacion en background si hay red
       try {
-        SyncWithSupabase(false, () => {});
-      } catch {}
+        SyncWithSupabase(false, () => { });
+      } catch { }
 
       setTipoTramitado(tipo === 'nopago' ? 'NO PAGO' : (ns <= 0 ? 'PAGO' : (tipo === 'parcial' ? 'PARCIAL' : 'PAGO')));
       setValorPagado(tipo === 'nopago' ? 0 : valorPago);
@@ -352,10 +352,10 @@ const ItemPayments = memo(({
         text1: ns <= 0
           ? 'Crédito pagado en su totalidad'
           : tipo === 'pago'
-          ? 'Pago realizado'
-          : tipo === 'nopago'
-          ? 'No pago registrado'
-          : 'Pago parcial realizado',
+            ? 'Pago realizado'
+            : tipo === 'nopago'
+              ? 'No pago registrado'
+              : 'Pago parcial realizado',
       });
 
       // Generar comprobante automático si fue un pago o abono válido
@@ -370,7 +370,7 @@ const ItemPayments = memo(({
               logo: orgRows[0].logo_path || null,
             };
           }
-        } catch (eOrg) {}
+        } catch (eOrg) { }
 
         const vendedorName = profile?.nombre
           ? `${profile.nombre} ${profile.apellidos || profile.apellido || ''}`.trim()
@@ -433,7 +433,7 @@ const ItemPayments = memo(({
             logo: orgRows[0].logo_path || null,
           };
         }
-      } catch (eOrg) {}
+      } catch (eOrg) { }
 
       const vendedorName = profile?.nombre
         ? `${profile.nombre} ${profile.apellidos || profile.apellido || ''}`.trim()
@@ -656,10 +656,10 @@ export default ItemPayments;
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     borderWidth: 1.2,
-    borderColor: '#D8DCE4',
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     overflow: 'hidden',
     ...Platform.select({
       ios: {
@@ -678,11 +678,11 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   name: { fontSize: 16, fontWeight: '700', color: zendapp.colors.carbon, letterSpacing: -0.3, flexShrink: 1 },
   addr: { fontSize: 12, color: zendapp.colors.textSecondary, marginTop: 1 },
-  phonePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D0D5DD', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  phonePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(248, 249, 250, 0.75)', borderWidth: 1, borderColor: 'rgba(208, 213, 221, 0.8)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   phoneText: { fontSize: 11, fontWeight: '600', color: zendapp.colors.carbon, maxWidth: 110 },
-  gpsPillTop: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D0D5DD', marginLeft: 8, flexShrink: 0 },
+  gpsPillTop: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(248, 249, 250, 0.75)', borderWidth: 1, borderColor: 'rgba(208, 213, 221, 0.8)', marginLeft: 8, flexShrink: 0 },
   gpsText: { fontSize: 11, fontWeight: '600' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8F9FA', borderRadius: 10, borderWidth: 1, borderColor: '#EAECF0', paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(248, 249, 250, 0.75)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(234, 236, 240, 0.8)', paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
   amountBox: { flexDirection: 'column' },
   amountLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
   amount: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
@@ -691,14 +691,14 @@ const styles = StyleSheet.create({
   saldoLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textMuted, letterSpacing: 0.3 },
   saldo: { fontSize: 13, fontWeight: '800', color: zendapp.colors.carbon },
   actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
-  actionBtn: { flex: 1, flexDirection: 'row', height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: '#FFFFFF' },
+  actionBtn: { flex: 1, flexDirection: 'row', height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: 'rgba(255, 255, 255, 0.90)' },
   actionOutlineSuccess: { borderColor: zendapp.colors.success, backgroundColor: '#ECFDF5' },
   actionOutlineDanger: { borderColor: zendapp.colors.primary, backgroundColor: '#FEF2F2' },
   actionOutlineWarning: { borderColor: zendapp.colors.warning, backgroundColor: '#FFFBEB' },
   actionTextSuccess: { color: zendapp.colors.success, fontWeight: '700', fontSize: 11 },
   actionTextDanger: { color: zendapp.colors.primary, fontWeight: '700', fontSize: 11 },
   actionTextWarning: { color: '#D97706', fontWeight: '700', fontSize: 11 },
-  tramitadoInfo: { flexDirection: 'row', backgroundColor: '#F8F9FA', borderRadius: 10, borderWidth: 1, borderColor: '#EAECF0', paddingVertical: 8, paddingHorizontal: 6, marginTop: 8, alignItems: 'center' },
+  tramitadoInfo: { flexDirection: 'row', backgroundColor: 'rgba(248, 249, 250, 0.75)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(234, 236, 240, 0.8)', paddingVertical: 8, paddingHorizontal: 6, marginTop: 8, alignItems: 'center' },
   tramitadoCol: { flex: 1, alignItems: 'center' },
   tramitadoLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
   tramitadoVal: { fontSize: 12, fontWeight: '700', color: zendapp.colors.carbon, marginTop: 2 },

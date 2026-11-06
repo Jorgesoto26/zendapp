@@ -323,11 +323,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 10,
     gap: 8,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   dateText: {
     fontSize: 13,
@@ -336,13 +336,13 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     marginHorizontal: 16,
     marginBottom: 12,
     padding: 14,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -380,12 +380,12 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -443,10 +443,10 @@ const styles = StyleSheet.create({
   gridItem: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(248, 249, 250, 0.75)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: 'rgba(234, 236, 240, 0.8)',
     padding: 8,
   },
   gridLabel: {

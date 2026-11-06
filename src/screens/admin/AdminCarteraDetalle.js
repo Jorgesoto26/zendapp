@@ -451,7 +451,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
-    backgroundColor: zendapp.colors.bg,
+    backgroundColor: 'rgba(255, 255, 255, 0.90)',
+    borderBottomWidth: 1,
+    borderColor: 'rgba(234, 236, 240, 0.8)',
   },
   backBtn: {
     flexDirection: 'row',
@@ -491,14 +493,14 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     marginHorizontal: 16,
     marginVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
     height: 42,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   searchIcon: {
     marginRight: 8,
@@ -515,12 +517,12 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',

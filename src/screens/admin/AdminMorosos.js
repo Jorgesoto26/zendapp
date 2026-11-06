@@ -341,10 +341,10 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     marginHorizontal: 16,
     marginBottom: 10,
     paddingHorizontal: 12,
@@ -363,12 +363,12 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -417,10 +417,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F8F9FA',
+    backgroundColor: 'rgba(248, 249, 250, 0.75)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: 'rgba(234, 236, 240, 0.8)',
     padding: 10,
   },
   gridItem: {

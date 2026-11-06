@@ -67,9 +67,9 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: 'rgba(255, 255, 255, 0.92)',
           borderTopWidth: 1,
-          borderTopColor: '#EAECF0',
+          borderTopColor: 'rgba(234, 236, 240, 0.8)',
           height: Platform.OS === 'ios' ? 70 : 64,
           paddingTop: 6,
           paddingBottom: Platform.OS === 'ios' ? 14 : 8,

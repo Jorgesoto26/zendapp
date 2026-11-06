@@ -374,6 +374,7 @@ export default function CajaScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Caja</Text>
         <Text style={styles.headerSub}>{profile?.nombre || 'Usuario'} · {profile?.rol || ''}</Text>
@@ -653,34 +654,34 @@ export default function CajaScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: apple.colors.bgGrouped },
+  root: { flex: 1, backgroundColor: 'transparent' },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderRadius: apple.radius.l,
-    borderWidth: 1,
-    borderColor: '#E8EAED',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: apple.colors.card, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 0.5, borderColor: apple.colors.separator },
+  header: { backgroundColor: 'rgba(255, 255, 255, 0.90)', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, borderBottomWidth: 0.5, borderColor: 'rgba(216, 220, 228, 0.8)' },
   headerTitle: { fontSize: 28, fontWeight: '700', color: apple.colors.label, letterSpacing: 0.36 },
   headerSub: { fontSize: 13, color: apple.colors.secondaryLabel, marginTop: 2, textTransform: 'capitalize' },
-  segment: { flexDirection: 'row', backgroundColor: apple.colors.fill, margin: 16, borderRadius: apple.radius.s, padding: 3, gap: 4 },
+  segment: { flexDirection: 'row', backgroundColor: 'rgba(241, 243, 247, 0.75)', margin: 16, borderRadius: apple.radius.s, padding: 3, gap: 4 },
   segOpt: { flex: 1, paddingVertical: 8, borderRadius: apple.radius.s, alignItems: 'center' },
-  segActive: { backgroundColor: apple.colors.card },
+  segActive: { backgroundColor: 'rgba(255, 255, 255, 0.92)' },
   segText: { fontSize: 13, fontWeight: '500', color: apple.colors.secondaryLabel },
   segTextActive: { color: apple.colors.label, fontWeight: '600' },
   iconCircle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   emptyTitle: { fontSize: 17, fontWeight: '600', color: apple.colors.label, marginTop: 4 },
   emptySub: { fontSize: 13, color: apple.colors.secondaryLabel, textAlign: 'center', marginTop: 6 },
   inputRow: { flexDirection: 'row', gap: 10, marginTop: 16, alignItems: 'center', width: '100%' },
-  input: { flex: 1, backgroundColor: apple.colors.fill, borderRadius: apple.radius.s, borderWidth: 1, borderColor: apple.colors.separator, paddingHorizontal: 14, height: 48, fontSize: 16, color: apple.colors.label },
+  input: { flex: 1, backgroundColor: 'rgba(232, 236, 242, 0.75)', borderRadius: apple.radius.s, borderWidth: 1, borderColor: apple.colors.separator, paddingHorizontal: 14, height: 48, fontSize: 16, color: apple.colors.label },
   cajaTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   badgeLive: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: apple.colors.success + '14', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: apple.colors.success },
   liveText: { fontSize: 11, fontWeight: '700', color: apple.colors.success, letterSpacing: 0.5 },
   cajaDate: { fontSize: 11, color: apple.colors.tertiaryLabel },
   saldoRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  saldoBox: { flex: 1, backgroundColor: apple.colors.fill, borderRadius: apple.radius.s, padding: 12, alignItems: 'center' },
+  saldoBox: { flex: 1, backgroundColor: 'rgba(232, 236, 242, 0.75)', borderRadius: apple.radius.s, padding: 12, alignItems: 'center' },
   saldoLabel: { fontSize: 11, fontWeight: '600', color: apple.colors.secondaryLabel, letterSpacing: 0.5, textTransform: 'uppercase' },
   saldoVal: { fontSize: 16, fontWeight: '700', color: apple.colors.label, marginTop: 4 },
   cajaId: { fontSize: 10, color: apple.colors.tertiaryLabel, marginTop: 8, textAlign: 'center' },
@@ -688,7 +689,7 @@ const styles = StyleSheet.create({
   closeText: { color: '#fff', fontWeight: '700' },
   listHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center' },
   listTitle: { fontSize: 13, fontWeight: '600', color: apple.colors.secondaryLabel, letterSpacing: 0.3, textTransform: 'uppercase' },
-  row: { flexDirection: 'row', backgroundColor: apple.colors.card, marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: apple.radius.m, alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', backgroundColor: 'rgba(255, 255, 255, 0.88)', marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: apple.radius.m, alignItems: 'center', gap: 12, borderWidth: 1.2, borderColor: 'rgba(216, 220, 228, 0.85)' },
   badge: { width: 32, height: 32, borderRadius: apple.radius.l, alignItems: 'center', justifyContent: 'center' },
   rowTitle: { fontSize: 13, fontWeight: '600', color: apple.colors.label },
   rowSub: { fontSize: 11, color: apple.colors.tertiaryLabel, marginTop: 2 },
@@ -696,13 +697,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     marginHorizontal: 16,
     marginTop: 6,
     paddingVertical: 12,
     borderRadius: apple.radius.m,
-    borderWidth: 1,
-    borderColor: '#E8EAED',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 220, 228, 0.85)',
     gap: 6,
   },
   verTodosText: {
