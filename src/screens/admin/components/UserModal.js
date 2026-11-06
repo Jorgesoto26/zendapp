@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 import { formatMoneyInput, parseMoneyToNumeric, cleanMoneyValue } from '../../../utils/utilities';
 import { appAlert } from '../../../components/AppAlert';
 
@@ -69,15 +70,15 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
       return;
     }
     if (!isEditing && (!email.trim() || !password.trim())) {
-      appAlert('Datos requeridos', 'El correo y la contrasea son obligatorios para crear un usuario');
+      appAlert('Datos requeridos', 'El correo y la contraseña son obligatorios para crear un usuario');
       return;
     }
     if (!isEditing && password.trim().length < 6) {
-      appAlert('Contrasea corta', 'La contrasea debe tener al menos 6 caracteres');
+      appAlert('Contraseña corta', 'La contraseña debe tener al menos 6 caracteres');
       return;
     }
     if (isEditing && password.trim().length > 0 && password.trim().length < 6) {
-      appAlert('Contrasea corta', 'La nueva contrasea debe tener al menos 6 caracteres');
+      appAlert('Contraseña corta', 'La nueva contraseña debe tener al menos 6 caracteres');
       return;
     }
 
@@ -179,7 +180,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
             {!isEditing ? (
               <>
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Correo Electrnico *</Text>
+                  <Text style={styles.label}>Correo Electrónico o nombre de usuario*</Text>
                   <TextInput
                     style={styles.input}
                     value={email}
@@ -192,26 +193,26 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.label}>Contrasea *</Text>
+                  <Text style={styles.label}>Contraseña *</Text>
                   <TextInput
                     style={styles.input}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry
-                    placeholder="Mnimo 6 caracteres"
+                    placeholder="Mínimo 6 caracteres"
                     placeholderTextColor={apple.colors.tertiaryLabel}
                   />
                 </View>
               </>
             ) : (
               <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Nueva Contrasea (opcional)</Text>
+                <Text style={styles.label}>Nueva Contraseña (opcional)</Text>
                 <TextInput
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
-                  placeholder="Dejar vaco para conservar la actual (mn. 6)"
+                  placeholder="Dejar vacío para conservar la actual (mn. 6)"
                   placeholderTextColor={apple.colors.tertiaryLabel}
                 />
               </View>
@@ -289,7 +290,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
               <Switch
                 value={permiteBorrarVenta}
                 onValueChange={setPermiteBorrarVenta}
-                trackColor={{ false: apple.colors.separator, true: apple.colors.blue }}
+                trackColor={{ false: '#D0D5DD', true: zendapp.colors.primary }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -299,7 +300,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
               <Switch
                 value={permiteModificarPagos}
                 onValueChange={setPermiteModificarPagos}
-                trackColor={{ false: apple.colors.separator, true: apple.colors.blue }}
+                trackColor={{ false: '#D0D5DD', true: zendapp.colors.primary }}
                 thumbColor="#FFFFFF"
               />
             </View>
@@ -345,13 +346,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: apple.spacing.l,
-    borderBottomWidth: 0.5,
-    borderBottomColor: apple.colors.separator,
+    borderBottomWidth: 1,
+    borderBottomColor: zendapp.colors.border,
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   closeBtn: {
     padding: 6,
@@ -360,9 +361,9 @@ const styles = StyleSheet.create({
     padding: apple.spacing.l,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 14,
@@ -380,26 +381,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 10,
-    borderRadius: apple.radius.s,
-    backgroundColor: apple.colors.bgGrouped,
+    borderRadius: 10,
+    backgroundColor: '#F8F9FA',
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#D0D5DD',
   },
   roleBtnActive: {
-    backgroundColor: apple.colors.blue,
-    borderColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
+    borderColor: zendapp.colors.primary,
   },
   roleBtnActiveAdmin: {
-    backgroundColor: '#5856D6',
-    borderColor: '#5856D6',
+    backgroundColor: zendapp.colors.carbon,
+    borderColor: zendapp.colors.carbon,
   },
   roleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   roleTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
   },
   fieldGroup: {
     marginBottom: 12,
@@ -409,31 +411,33 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: '500',
-    color: apple.colors.label,
+    fontWeight: '600',
+    color: '#344054',
     marginBottom: 6,
   },
   input: {
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    overflow: 'hidden',
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    color: apple.colors.label,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    color: zendapp.colors.carbon,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: apple.colors.separator,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: zendapp.colors.border,
   },
   switchLabel: {
     fontSize: 15,
-    color: apple.colors.label,
+    fontWeight: '500',
+    color: zendapp.colors.carbon,
   },
   footer: {
     flexDirection: 'row',
@@ -443,22 +447,24 @@ const styles = StyleSheet.create({
   },
   btnCancel: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: apple.radius.m,
-    backgroundColor: apple.colors.bgGrouped,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: '#F2F4F7',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   btnCancelText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    fontWeight: '700',
+    color: '#475467',
   },
   btnSubmit: {
     flex: 2,
-    paddingVertical: 12,
-    borderRadius: apple.radius.m,
-    backgroundColor: apple.colors.blue,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: zendapp.colors.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   btnSubmitText: {
     fontSize: 15,

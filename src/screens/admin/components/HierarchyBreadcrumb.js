@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 
 /**
  * Componente de barra de navegación jerárquica (Breadcrumbs + Botón Atrás)
@@ -37,7 +38,7 @@ export const HierarchyBreadcrumb = ({
         activeOpacity={0.7}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Icon name="chevron-left" size={13} color={apple.colors.blue} />
+        <Icon name="chevron-left" size={13} color={zendapp.colors.primary} />
         <Text style={styles.backButtonText} numberOfLines={1}>
           {previousLevel?.name || 'Atrás'}
         </Text>
@@ -98,7 +99,7 @@ export const HierarchyBreadcrumb = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: apple.colors.separator,
     flexDirection: 'row',
     alignItems: 'center',
@@ -108,7 +109,9 @@ const styles = StyleSheet.create({
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: zendapp.colors.primaryLight,
+    borderWidth: 1,
+    borderColor: zendapp.colors.primaryBorder,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 8,
@@ -117,8 +120,8 @@ const styles = StyleSheet.create({
   },
   backButtonText: {
     ...apple.typography.footnote,
-    color: apple.colors.blue,
-    fontWeight: '600',
+    color: zendapp.colors.primary,
+    fontWeight: '700',
     marginLeft: 5,
   },
   scrollView: {
@@ -143,10 +146,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   pillActive: {
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.carbon,
   },
   pillInactive: {
-    backgroundColor: apple.colors.secondarySystemBackground,
+    backgroundColor: '#F1F3F7',
   },
   pillTextActive: {
     ...apple.typography.caption1,
@@ -156,8 +159,8 @@ const styles = StyleSheet.create({
   },
   pillTextInactive: {
     ...apple.typography.caption1,
-    color: apple.colors.secondaryLabel,
-    fontWeight: '500',
+    color: zendapp.colors.textSecondary,
+    fontWeight: '600',
     maxWidth: 100,
   },
 });

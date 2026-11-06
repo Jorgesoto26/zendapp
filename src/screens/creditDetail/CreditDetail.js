@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -26,16 +27,16 @@ import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 
 function StatusBadge({ estado }) {
   const map = {
-    pagada: { bg: '#E8F5E9', color: apple.colors.success, label: 'PAGADA' },
-    pagado: { bg: '#E8F5E9', color: apple.colors.success, label: 'PAGADA' },
-    abonada: { bg: '#FFF8E1', color: apple.colors.warning, label: 'ABONADA' },
-    parcial: { bg: '#FFF8E1', color: apple.colors.warning, label: 'ABONADA' },
-    pendiente: { bg: '#F2F2F7', color: apple.colors.secondaryLabel, label: 'PENDIENTE' },
-    vencida: { bg: '#FFEBEE', color: apple.colors.danger, label: 'VENCIDA' },
+    pagada: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', label: 'PAGADA' },
+    pagado: { bg: '#ECFDF5', border: '#A7F3D0', color: '#059669', label: 'PAGADA' },
+    abonada: { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706', label: 'ABONADA' },
+    parcial: { bg: '#FFFBEB', border: '#FDE68A', color: '#D97706', label: 'ABONADA' },
+    pendiente: { bg: '#F1F3F7', border: '#EAECF0', color: '#667085', label: 'PENDIENTE' },
+    vencida: { bg: '#FEF2F2', border: '#FECACA', color: '#EE272D', label: 'VENCIDA' },
   };
   const s = map[(estado || '').toLowerCase()] || map.pendiente;
   return (
-    <View style={[styles.badge, { backgroundColor: s.bg }]}>
+    <View style={[styles.badge, { backgroundColor: s.bg, borderColor: s.border, borderWidth: 1 }]}>
       <Text style={[styles.badgeText, { color: s.color }]}>{s.label}</Text>
     </View>
   );
@@ -382,6 +383,7 @@ export default function CreditDetail({ route, navigation }) {
   if (loading) {
     return (
       <SafeAreaView style={styles.root}>
+      <AppBackground />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={apple.colors.blue} />
           <Text style={styles.loadingText}>Cargando detalle...</Text>
@@ -395,16 +397,16 @@ export default function CreditDetail({ route, navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Icon name="chevron-left" size={16} color={apple.colors.blue} />
+          <Icon name="chevron-left" size={16} color="#EE272D" />
           <Text style={styles.backText}>Cartera</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Detalle crédito</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>Detalle de Crédito</Text>
         <View style={{ width: 60 }} />
       </View>
 
-      {/* Vista dividida en 2 bloques con scroll vertical independiente (Requisito 7) */}
+      {/* Vista dividida en 2 bloques con scroll vertical independiente */}
       <View style={styles.twoBlockContainer}>
-        {/* BLOQUE 1: Información del cliente y detalles del crédito (Scroll independiente) */}
+        {/* BLOQUE 1: Información del cliente y detalles del crédito */}
         <View style={styles.blockOneWrapper}>
           <ScrollView
             style={styles.blockOneScroll}
@@ -417,7 +419,7 @@ export default function CreditDetail({ route, navigation }) {
               <View style={styles.renewalCard}>
                 <View style={styles.renewalCardHeader}>
                   <View style={styles.renewalCardIcon}>
-                    <Icon name="check-circle" size={18} color={apple.colors.success} />
+                    <Icon name="check-circle" size={18} color="#059669" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.renewalCardTitle}>Crédito Completado</Text>
@@ -434,7 +436,7 @@ export default function CreditDetail({ route, navigation }) {
             )}
 
             {/* Resumen cliente */}
-            <AppleCard bordered={false} shadow={false} style={{ padding: 14, borderWidth: 0 }}>
+            <View style={styles.cardContainer}>
               <View style={styles.clientHeader}>
                 <View style={styles.avatar}>
                   <Icon name="user" size={18} color="#fff" />
@@ -452,10 +454,10 @@ export default function CreditDetail({ route, navigation }) {
                   onPress={openMap}
                   style={[
                     styles.gpsBtn,
-                    !hasCoords && { borderColor: apple.colors.tertiaryLabel, opacity: 0.5 },
+                    hasCoords ? styles.gpsBtnActive : styles.gpsBtnInactive,
                   ]}
                 >
-                  <Icon name="map-marker" size={14} color={hasCoords ? apple.colors.blue : apple.colors.tertiaryLabel} />
+                  <Icon name="map-marker" size={16} color={hasCoords ? '#EE272D' : '#98A2B3'} />
                 </TouchableOpacity>
               </View>
 
@@ -471,7 +473,7 @@ export default function CreditDetail({ route, navigation }) {
                   <Text
                     style={[
                       styles.summaryVal,
-                      { color: saldoActual > 0 ? apple.colors.danger : apple.colors.success },
+                      { color: saldoActual > 0 ? '#EE272D' : '#10B981' },
                     ]}
                   >
                     {FormatMoneyDecimales(saldoActual)}
@@ -484,7 +486,7 @@ export default function CreditDetail({ route, navigation }) {
                       styles.summaryVal,
                       {
                         fontSize: 12,
-                        color: isCreditCompleted ? apple.colors.success : apple.colors.warning,
+                        color: isCreditCompleted ? '#10B981' : '#F59E0B',
                       },
                     ]}
                   >
@@ -511,7 +513,7 @@ export default function CreditDetail({ route, navigation }) {
 
               {invoice?.pago_adelantado && (
                 <View style={styles.advancePaymentNotice}>
-                  <Icon name="check-circle" size={12} color={apple.colors.success} />
+                  <Icon name="check-circle" size={12} color="#059669" />
                   <Text style={styles.advancePaymentText}>1ª cuota cubierta con pago adelantado</Text>
                 </View>
               )}
@@ -524,42 +526,44 @@ export default function CreditDetail({ route, navigation }) {
                   activeOpacity={0.8}
                 >
                   <View style={styles.docEvidenceLeft}>
-                    <Icon name="id-card-o" size={14} color={apple.colors.blue} />
+                    <Icon name="id-card-o" size={14} color="#EE272D" />
                     <Text style={styles.docEvidenceText}>Ver fotografía del documento</Text>
                   </View>
-                  <Icon name="external-link" size={12} color={apple.colors.blue} />
+                  <Icon name="external-link" size={12} color="#667085" />
                 </TouchableOpacity>
               )}
 
               {/* Banner de previsualizacion de mapa si hay coordenadas */}
               {hasCoords ? (
                 <TouchableOpacity onPress={openMap} style={styles.mapPreview}>
-                  <Icon name="map" size={14} color={apple.colors.blue} />
+                  <Icon name="map-marker" size={14} color="#EE272D" />
                   <Text style={styles.mapText}>
-                    Ver ubicación de venta ({Number(coords.lat).toFixed(4)}, {Number(coords.lng).toFixed(4)})
+                    Ver ubicación GPS ({Number(coords.lat).toFixed(4)}, {Number(coords.lng).toFixed(4)})
                   </Text>
-                  <Icon name="external-link" size={12} color={apple.colors.blue} />
+                  <Icon name="external-link" size={12} color="#EE272D" />
                 </TouchableOpacity>
               ) : (
                 <View style={styles.mapEmptyPreview}>
-                  <Icon name="map-marker" size={13} color={apple.colors.tertiaryLabel} />
+                  <Icon name="map-marker" size={13} color="#98A2B3" />
                   <Text style={styles.mapEmptyText}>Sin coordenadas GPS registradas</Text>
                 </View>
               )}
 
               <View style={styles.clientMeta}>
                 <Text style={styles.metaText}>
-                  Doc: {client?.documento || '—'} • Alias: {client?.alias || '—'} • Cuotas: {cuotas.length}
+                  Doc: {client?.documento || '—'} • Alias: {client?.alias || '—'} • Total cuotas: {cuotas.length}
                 </Text>
               </View>
-            </AppleCard>
+            </View>
 
             {/* Tabla cuotas */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>CUOTAS</Text>
-              <Text style={styles.sectionCount}>{cuotas.length}</Text>
+              <Text style={styles.sectionTitle}>TABLA DE CUOTAS</Text>
+              <View style={styles.countPill}>
+                <Text style={styles.sectionCountText}>{cuotas.length}</Text>
+              </View>
             </View>
-            <AppleCard bordered={false} shadow={false} style={{ padding: 0, overflow: 'hidden', borderWidth: 0 }}>
+            <View style={styles.tableCardContainer}>
               <View style={styles.tableHead}>
                 <Text style={[styles.th, { flex: 0.6 }]}>#</Text>
                 <Text style={[styles.th, { flex: 1.4 }]}>VENCIMIENTO</Text>
@@ -579,7 +583,7 @@ export default function CreditDetail({ route, navigation }) {
                       <Text style={[styles.td, { flex: 1.4 }]}>
                         {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString() : '—'}
                       </Text>
-                      <Text style={[styles.td, { flex: 1.2, textAlign: 'right', fontWeight: '600' }]}>
+                      <Text style={[styles.td, { flex: 1.2, textAlign: 'right', fontWeight: '700', color: '#1E1E1F' }]}>
                         {FormatMoneyDecimales(item.monto)}
                       </Text>
                       <View style={{ flex: 1.2, alignItems: 'center' }}>
@@ -590,7 +594,7 @@ export default function CreditDetail({ route, navigation }) {
                   ItemSeparatorComponent={() => <View style={styles.sep} />}
                 />
               )}
-            </AppleCard>
+            </View>
           </ScrollView>
         </View>
 
@@ -603,14 +607,16 @@ export default function CreditDetail({ route, navigation }) {
         <View style={styles.blockTwoWrapper}>
           <View style={styles.blockTwoHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon name="history" size={13} color={apple.colors.blue} />
+              <Icon name="history" size={14} color="#EE272D" />
               <Text style={styles.sectionTitle}>HISTORIAL DE PAGOS</Text>
             </View>
-            <Text style={styles.sectionCount}>
-              {pagos.length} • {FormatMoneyDecimales(totalPagado)}
-            </Text>
+            <View style={styles.totalPagosBadge}>
+              <Text style={styles.totalPagosText}>
+                {pagos.length} • {FormatMoneyDecimales(totalPagado)}
+              </Text>
+            </View>
           </View>
-          <AppleCard bordered={false} shadow={false} style={{ flex: 1, padding: 0, overflow: 'hidden', borderWidth: 0 }}>
+          <View style={[styles.tableCardContainer, { flex: 1 }]}>
             <View style={styles.tableHead}>
               <Text style={[styles.th, { flex: 1 }]}>FECHA</Text>
               <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>MONTO</Text>
@@ -619,7 +625,7 @@ export default function CreditDetail({ route, navigation }) {
             </View>
             {pagos.length === 0 ? (
               <View style={{ padding: 24, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="money" size={24} color={apple.colors.tertiaryLabel} />
+                <Icon name="money" size={24} color="#98A2B3" />
                 <Text style={styles.emptyTable}>Sin pagos registrados aún</Text>
               </View>
             ) : (
@@ -631,13 +637,13 @@ export default function CreditDetail({ route, navigation }) {
                 keyExtractor={i => String(i.id)}
                 renderItem={({ item }) => (
                   <View style={styles.tr}>
-                    <Text style={[styles.td, { flex: 1 }]}>
+                    <Text style={[styles.td, { flex: 1, color: '#1E1E1F' }]}>
                       {item.payment_date ? new Date(item.payment_date).toLocaleDateString() : new Date(item.created_at || Date.now()).toLocaleDateString()}
                     </Text>
-                    <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: '700', color: apple.colors.success }]}>
+                    <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: '700', color: '#10B981' }]}>
                       {FormatMoneyDecimales(item.amount)}
                     </Text>
-                    <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>
+                    <Text style={[styles.td, { flex: 0.8, textAlign: 'center', color: '#667085', fontSize: 12 }]}>
                       {(item.method || '—').toUpperCase()}
                     </Text>
                     <TouchableOpacity
@@ -645,7 +651,7 @@ export default function CreditDetail({ route, navigation }) {
                       onPress={() => handleOpenPaymentReceipt(item)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Icon name="file-text-o" size={14} color={apple.colors.blue} />
+                      <Icon name="file-text-o" size={13} color="#EE272D" />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -653,7 +659,7 @@ export default function CreditDetail({ route, navigation }) {
                 contentContainerStyle={{ paddingBottom: 16 }}
               />
             )}
-          </AppleCard>
+          </View>
         </View>
       </View>
 
@@ -674,14 +680,14 @@ export default function CreditDetail({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: apple.colors.bgGrouped },
+  root: { flex: 1, backgroundColor: '#F8F9FB' },
   twoBlockContainer: {
     flex: 1,
     flexDirection: 'column',
   },
   blockOneWrapper: {
     flex: 1.15,
-    backgroundColor: apple.colors.bgGrouped,
+    backgroundColor: '#F8F9FB',
   },
   blockOneScroll: {
     flex: 1,
@@ -691,11 +697,11 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   blockDivider: {
-    height: 12,
-    backgroundColor: '#E5E5EA',
-    borderTopWidth: 0.5,
-    borderBottomWidth: 0.5,
-    borderColor: apple.colors.separator,
+    height: 10,
+    backgroundColor: '#F2F4F8',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#EAECF0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -703,13 +709,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#C7C7CC',
+    backgroundColor: '#D0D5DD',
   },
   blockTwoWrapper: {
     flex: 1,
-    backgroundColor: apple.colors.bgGrouped,
+    backgroundColor: '#F8F9FB',
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 10,
     paddingBottom: 12,
   },
   blockTwoHeader: {
@@ -717,113 +723,181 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 8, color: apple.colors.secondaryLabel },
+  loadingText: { marginTop: 8, color: '#667085', fontSize: 13 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: apple.colors.card,
-    borderBottomWidth: 0.5,
-    borderColor: apple.colors.separator,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderColor: '#EAECF0',
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  backText: { color: apple.colors.blue, fontSize: 15 },
-  headerTitle: { fontSize: 15, fontWeight: '600', color: apple.colors.label, flex: 1, textAlign: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  backText: { color: '#EE272D', fontSize: 15, fontWeight: '700' },
+  headerTitle: { fontSize: 16, fontWeight: '800', color: '#1E1E1F', flex: 1, textAlign: 'center' },
+  cardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    padding: 14,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#101828',
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+  },
   clientHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 36, height: 36, borderRadius: apple.radius.l, backgroundColor: apple.colors.blue, alignItems: 'center', justifyContent: 'center' },
-  clientName: { fontSize: 16, fontWeight: '700', color: apple.colors.label },
-  clientSub: { fontSize: 12, color: apple.colors.secondaryLabel, marginTop: 1 },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#EE272D', alignItems: 'center', justifyContent: 'center' },
+  clientName: { fontSize: 16, fontWeight: '800', color: '#1E1E1F' },
+  clientSub: { fontSize: 12, color: '#667085', marginTop: 1 },
   gpsBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: apple.radius.l,
-    borderWidth: 1.2,
-    borderColor: apple.colors.blue,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
+  },
+  gpsBtnActive: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  gpsBtnInactive: {
+    backgroundColor: '#F1F3F7',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   summaryRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  summaryBox: { flex: 1, backgroundColor: apple.colors.fill, borderRadius: apple.radius.m, padding: 10, alignItems: 'center' },
-  summaryLabel: { fontSize: 10, fontWeight: '700', color: apple.colors.secondaryLabel, letterSpacing: 0.5 },
-  summaryVal: { fontSize: 13, fontWeight: '800', color: apple.colors.label, marginTop: 3 },
+  summaryBox: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    overflow: 'hidden',
+    padding: 10,
+    alignItems: 'center',
+  },
+  summaryLabel: { fontSize: 10, fontWeight: '700', color: '#667085', letterSpacing: 0.5 },
+  summaryVal: { fontSize: 13, fontWeight: '800', color: '#1E1E1F', marginTop: 3 },
   mapPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     marginTop: 10,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#DBEAFE',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: apple.radius.m,
+    borderColor: '#FECACA',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
-  mapText: { flex: 1, fontSize: 12, fontWeight: '600', color: apple.colors.blue },
+  mapText: { flex: 1, fontSize: 12, fontWeight: '700', color: '#EE272D' },
   mapEmptyPreview: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginTop: 8,
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: apple.radius.m,
+    paddingVertical: 7,
+    borderRadius: 10,
   },
-  mapEmptyText: { fontSize: 11, color: apple.colors.tertiaryLabel, fontStyle: 'italic' },
+  mapEmptyText: { fontSize: 11, color: '#98A2B3', fontStyle: 'italic' },
   clientMeta: { marginTop: 8 },
-  metaText: { fontSize: 11, color: apple.colors.tertiaryLabel },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 6, paddingHorizontal: 4 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: apple.colors.secondaryLabel, letterSpacing: 0.5 },
-  sectionCount: { fontSize: 11, color: apple.colors.tertiaryLabel, backgroundColor: apple.colors.fill, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
-  tableHead: { flexDirection: 'row', backgroundColor: apple.colors.fill, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 0.5, borderColor: apple.colors.separator },
-  th: { fontSize: 10, fontWeight: '700', color: apple.colors.secondaryLabel, letterSpacing: 0.5 },
+  metaText: { fontSize: 11, color: '#8E8E93' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, marginBottom: 8, paddingHorizontal: 2 },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: '#667085', letterSpacing: 0.5 },
+  countPill: { backgroundColor: '#F1F3F7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  sectionCountText: { fontSize: 11, fontWeight: '700', color: '#667085' },
+  totalPagosBadge: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  totalPagosText: { fontSize: 11, fontWeight: '700', color: '#059669' },
+  tableCardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#101828',
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
+  },
+  tableHead: { flexDirection: 'row', backgroundColor: '#F8F9FA', paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderColor: '#EAECF0' },
+  th: { fontSize: 10, fontWeight: '700', color: '#667085', letterSpacing: 0.5 },
   tr: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
-  td: { fontSize: 13, color: apple.colors.label },
-  sep: { height: 0.5, backgroundColor: apple.colors.separator, marginLeft: 12 },
-  emptyTable: { textAlign: 'center', padding: 16, color: apple.colors.tertiaryLabel, fontSize: 13 },
-  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
-  badgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+  td: { fontSize: 13, color: '#1E1E1F' },
+  sep: { height: 1, backgroundColor: '#EAECF0', marginLeft: 12 },
+  emptyTable: { textAlign: 'center', padding: 16, color: '#98A2B3', fontSize: 13 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  badgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
 
-  // Tarjeta de Renovacion (Requisito 10)
+  // Tarjeta de Renovacion
   renewalCard: {
     backgroundColor: '#ECFDF5',
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: '#A7F3D0',
-    borderRadius: apple.radius.l,
+    borderRadius: 14,
+    overflow: 'hidden',
     padding: 14,
     marginBottom: 12,
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
   renewalCardHeader: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   renewalCardIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#D1FAE5',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  renewalCardTitle: { fontSize: 14, fontWeight: '700', color: '#065F46' },
+  renewalCardTitle: { fontSize: 14, fontWeight: '800', color: '#065F46' },
   renewalCardSub: { fontSize: 12, color: '#047857', marginTop: 2, lineHeight: 16 },
   renewalBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#059669',
-    borderRadius: apple.radius.m,
+    backgroundColor: '#10B981',
+    borderRadius: 10,
+    overflow: 'hidden',
     paddingVertical: 10,
     marginTop: 12,
-    shadowColor: '#059669',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#10B981',
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   renewalBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   financialParamRow: {
@@ -835,8 +909,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
     borderWidth: 1,
-    borderColor: '#E8EAED',
-    borderRadius: apple.radius.m,
+    borderColor: '#EAECF0',
+    borderRadius: 10,
     paddingVertical: 6,
     paddingHorizontal: 8,
     alignItems: 'center',
@@ -844,13 +918,13 @@ const styles = StyleSheet.create({
   paramLabel: {
     fontSize: 9,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: '#667085',
     letterSpacing: 0.3,
   },
   paramVal: {
     fontSize: 12,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: '#1E1E1F',
     marginTop: 2,
   },
   advancePaymentNotice: {
@@ -862,7 +936,7 @@ const styles = StyleSheet.create({
     borderColor: '#A7F3D0',
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: apple.radius.m,
+    borderRadius: 10,
     marginTop: 8,
   },
   advancePaymentText: {
@@ -874,12 +948,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F8F9FA',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#EAECF0',
     paddingVertical: 9,
     paddingHorizontal: 12,
-    borderRadius: apple.radius.m,
+    borderRadius: 10,
     marginTop: 8,
   },
   docEvidenceLeft: {
@@ -890,15 +964,15 @@ const styles = StyleSheet.create({
   docEvidenceText: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: '#1E1E1F',
   },
   paymentReceiptIconBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F0F7FF',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#D0E4FF',
+    borderColor: '#FECACA',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 4,

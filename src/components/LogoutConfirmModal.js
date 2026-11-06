@@ -39,7 +39,7 @@ export default function LogoutConfirmModal({
       <View style={styles.logoutSheet}>
         <View style={styles.logoutHandle} />
         <View style={styles.logoutIcon}>
-          <Icon name="sign-out" size={22} color={apple.colors.danger} />
+          <Icon name="sign-out" size={22} color="#EE272D" />
         </View>
         <Text style={styles.logoutTitle}>{title}</Text>
         <Text style={styles.logoutSub}>{subtitle}</Text>
@@ -73,7 +73,9 @@ export default function LogoutConfirmModal({
 const styles = StyleSheet.create({
   logoutSheet: {
     backgroundColor: '#FFFFFF',
-    borderRadius: apple.radius.xl,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     padding: 20,
     paddingBottom: 24,
   },
@@ -81,7 +83,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: '#D0D5DD',
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -89,23 +91,23 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FFEBEE',
+    backgroundColor: '#FEF2F2',
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#FFD4D4',
+    borderColor: '#FECACA',
   },
   logoutTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1D1D1F',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1E1E1F',
     textAlign: 'center',
   },
   logoutSub: {
     fontSize: 13,
-    color: '#8E8E93',
+    color: '#667085',
     textAlign: 'center',
     marginTop: 6,
     paddingHorizontal: 12,
@@ -118,22 +120,24 @@ const styles = StyleSheet.create({
   logoutCancel: {
     flex: 1,
     height: 46,
-    borderRadius: apple.radius.m,
-    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#F1F3F7',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0.5,
-    borderColor: '#E5E5EA',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   logoutCancelText: {
-    fontWeight: '600',
-    color: '#1D1D1F',
+    fontWeight: '700',
+    color: '#1E1E1F',
   },
   logoutConfirm: {
     flex: 1,
     height: 46,
-    borderRadius: apple.radius.m,
-    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#EE272D',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 import { getDbConnection, getData } from '../../database/db';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
@@ -29,6 +30,8 @@ import { useAuth } from '../../context/AuthContext';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
 import { AppleButton } from '../../components/AppleButton';
+import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
+import { SkeletonCaja } from '../../components/Skeleton';
 import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { clearOnlyPendingSync } from '../../utils/clearLocal';
@@ -353,9 +356,14 @@ export default function CajaScreen() {
 
   if (loading && !caja && movimientos.length === 0 && historial.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={apple.colors.blue} />
-      </View>
+      <SafeAreaView style={styles.root}>
+      <AppBackground />
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Caja</Text>
+          <Text style={styles.headerSub}>{profile?.nombre || 'Usuario'} · {profile?.rol || ''}</Text>
+        </View>
+        <SkeletonCaja />
+      </SafeAreaView>
     );
   }
 
@@ -371,12 +379,15 @@ export default function CajaScreen() {
         <Text style={styles.headerSub}>{profile?.nombre || 'Usuario'} · {profile?.rol || ''}</Text>
       </View>
 
-      <View style={styles.segment}>
-        {['actual', 'historial'].map(t => (
-          <TouchableOpacity key={t} onPress={() => setTab(t)} style={[styles.segOpt, tab === t && styles.segActive]}>
-            <Text style={[styles.segText, tab === t && styles.segTextActive]}>{t === 'actual' ? 'Actual' : 'Historial'}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
+        <AnimatedSegmentedControl
+          options={[
+            { key: 'actual', label: 'Actual' },
+            { key: 'historial', label: 'Historial' },
+          ]}
+          selectedKey={tab}
+          onChange={(t) => setTab(t)}
+        />
       </View>
 
       <TouchableOpacity

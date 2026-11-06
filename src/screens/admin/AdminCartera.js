@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminCartera.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -12,12 +13,14 @@ import {
   TouchableOpacity,
   Alert,
   BackHandler,
+  Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import { getCarteraSummary } from '../../services/adminService';
 import { CarteraUserCard } from './components/CarteraUserCard';
@@ -123,6 +126,7 @@ export default function AdminCartera() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -137,7 +141,7 @@ export default function AdminCartera() {
           onPress={() => setShowLogout(true)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Icon name="sign-out" size={17} color={apple.colors.danger} />
+          <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -164,7 +168,7 @@ export default function AdminCartera() {
 
         <View style={styles.globalSubRow}>
           <Text style={styles.globalSubLabel}>Total Vencido en Mora:</Text>
-          <Text style={[styles.globalSubVal, { color: apple.colors.danger }]}>
+          <Text style={[styles.globalSubVal, { color: '#F87171' }]}>
             {formatMoney(totalVencido)}
           </Text>
         </View>
@@ -172,28 +176,28 @@ export default function AdminCartera() {
 
       {/* Buscador de Vendedor (Requisito 3) */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={14} color={apple.colors.tertiaryLabel} style={styles.searchIcon} />
+        <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar por nombre de vendedor..."
-          placeholderTextColor={apple.colors.tertiaryLabel}
+          placeholder="Buscar por nombre de usuario..."
+          placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
           clearButtonMode="while-editing"
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+            <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Lista por Vendedores */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
-        </View>
-      ) : (
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <SkeletonList count={5} Component={SkeletonCarteraCard} />
+          </View>
+        ) : (
         <FlatList
           data={filteredSummary}
           keyExtractor={(item) => String(item.usuario_id || item.id)}
@@ -206,17 +210,17 @@ export default function AdminCartera() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="briefcase" size={48} color={apple.colors.tertiaryLabel} />
+              <Icon name="briefcase" size={44} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>
                 {search ? 'Sin coincidencias' : 'Sin créditos registrados'}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {search
-                  ? `No se encontraron vendedores que coincidan con "${search}"`
-                  : 'No hay cartera registrada en tus subordinados'}
+                  ? `No se encontraron usuarios que coincidan con "${search}"`
+                  : 'No hay cartera registrada en este nivel jerárquico'}
               </Text>
             </View>
           }
@@ -234,44 +238,57 @@ export default function AdminCartera() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.xs,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   headerLogoutBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#FFEBEA',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     justifyContent: 'center',
     alignItems: 'center',
-    ...apple.shadow.subtle,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   globalCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: apple.radius.m,
-    marginHorizontal: apple.spacing.l,
-    marginTop: apple.spacing.m,
-    marginBottom: apple.spacing.s,
-    padding: apple.spacing.l,
-    ...apple.shadow.elevated,
+    backgroundColor: zendapp.colors.carbon,
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2D2D2E',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   globalRow: {
     flexDirection: 'row',
@@ -279,23 +296,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   globalLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-    fontWeight: '600',
+    fontSize: 11,
+    color: '#98A2B3',
+    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   globalTotal: {
-    fontSize: 24,
+    fontSize: 25,
     fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 4,
   },
   globalBadge: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(238, 39, 45, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(238, 39, 45, 0.35)',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: apple.radius.pill,
+    paddingVertical: 4,
+    borderRadius: 20,
   },
   globalBadgeText: {
     color: '#FFFFFF',
@@ -303,8 +322,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   globalDivider: {
-    height: 0.5,
-    backgroundColor: '#38383A',
+    height: 1,
+    backgroundColor: '#2D2D2E',
     marginVertical: 12,
   },
   globalSubRow: {
@@ -314,7 +333,7 @@ const styles = StyleSheet.create({
   },
   globalSubLabel: {
     fontSize: 13,
-    color: '#AEAEC2',
+    color: '#98A2B3',
   },
   globalSubVal: {
     fontSize: 14,
@@ -323,15 +342,14 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
-    marginHorizontal: apple.spacing.l,
-    marginVertical: apple.spacing.s,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    marginHorizontal: 16,
+    marginVertical: 8,
     paddingHorizontal: 12,
-    height: 40,
-    ...apple.shadow.subtle,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    height: 42,
   },
   searchIcon: {
     marginRight: 8,
@@ -339,11 +357,11 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
-    paddingBottom: apple.spacing.xl,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   centerContainer: {
     flex: 1,
@@ -358,12 +376,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 4,
+    textAlign: 'center',
   },
 });

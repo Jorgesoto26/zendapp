@@ -1,8 +1,8 @@
 // src/screens/admin/components/CarteraUserCard.js
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -33,7 +33,7 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
       <View style={styles.header}>
         <View style={styles.userTitleRow}>
           <View style={[styles.avatarBadge, isAdmin ? styles.avatarAdmin : styles.avatarVendedor]}>
-            <Icon name={isAdmin ? 'shield' : 'user'} size={15} color={isAdmin ? '#5856D6' : apple.colors.blue} />
+            <Icon name={isAdmin ? 'shield' : 'user'} size={15} color={isAdmin ? '#5856D6' : zendapp.colors.primary} />
           </View>
           <View style={{ marginLeft: 10, flex: 1 }}>
             <Text style={styles.userName} numberOfLines={1}>
@@ -47,7 +47,7 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
               </View>
               {hasTeam ? (
                 <View style={styles.teamBadge}>
-                  <Icon name="users" size={10} color="#5856D6" style={{ marginRight: 3 }} />
+                  <Icon name="users" size={10} color={zendapp.colors.carbon} style={{ marginRight: 3 }} />
                   <Text style={styles.teamBadgeText}>
                     {item.cantidad_subordinados || 0} a cargo
                   </Text>
@@ -61,8 +61,8 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={[styles.statusDot, { backgroundColor: isActive ? apple.colors.success : apple.colors.danger }]} />
-          <Icon name="chevron-right" size={13} color={apple.colors.tertiaryLabel} style={{ marginLeft: 10 }} />
+          <View style={[styles.statusDot, { backgroundColor: isActive ? zendapp.colors.success : zendapp.colors.danger }]} />
+          <Icon name="chevron-right" size={12} color={zendapp.colors.textMuted} style={{ marginLeft: 10 }} />
         </View>
       </View>
 
@@ -75,7 +75,7 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
             <View style={styles.hierarchyIconCircle}>
-              <Icon name="sitemap" size={12} color="#5856D6" />
+              <Icon name="sitemap" size={12} color={zendapp.colors.primary} />
             </View>
             <View style={{ marginLeft: 8, flex: 1 }}>
               <Text style={styles.hierarchyTitle}>Ver cartera del equipo</Text>
@@ -88,7 +88,7 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
           </View>
           <View style={styles.hierarchyArrow}>
             <Text style={styles.hierarchyActionText}>Explorar</Text>
-            <Icon name="chevron-right" size={11} color="#5856D6" style={{ marginLeft: 4 }} />
+            <Icon name="chevron-right" size={10} color={zendapp.colors.primary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
       )}
@@ -103,7 +103,7 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
         </View>
         <View style={styles.metricItem}>
           <Text style={styles.metricLabel}>Cuota Periódica</Text>
-          <Text style={[styles.metricVal, { color: apple.colors.blue }]}>
+          <Text style={[styles.metricVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(item.valor_cuota_periodica)}
           </Text>
         </View>
@@ -112,7 +112,7 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
       <View style={[styles.metricRow, { marginTop: 8 }]}>
         <View style={styles.metricItem}>
           <Text style={styles.metricLabel}>Saldo Vencido</Text>
-          <Text style={[styles.metricVal, { color: apple.colors.danger }]}>
+          <Text style={[styles.metricVal, { color: zendapp.colors.danger }]}>
             {formatMoney(item.saldo_vencido)}
           </Text>
         </View>
@@ -132,12 +132,24 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
-    padding: apple.spacing.m,
-    marginBottom: apple.spacing.m,
-    ...apple.shadow.card,
-    ...apple.border.card,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   header: {
     flexDirection: 'row',
@@ -160,20 +172,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EFFF',
   },
   avatarVendedor: {
-    backgroundColor: apple.colors.blueLight,
+    backgroundColor: '#FEECEC',
   },
   userName: {
     fontSize: 15,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   creditsCount: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginLeft: 8,
   },
   badge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
@@ -181,7 +193,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EFFF',
   },
   badgeVendedor: {
-    backgroundColor: apple.colors.blueLight,
+    backgroundColor: '#FEECEC',
   },
   badgeText: {
     fontSize: 9,
@@ -191,7 +203,7 @@ const styles = StyleSheet.create({
     color: '#5856D6',
   },
   badgeTextVendedor: {
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   statusDot: {
     width: 8,
@@ -199,8 +211,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   divider: {
-    height: 0.5,
-    backgroundColor: apple.colors.separator,
+    height: 1,
+    backgroundColor: '#EAECF0',
     marginVertical: 10,
   },
   metricRow: {
@@ -212,38 +224,42 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginBottom: 2,
   },
   metricVal: {
     fontSize: 13,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   totalBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
     marginTop: 12,
   },
   totalBannerLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   totalBannerVal: {
     fontSize: 14,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   teamBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0EFFF',
+    backgroundColor: '#F1F3F7',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -252,37 +268,37 @@ const styles = StyleSheet.create({
   teamBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#5856D6',
+    color: zendapp.colors.carbon,
   },
   btnHierarchy: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8F8FD',
+    backgroundColor: '#F8F9FA',
     borderWidth: 1,
-    borderColor: '#E4E2F8',
-    borderRadius: apple.radius.s,
+    borderColor: '#EAECF0',
+    borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    marginTop: 8,
+    marginTop: 10,
     marginBottom: 4,
   },
   hierarchyIconCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#EAE8FC',
+    backgroundColor: '#FEECEC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   hierarchyTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#3B3988',
+    color: zendapp.colors.carbon,
   },
   hierarchySubtitle: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 1,
   },
   hierarchyArrow: {
@@ -292,12 +308,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D4D2F2',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   hierarchyActionText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#5856D6',
+    color: zendapp.colors.primary,
   },
 });

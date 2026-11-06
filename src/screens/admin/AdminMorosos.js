@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminMorosos.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -11,10 +12,12 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
+import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { appAlert } from '../../components/AppAlert';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { useAuth } from '../../context/AuthContext';
@@ -110,6 +113,7 @@ export default function AdminMorosos() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -123,11 +127,11 @@ export default function AdminMorosos() {
             <Text style={styles.badgeTopText}>{items.length} en mora</Text>
           </View>
           <TouchableOpacity
+            style={styles.headerLogoutBtn}
             onPress={() => setShowLogout(true)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{ padding: 6 }}
           >
-            <Icon name="sign-out" size={20} color={apple.colors.secondaryLabel} />
+            <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -145,27 +149,27 @@ export default function AdminMorosos() {
 
       {/* Buscador */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={14} color={apple.colors.tertiaryLabel} style={styles.searchIcon} />
+        <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar por cliente o vendedor..."
-          placeholderTextColor={apple.colors.tertiaryLabel}
+          placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+            <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Lista de Morosos */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
-        </View>
-      ) : (
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <SkeletonList count={5} Component={SkeletonCarteraCard} />
+          </View>
+        ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.invoice_id}
@@ -177,7 +181,7 @@ export default function AdminMorosos() {
                     {item.nombre_cliente} {item.apellido_cliente || ''}
                   </Text>
                   <Text style={styles.vendedorText}>
-                    Vendedor: <Text style={{ fontWeight: '600', color: apple.colors.label }}>{item.nombre_vendedor}</Text>
+                    Vendedor: <Text style={{ fontWeight: '600', color: zendapp.colors.carbon }}>{item.nombre_vendedor}</Text>
                   </Text>
                 </View>
                 <View style={styles.moraWrap}>
@@ -195,7 +199,7 @@ export default function AdminMorosos() {
                 </View>
                 <View style={styles.gridItem}>
                   <Text style={styles.gridLabel}>Cuotas Vencidas</Text>
-                  <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
+                  <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
                     {item.cuotas_vencidas} de {item.cuotas_totales}
                   </Text>
                 </View>
@@ -211,7 +215,7 @@ export default function AdminMorosos() {
                   style={styles.btnCastigar}
                   onPress={() => handleCastigar(item)}
                 >
-                  <Icon name="ban" size={12} color={apple.colors.danger} />
+                  <Icon name="ban" size={12} color={zendapp.colors.primary} />
                   <Text style={styles.btnCastigarText}>Castigar Cartera</Text>
                 </TouchableOpacity>
 
@@ -220,17 +224,17 @@ export default function AdminMorosos() {
                   onPress={() => handleOpenCredit(item)}
                 >
                   <Text style={styles.btnVerText}>Ver Crédito</Text>
-                  <Icon name="arrow-right" size={12} color={apple.colors.blue} style={{ marginLeft: 4 }} />
+                  <Icon name="arrow-right" size={12} color={zendapp.colors.primary} style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               </View>
             </View>
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="check-circle" size={48} color={apple.colors.success} />
+              <Icon name="check-circle" size={48} color={zendapp.colors.success} />
               <Text style={styles.emptyTitle}>Excelente: sin cartera morosa</Text>
               <Text style={styles.emptySubtitle}>No se registran créditos con cuotas vencidas</Text>
             </View>
@@ -249,64 +253,87 @@ export default function AdminMorosos() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.xs,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   badgeTop: {
-    backgroundColor: '#FFEBEA',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: apple.radius.pill,
+    borderRadius: 14,
   },
   badgeTopText: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.danger,
+    color: zendapp.colors.primary,
+  },
+  headerLogoutBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D70015',
-    borderRadius: apple.radius.m,
-    marginHorizontal: apple.spacing.l,
-    marginVertical: apple.spacing.m,
-    padding: apple.spacing.m,
-    ...apple.shadow.elevated,
+    backgroundColor: zendapp.colors.primary,
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginVertical: 10,
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: zendapp.colors.primary,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   bannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   bannerLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '700',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   bannerVal: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 2,
@@ -314,15 +341,14 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
-    marginHorizontal: apple.spacing.l,
-    marginBottom: apple.spacing.m,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    marginHorizontal: 16,
+    marginBottom: 10,
     paddingHorizontal: 12,
-    height: 40,
-    ...apple.shadow.subtle,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    height: 42,
   },
   searchIcon: {
     marginRight: 8,
@@ -330,19 +356,30 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
-    paddingBottom: apple.spacing.xl,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   card: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
-    padding: apple.spacing.m,
-    marginBottom: apple.spacing.m,
-    ...apple.shadow.card,
-    ...apple.border.card,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -352,11 +389,11 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 15,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   vendedorText: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   moraWrap: {
@@ -365,23 +402,26 @@ const styles = StyleSheet.create({
   moraVal: {
     fontSize: 16,
     fontWeight: '800',
-    color: apple.colors.danger,
+    color: zendapp.colors.primary,
   },
   moraLabel: {
     fontSize: 10,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
+    marginTop: 1,
   },
   divider: {
-    height: 0.5,
-    backgroundColor: apple.colors.separator,
+    height: 1,
+    backgroundColor: '#EAECF0',
     marginVertical: 10,
   },
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
-    padding: 8,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    padding: 10,
   },
   gridItem: {
     flex: 1,
@@ -389,44 +429,50 @@ const styles = StyleSheet.create({
   },
   gridLabel: {
     fontSize: 10,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
+    fontWeight: '600',
     marginBottom: 2,
   },
   gridVal: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#EAECF0',
   },
   btnCastigar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#FFEBEA',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   btnCastigarText: {
     fontSize: 11,
     fontWeight: '700',
-    color: apple.colors.danger,
-    marginLeft: 4,
+    color: zendapp.colors.primary,
+    marginLeft: 5,
   },
   btnVer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: 6,
     paddingHorizontal: 8,
   },
   btnVerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: apple.colors.blue,
+    fontSize: 12,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
   },
   centerContainer: {
     flex: 1,
@@ -441,12 +487,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 4,
+    textAlign: 'center',
   },
 });

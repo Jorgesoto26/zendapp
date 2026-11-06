@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, FlatList, TextInput, ActivityIndicator, TouchableOpacity, Animated, BackHandler, Alert, RefreshControl, Dimensions, Platform, Image } from 'react-native';
 import { useFocusEffect, useNavigation, useNavigationState } from '@react-navigation/native';
@@ -9,6 +10,7 @@ import { getData, getDbConnection } from '../../database/db';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { FormatMoneyDecimales } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
 import { getCajaActual, cerrarCaja } from '../../services/cajaService';
@@ -18,6 +20,8 @@ import { getInvoice } from '../../services/services';
 import { supabase } from '../../lib/supabase';
 import { getSignedUrl } from '../../services/multimediaService';
 import PaymentReceiptModal from '../../components/PaymentReceiptModal';
+import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
+import { SkeletonList, SkeletonPaymentCard } from '../../components/Skeleton';
 
 const mapPaymentType = (id) => ({ 1: 'MENSUAL', 2: 'SEMANAL', 3: 'QUINCENAL' }[id] || '—');
 const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
@@ -146,7 +150,6 @@ export default function Payments() {
   const [refreshing, setRefreshing] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [segmentWidth, setSegmentWidth] = useState(0);
   const [orgLogo, setOrgLogo] = useState(null);
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
   const [activeReceipt, setActiveReceipt] = useState(null);
@@ -156,22 +159,12 @@ export default function Payments() {
     setReceiptModalVisible(true);
   }, []);
 
-  // Animaciones 100% nativas en GPU (0 lag, 0 consumo innecesario)
-  const slideAnim = useRef(new Animated.Value(0)).current; // 0 = pendiente, 1 = tramitados
+  // Animación suave de transición de lista
   const listOpacity = useRef(new Animated.Value(1)).current;
 
   const handleTabChange = (pending) => {
     if (showPending === pending) return;
 
-    // 1. Mover indicador con resorte nativo en GPU (100% fluido)
-    Animated.spring(slideAnim, {
-      toValue: pending ? 0 : 1,
-      useNativeDriver: true,
-      friction: 9,
-      tension: 65,
-    }).start();
-
-    // 2. Transición suave y estable de la lista sin parpadeos ni tirones
     listOpacity.setValue(0.75);
     Animated.timing(listOpacity, {
       toValue: 1,
@@ -271,13 +264,7 @@ export default function Payments() {
 
   const filteredClients = useMemo(() => clients.filter(c => (showPending ? (c.estadoMovil === 'pendiente' && c.saldo > 0 && c.estadoPago !== 'cancel') : (c.tipoTramitado != null || c.estadoMovil === 'actualizado')) && c.name.toLowerCase().includes(searchText.toLowerCase())), [clients, showPending, searchText]);
 
-  // Interpolación de posición para el fondo animado del segment (acelerado por GPU)
-  const screenWidth = Dimensions.get('window').width;
-  const tabWidth = segmentWidth > 0 ? (segmentWidth - 6) / 2 : (screenWidth - 32 - 6) / 2;
-  const segTranslateX = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, tabWidth],
-  });
+  
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -318,6 +305,7 @@ export default function Payments() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header integrado estilo compacto con Visitas y Recaudo al lado derecho */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -326,7 +314,7 @@ export default function Payments() {
               {orgLogo ? (
                 <Image
                   source={{ uri: orgLogo }}
-                  style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', borderWidth: 0.5, borderColor: '#ddd' }}
+                  style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#EAECF0' }}
                   resizeMode="contain"
                 />
               ) : null}
@@ -339,18 +327,18 @@ export default function Payments() {
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 {refreshing ? (
-                  <ActivityIndicator size="small" color={apple.colors.blue} />
+                  <ActivityIndicator size="small" color={zendapp.colors.primary} />
                 ) : (
-                  <Icon name="refresh" size={14} color={apple.colors.blue} />
+                  <Icon name="refresh" size={13} color={zendapp.colors.carbon} />
                 )}
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowLogout(true)}
-                style={styles.syncBtn}
+                style={styles.logoutHeaderBtn}
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Icon name="sign-out" size={14} color={apple.colors.danger} />
+                <Icon name="sign-out" size={13} color={zendapp.colors.primary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.headerSub}>{filteredClients.length} clientes · {showPending ? 'Por visitar' : 'Tramitados'}</Text>
@@ -383,11 +371,11 @@ export default function Payments() {
 
         {/* Search bar compacta */}
         <View style={styles.searchBar}>
-          <Icon name="search" size={13} color={apple.colors.tertiaryLabel} />
+          <Icon name="search" size={13} color={zendapp.colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar cliente"
-            placeholderTextColor={apple.colors.tertiaryLabel}
+            placeholder="Buscar cliente..."
+            placeholderTextColor={zendapp.colors.textMuted}
             value={searchText}
             onChangeText={setSearchText}
             returnKeyType="search"
@@ -395,39 +383,36 @@ export default function Payments() {
           />
           {searchText.length > 0 && (
             <TouchableOpacity onPress={() => setSearchText('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+              <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
 
         {/* Segmented control con traslación fluida y nativa */}
-        <View
-          style={styles.segment}
-          onLayout={(e) => {
-            const w = e.nativeEvent.layout.width;
-            if (w > 0 && Math.abs(w - segmentWidth) > 1) setSegmentWidth(w);
-          }}
-        >
-          <Animated.View style={[styles.segActiveBg, { width: tabWidth, transform: [{ translateX: segTranslateX }] }]} />
-          <TouchableOpacity activeOpacity={0.7} onPress={() => handleTabChange(true)} style={styles.segOpt}>
-            <Icon name="clock-o" size={12} color={showPending ? apple.colors.label : apple.colors.secondaryLabel} />
-            <Text style={[styles.segText, showPending && styles.segTextActive]}> Por visitar</Text>
-            <View style={[styles.countBadge, showPending && styles.countBadgeActive]}>
-              <Text style={[styles.countText, showPending && styles.countTextActive]}>{clients.filter(c => c.estadoMovil === 'pendiente' && c.saldo > 0).length}</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => handleTabChange(false)} style={styles.segOpt}>
-            <Icon name="check-circle" size={12} color={!showPending ? apple.colors.label : apple.colors.secondaryLabel} />
-            <Text style={[styles.segText, !showPending && styles.segTextActive]}> Tramitados</Text>
-            <View style={[styles.countBadge, !showPending && styles.countBadgeActive]}>
-              <Text style={[styles.countText, !showPending && styles.countTextActive]}>{clients.filter(c => c.estadoMovil === 'actualizado').length}</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+        <AnimatedSegmentedControl
+          options={[
+            {
+              key: 'pendientes',
+              label: 'Por visitar',
+              icon: 'clock-o',
+              badge: clients.filter(c => c.estadoMovil === 'pendiente' && c.saldo > 0).length,
+            },
+            {
+              key: 'tramitados',
+              label: 'Tramitados',
+              icon: 'check-circle',
+              badge: clients.filter(c => c.estadoMovil === 'actualizado').length,
+            },
+          ]}
+          selectedKey={showPending ? 'pendientes' : 'tramitados'}
+          onChange={(key) => handleTabChange(key === 'pendientes')}
+        />
       </View>
 
       {loading && clients.length === 0 ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={apple.colors.blue} /><Text style={styles.loadingText}>Cargando cartera…</Text></View>
+        <View style={{ flex: 1, paddingTop: 6 }}>
+          <SkeletonList count={4} Component={SkeletonPaymentCard} />
+        </View>
       ) : (
         <Animated.View style={{ flex: 1, opacity: listOpacity }}>
           <FlatList
@@ -444,8 +429,8 @@ export default function Payments() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={handleSyncAndRefresh}
-                tintColor={apple.colors.blue}
-                colors={[apple.colors.blue]}
+                tintColor={zendapp.colors.primary}
+                colors={[zendapp.colors.primary]}
               />
             }
             renderItem={({ item }) => (
@@ -479,7 +464,7 @@ export default function Payments() {
             )}
             ListEmptyComponent={
               <View style={styles.empty}>
-                <View style={styles.emptyIcon}><Icon name="search" size={22} color={apple.colors.tertiaryLabel} /></View>
+                <View style={styles.emptyIcon}><Icon name="search" size={22} color={zendapp.colors.border} /></View>
                 <Text style={styles.emptyTitle}>Sin resultados</Text>
                 <Text style={styles.emptySub}>{searchText ? 'Prueba otro término' : showPending ? 'No hay clientes por visitar' : 'No hay tramitados'}</Text>
               </View>
@@ -491,7 +476,7 @@ export default function Payments() {
       <Modal isVisible={showLogout} onBackdropPress={() => setShowLogout(false)} backdropOpacity={0.4} animationIn="slideInUp" animationOut="slideOutDown">
         <View style={styles.logoutSheet}>
           <View style={styles.logoutHandle} />
-          <View style={styles.logoutIcon}><Icon name="sign-out" size={22} color={apple.colors.danger} /></View>
+          <View style={styles.logoutIcon}><Icon name="sign-out" size={22} color={zendapp.colors.primary} /></View>
           <Text style={styles.logoutTitle}>¿Cerrar sesión?</Text>
           <Text style={styles.logoutSub}>Saldrás de tu cuenta y volverás al inicio de sesión.</Text>
           <View style={styles.logoutActions}>
@@ -511,67 +496,87 @@ export default function Payments() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F5F7' },
-  header: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#E8EAED' },
+  root: { flex: 1, backgroundColor: zendapp.colors.bg },
+  header: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#EAECF0' },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   titleSection: { flex: 1 },
-  largeTitle: { fontSize: 26, fontWeight: '800', color: apple.colors.label, letterSpacing: -0.6 },
+  largeTitle: { fontSize: 26, fontWeight: '800', color: zendapp.colors.carbon, letterSpacing: -0.6 },
   syncBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#F0F2F5',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F3F7',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerSub: { fontSize: 12, color: apple.colors.secondaryLabel, marginTop: 1, fontWeight: '500' },
-  headerStats: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F2F5', borderRadius: apple.radius.m, paddingVertical: 6, paddingHorizontal: 10, gap: 10 },
+  logoutHeaderBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSub: { fontSize: 12, color: zendapp.colors.textSecondary, marginTop: 1, fontWeight: '500' },
+  headerStats: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8F9FA', borderRadius: 10, borderWidth: 1, borderColor: '#EAECF0', paddingVertical: 6, paddingHorizontal: 10, gap: 10 },
   statMiniItem: { alignItems: 'flex-start' },
-  statMiniLabel: { fontSize: 9, fontWeight: '700', color: apple.colors.secondaryLabel, letterSpacing: 0.3 },
-  statMiniVal: { fontSize: 12, fontWeight: '700', color: apple.colors.label },
-  statMiniMuted: { fontSize: 10, fontWeight: '500', color: apple.colors.tertiaryLabel },
-  visitasBarBg: { width: 50, height: 3, backgroundColor: '#E2E5EB', borderRadius: 2, overflow: 'hidden', marginTop: 3 },
-  visitasBarFill: { height: '100%', backgroundColor: apple.colors.success, borderRadius: 2 },
-  percentBadge: { backgroundColor: '#E2E5EB', paddingHorizontal: 4, paddingVertical: 0.5, borderRadius: 4 },
-  percentText: { fontSize: 9, fontWeight: '700', color: apple.colors.secondaryLabel },
-  statMiniSep: { width: 1, height: 26, backgroundColor: '#D8DCE3' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F0F2F5', borderRadius: apple.radius.m, paddingHorizontal: 12, height: 36, marginTop: 10 },
-  searchInput: { flex: 1, fontSize: 14, color: apple.colors.label, paddingVertical: 0 },
-  segment: { flexDirection: 'row', backgroundColor: '#F0F2F5', borderRadius: apple.radius.m, padding: 3, marginTop: 10, position: 'relative' },
+  statMiniLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
+  statMiniVal: { fontSize: 12, fontWeight: '800', color: zendapp.colors.carbon },
+  statMiniMuted: { fontSize: 10, fontWeight: '500', color: zendapp.colors.textMuted },
+  visitasBarBg: { width: 50, height: 4, backgroundColor: '#EAECF0', borderRadius: 2, overflow: 'hidden', marginTop: 3 },
+  visitasBarFill: { height: '100%', backgroundColor: zendapp.colors.success, borderRadius: 2 },
+  percentBadge: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  percentText: { fontSize: 9, fontWeight: '700', color: zendapp.colors.success },
+  statMiniSep: { width: 1, height: 26, backgroundColor: '#EAECF0' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F8F9FA', borderRadius: 10, borderWidth: 1, borderColor: '#EAECF0', paddingHorizontal: 12, height: 40, marginTop: 10 },
+  searchInput: { flex: 1, fontSize: 14, color: zendapp.colors.carbon, paddingVertical: 0 },
+  segment: { flexDirection: 'row', backgroundColor: '#F1F3F7', borderRadius: 10, padding: 3, marginTop: 10, position: 'relative' },
   segActiveBg: {
     position: 'absolute',
     top: 3,
     bottom: 3,
     left: 3,
     backgroundColor: '#FFFFFF',
-    borderRadius: 9,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 2,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
-  segOpt: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 6, zIndex: 1 },
-  segText: { fontSize: 12, fontWeight: '600', color: apple.colors.secondaryLabel },
-  segTextActive: { color: apple.colors.label },
-  countBadge: { backgroundColor: '#E2E5EB', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, minWidth: 20, alignItems: 'center' },
-  countBadgeActive: { backgroundColor: apple.colors.label },
-  countText: { fontSize: 10, fontWeight: '700', color: apple.colors.secondaryLabel },
-  countTextActive: { color: '#fff' },
+  segOpt: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 7, zIndex: 1 },
+  segText: { fontSize: 12, fontWeight: '600', color: zendapp.colors.textSecondary },
+  segTextActive: { color: zendapp.colors.carbon, fontWeight: '700' },
+  countBadge: { backgroundColor: '#E4E7EC', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, minWidth: 20, alignItems: 'center' },
+  countBadgeActive: { backgroundColor: zendapp.colors.carbon },
+  countText: { fontSize: 10, fontWeight: '700', color: zendapp.colors.textSecondary },
+  countTextActive: { color: '#FFFFFF' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  loadingText: { marginTop: 10, color: apple.colors.secondaryLabel, fontSize: 13 },
+  loadingText: { marginTop: 10, color: zendapp.colors.textSecondary, fontSize: 13 },
   empty: { alignItems: 'center', padding: 40, marginTop: 12 },
-  emptyIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: apple.colors.fill, borderWidth: 0.5, borderColor: apple.colors.separator, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { marginTop: 12, fontSize: 15, fontWeight: '600', color: apple.colors.label },
-  emptySub: { marginTop: 4, fontSize: 13, color: apple.colors.tertiaryLabel, textAlign: 'center' },
-  logoutSheet: { backgroundColor: '#fff', borderRadius: apple.radius.xl, padding: 20, paddingBottom: 24 },
-  logoutHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: '#E5E5EA', alignSelf: 'center', marginBottom: 16 },
-  logoutIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFEBEE', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#FFD4D4' },
-  logoutTitle: { fontSize: 17, fontWeight: '700', color: '#1D1D1F', textAlign: 'center' },
-  logoutSub: { fontSize: 13, color: '#8E8E93', textAlign: 'center', marginTop: 6, paddingHorizontal: 12 },
+  emptyIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#EAECF0', alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { marginTop: 12, fontSize: 15, fontWeight: '700', color: zendapp.colors.carbon },
+  emptySub: { marginTop: 4, fontSize: 13, color: zendapp.colors.textSecondary, textAlign: 'center' },
+  logoutSheet: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, paddingBottom: 24, borderWidth: 1, borderColor: '#EAECF0' },
+  logoutHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D0D5DD', alignSelf: 'center', marginBottom: 16 },
+  logoutIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
+  logoutTitle: { fontSize: 17, fontWeight: '800', color: zendapp.colors.carbon, textAlign: 'center' },
+  logoutSub: { fontSize: 13, color: zendapp.colors.textSecondary, textAlign: 'center', marginTop: 6, paddingHorizontal: 12 },
   logoutActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  logoutCancel: { flex: 1, height: 46, borderRadius: apple.radius.m, backgroundColor: '#F2F2F7', alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: '#E5E5EA' },
-  logoutCancelText: { fontWeight: '600', color: '#1D1D1F' },
-  logoutConfirm: { flex: 1, height: 46, borderRadius: apple.radius.m, backgroundColor: '#FF3B30', alignItems: 'center', justifyContent: 'center' },
-  logoutConfirmText: { fontWeight: '700', color: '#fff' },
+  logoutCancel: { flex: 1, height: 46, borderRadius: 10, backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center' },
+  logoutCancelText: { fontWeight: '600', color: zendapp.colors.carbon },
+  logoutConfirm: { flex: 1, height: 46, borderRadius: 10, backgroundColor: zendapp.colors.primary, alignItems: 'center', justifyContent: 'center' },
+  logoutConfirmText: { fontWeight: '700', color: '#FFFFFF' },
 });

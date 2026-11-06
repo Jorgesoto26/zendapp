@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -19,7 +20,7 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
       <View style={styles.header}>
         <View style={styles.userTitleRow}>
           <View style={[styles.avatarBadge, isAdmin ? styles.avatarAdmin : styles.avatarVendedor]}>
-            <Icon name={isAdmin ? 'shield' : 'user'} size={16} color={isAdmin ? '#5856D6' : apple.colors.blue} />
+            <Icon name={isAdmin ? 'shield' : 'user'} size={16} color={isAdmin ? '#5856D6' : zendapp.colors.primary} />
           </View>
           <View style={{ marginLeft: 10, flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -130,8 +131,8 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
 
       {/* Botones de Acción */}
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.btnEdit} onPress={() => onEdit(user)}>
-          <Icon name="pencil" size={13} color={apple.colors.blue} />
+        <TouchableOpacity style={styles.btnEdit} onPress={() => onEdit(user)} activeOpacity={0.7}>
+          <Icon name="pencil" size={13} color={zendapp.colors.carbon} />
           <Text style={styles.btnEditText}>Editar</Text>
         </TouchableOpacity>
 
@@ -159,6 +160,7 @@ const styles = StyleSheet.create({
     borderRadius: apple.radius.m,
     padding: apple.spacing.m,
     marginBottom: apple.spacing.m,
+    overflow: 'hidden',
     ...apple.shadow.card,
     ...apple.border.card,
   },
@@ -183,16 +185,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EFFF',
   },
   avatarVendedor: {
-    backgroundColor: apple.colors.blueLight,
+    backgroundColor: zendapp.colors.primaryLight,
   },
   userName: {
     fontSize: 16,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   userEmail: {
     fontSize: 12,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginLeft: 8,
     flex: 1,
   },
@@ -205,7 +207,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0EFFF',
   },
   badgeVendedor: {
-    backgroundColor: apple.colors.blueLight,
+    backgroundColor: zendapp.colors.primaryLight,
   },
   badgeText: {
     fontSize: 10,
@@ -216,24 +218,26 @@ const styles = StyleSheet.create({
     color: '#5856D6',
   },
   badgeTextVendedor: {
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   statusDot: {
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
     borderRadius: 5,
     marginLeft: 8,
   },
   divider: {
-    height: 0.5,
-    backgroundColor: apple.colors.separator,
+    height: 1,
+    backgroundColor: zendapp.colors.border,
     marginVertical: 12,
   },
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: zendapp.colors.border,
     padding: 10,
   },
   gridItem: {
@@ -242,14 +246,16 @@ const styles = StyleSheet.create({
   },
   gridLabel: {
     fontSize: 10,
-    color: apple.colors.secondaryLabel,
-    fontWeight: '500',
+    color: zendapp.colors.textSecondary,
+    fontWeight: '600',
     marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   gridValue: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   flagsRow: {
     flexDirection: 'row',
@@ -262,12 +268,12 @@ const styles = StyleSheet.create({
   },
   flagText: {
     fontSize: 12,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textTertiary,
     marginLeft: 5,
   },
   flagTextActive: {
-    color: apple.colors.label,
-    fontWeight: '500',
+    color: zendapp.colors.carbon,
+    fontWeight: '600',
   },
   actionsRow: {
     flexDirection: 'row',
@@ -280,13 +286,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: apple.radius.s,
-    backgroundColor: apple.colors.blueLight,
+    borderRadius: 8,
+    backgroundColor: '#F1F3F7',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   btnEditText: {
     fontSize: 13,
     fontWeight: '600',
-    color: apple.colors.blue,
+    color: zendapp.colors.carbon,
     marginLeft: 5,
   },
   btnToggle: {
@@ -294,13 +302,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   btnDisable: {
-    backgroundColor: '#FFEBEA',
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
   },
   btnEnable: {
-    backgroundColor: '#E8F8EE',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
   btnToggleText: {
     fontSize: 13,
@@ -358,7 +369,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: '#D4D2F2',
   },
   hierarchyActionText: {

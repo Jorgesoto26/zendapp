@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   BackHandler,
@@ -37,6 +38,8 @@ import Toast from 'react-native-toast-message';
 import ConceptPickerModal from '../../components/ConceptPickerModal';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 import PaymentReceiptModal from '../../components/PaymentReceiptModal';
+import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
+import { SkeletonItem } from '../../components/Skeleton';
 import { pickImage } from '../../services/multimediaService';
 
 export default function MovementsScreen() {
@@ -228,7 +231,7 @@ export default function MovementsScreen() {
           logo: orgRows[0].logo_path || null,
         };
       }
-    } catch {}
+    } catch { }
 
     const monto = Number(item.monto != null ? item.monto : item.valor) || 0;
     const fId = item.idFactura || null;
@@ -608,9 +611,31 @@ export default function MovementsScreen() {
 
   if (loading && items.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={apple.colors.blue} />
-      </View>
+      <SafeAreaView style={styles.root}>
+      <AppBackground />
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Movimientos</Text>
+          <Text style={styles.headerSub}>
+            {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
+          </Text>
+        </View>
+        <View style={{ padding: 16 }}>
+          {[1, 2, 3, 4, 5].map((k) => (
+            <View key={k} style={[styles.card, { padding: 14, marginBottom: 8 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <SkeletonItem width={36} height={36} borderRadius={18} />
+                  <View>
+                    <SkeletonItem width={120} height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+                    <SkeletonItem width={80} height={10} borderRadius={3} />
+                  </View>
+                </View>
+                <SkeletonItem width={70} height={16} borderRadius={4} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -716,26 +741,15 @@ export default function MovementsScreen() {
 
             {/* Selector de Tipo */}
             <Text style={styles.label}>Tipo de movimiento</Text>
-            <View style={styles.tipoRow}>
-              <TouchableOpacity
-                style={[styles.tipoBtn, formTipo === 'ingreso' && { backgroundColor: apple.colors.success, borderColor: apple.colors.success }]}
-                onPress={() => setFormTipo('ingreso')}
-              >
-                <Text style={[styles.tipoText, formTipo === 'ingreso' && { color: '#fff' }]}>Ingreso</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tipoBtn, formTipo === 'retiro' && { backgroundColor: apple.colors.danger, borderColor: apple.colors.danger }]}
-                onPress={() => setFormTipo('retiro')}
-              >
-                <Text style={[styles.tipoText, formTipo === 'retiro' && { color: '#fff' }]}>Retiro</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.tipoBtn, formTipo === 'gasto' && { backgroundColor: apple.colors.warning, borderColor: apple.colors.warning }]}
-                onPress={() => setFormTipo('gasto')}
-              >
-                <Text style={[styles.tipoText, formTipo === 'gasto' && { color: '#fff' }]}>Gasto</Text>
-              </TouchableOpacity>
-            </View>
+            <AnimatedSegmentedControl
+              options={[
+                { key: 'ingreso', label: 'Ingreso' },
+                { key: 'retiro', label: 'Retiro' },
+                { key: 'gasto', label: 'Gasto' },
+              ]}
+              selectedKey={formTipo}
+              onChange={(t) => setFormTipo(t)}
+            />
             <Text style={styles.hint}>Ventas y pagos se registran automáticamente en sus secciones.</Text>
 
             {/* Selector de Concepto y Evidencia Fotográfica (Solo para Gastos) */}
@@ -1162,19 +1176,30 @@ const styles = StyleSheet.create({
 
   fab: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: apple.colors.blue,
-    width: 56,
-    height: 56,
-    borderRadius: apple.radius.xl,
+    right: 20,
+    bottom: 24,
+    backgroundColor: '#EE272D',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    borderWidth: 2,
+    borderColor: '#B91C1C',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#EE272D',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {
+        elevation: 0,
+      },
+    }),
   },
 
   modalOverlay: {
@@ -1261,14 +1286,26 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 22,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#101828',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {
+        elevation: 0,
+      },
+    }),
   },
   modalHeader: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   BackHandler,
@@ -21,6 +22,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { getData, getDbConnection } from '../../database/db';
 import { apple } from '../../theme/appleTheme';
 import { AppleButton } from '../../components/AppleButton';
+import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
 import { getCajaActual } from '../../services/cajaService';
@@ -739,6 +741,7 @@ const CrearCliente = () => {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -755,7 +758,7 @@ const CrearCliente = () => {
                 style={styles.renewBtn}
                 onPress={() => setShowRenewModal(true)}
               >
-                <Icon name="history" size={13} color={apple.colors.blue} />
+                <Icon name="history" size={13} color="#EE272D" />
                 <Text style={styles.renewBtnText}>Renovar crédito saldado</Text>
               </TouchableOpacity>
             </View>
@@ -764,14 +767,14 @@ const CrearCliente = () => {
             {previousInvoiceId && (
               <View style={styles.renewalBanner}>
                 <View style={styles.renewalBannerIcon}>
-                  <Icon name="refresh" size={14} color={apple.colors.blue} />
+                  <Icon name="refresh" size={14} color="#EE272D" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.renewalBannerTitle}>Renovando crédito existente</Text>
                   <Text style={styles.renewalBannerSub}>{renewalClientName} (Doc: {formData.documento})</Text>
                 </View>
                 <TouchableOpacity onPress={handleClearRenewal} style={styles.renewalClearBtn}>
-                  <Icon name="times" size={14} color={apple.colors.secondaryLabel} />
+                  <Icon name="times" size={14} color="#667085" />
                 </TouchableOpacity>
               </View>
             )}
@@ -786,8 +789,8 @@ const CrearCliente = () => {
             {/* Seccion 1: Informacion Personal */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIcon, { backgroundColor: '#E8F0FE' }]}>
-                  <Icon name="user" size={14} color={apple.colors.blue} />
+                <View style={[styles.sectionIcon, { backgroundColor: '#FEF2F2' }]}>
+                  <Icon name="user" size={14} color="#EE272D" />
                 </View>
                 <Text style={styles.sectionTitle}>Información personal</Text>
               </View>
@@ -817,26 +820,21 @@ const CrearCliente = () => {
               />
 
               <Text style={styles.fieldLabel}>Género *</Text>
-              <View style={styles.segment}>
-                {['masculino', 'femenino'].map(g => (
-                  <TouchableOpacity
-                    key={g}
-                    onPress={() => handleGeneroChange(g)}
-                    style={[styles.segmentOpt, formData.genero === g && styles.segmentOptActive]}
-                  >
-                    <Text style={[styles.segmentText, formData.genero === g && styles.segmentTextActive]}>
-                      {g === 'masculino' ? 'Masculino' : 'Femenino'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                <AnimatedSegmentedControl
+                  options={[
+                    { key: 'masculino', label: 'Masculino' },
+                    { key: 'femenino', label: 'Femenino' },
+                  ]}
+                  selectedKey={formData.genero || 'masculino'}
+                  onChange={handleGeneroChange}
+                />
             </View>
 
             {/* Seccion 2: Contacto, Documento y Fotografía */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIcon, { backgroundColor: '#E8F5E9' }]}>
-                  <Icon name="map-marker" size={14} color={apple.colors.success} />
+                <View style={[styles.sectionIcon, { backgroundColor: '#ECFDF5' }]}>
+                  <Icon name="map-marker" size={14} color="#10B981" />
                 </View>
                 <Text style={styles.sectionTitle}>Contacto y Documento</Text>
               </View>
@@ -895,15 +893,15 @@ const CrearCliente = () => {
                           style={styles.photoActionBtn}
                           onPress={handleTakeDocPhoto}
                         >
-                          <Icon name="camera" size={12} color={apple.colors.blue} />
+                          <Icon name="camera" size={12} color="#EE272D" />
                           <Text style={styles.photoActionText}>Cambiar</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                          style={[styles.photoActionBtn, { borderColor: apple.colors.danger }]}
+                          style={[styles.photoActionBtn, { borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
                           onPress={() => setFotoDocumento(null)}
                         >
-                          <Icon name="trash" size={12} color={apple.colors.danger} />
-                          <Text style={[styles.photoActionText, { color: apple.colors.danger }]}>Quitar</Text>
+                          <Icon name="trash" size={12} color="#EE272D" />
+                          <Text style={[styles.photoActionText, { color: '#EE272D' }]}>Quitar</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -914,15 +912,15 @@ const CrearCliente = () => {
                       style={styles.photoPickerBtn}
                       onPress={handleTakeDocPhoto}
                     >
-                      <Icon name="camera" size={18} color={apple.colors.blue} />
+                      <Icon name="camera" size={18} color="#EE272D" />
                       <Text style={styles.photoPickerBtnText}>Tomar foto</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.photoPickerBtn, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}
+                      style={[styles.photoPickerBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
                       onPress={handlePickDocGallery}
                     >
-                      <Icon name="image" size={18} color="#16A34A" />
-                      <Text style={[styles.photoPickerBtnText, { color: '#16A34A' }]}>Galería</Text>
+                      <Icon name="image" size={18} color="#059669" />
+                      <Text style={[styles.photoPickerBtnText, { color: '#059669' }]}>Galería</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -932,8 +930,8 @@ const CrearCliente = () => {
             {/* Seccion 3: Condiciones del Credito */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <View style={[styles.sectionIcon, { backgroundColor: '#FFF3E0' }]}>
-                  <Icon name="money" size={14} color={apple.colors.warning} />
+                <View style={[styles.sectionIcon, { backgroundColor: '#FFFBEB' }]}>
+                  <Icon name="money" size={14} color="#F59E0B" />
                 </View>
                 <Text style={styles.sectionTitle}>Condiciones de la Venta</Text>
               </View>
@@ -947,24 +945,16 @@ const CrearCliente = () => {
               />
 
               {/* Selector de Periodicidad (Requisito 5.1: Diario por defecto) */}
-              <Text style={styles.fieldLabel}>Periodicidad del cobro *</Text>
-              <View style={styles.segment}>
-                {[
-                  { key: 'diario', label: 'Diario' },
-                  { key: 'semanal', label: 'Semanal' },
-                  { key: 'mensual', label: 'Mensual' },
-                ].map(p => (
-                  <TouchableOpacity
-                    key={p.key}
-                    onPress={() => setPeriodicidad(p.key)}
-                    style={[styles.segmentOpt, periodicidad === p.key && styles.segmentOptActive]}
-                  >
-                    <Text style={[styles.segmentText, periodicidad === p.key && styles.segmentTextActive]}>
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                <Text style={styles.fieldLabel}>Periodicidad del cobro *</Text>
+                <AnimatedSegmentedControl
+                  options={[
+                    { key: 'diario', label: 'Diario' },
+                    { key: 'semanal', label: 'Semanal' },
+                    { key: 'mensual', label: 'Mensual' },
+                  ]}
+                  selectedKey={periodicidad}
+                  onChange={(p) => setPeriodicidad(p)}
+                />
 
               {/* Accesos rápidos para Plazo (Solo para modalidad diaria: 24, 30, 45) */}
               <View style={styles.quickLabelRow}>
@@ -991,12 +981,12 @@ const CrearCliente = () => {
 
               {/* Campo numérico editable para cantidad de pagos (1 a 90) */}
               <View style={[styles.inputWrap, cuotasError ? styles.inputWrapError : null]}>
-                <Icon name="calendar" size={14} color={apple.colors.tertiaryLabel} style={{ marginRight: 8 }} />
+                <Icon name="calendar" size={14} color="#667085" style={{ marginRight: 8 }} />
                 <TextInput
                   value={formData.numCuotas}
                   onChangeText={t => handleChange('numCuotas', t)}
                   placeholder="1 a 90 cuotas"
-                  placeholderTextColor={apple.colors.tertiaryLabel}
+                  placeholderTextColor="#98A2B3"
                   style={styles.input}
                   keyboardType="numeric"
                   maxLength={2}
@@ -1027,12 +1017,12 @@ const CrearCliente = () => {
 
               {/* Campo numérico editable para tasa de interés */}
               <View style={[styles.inputWrap, interesError ? styles.inputWrapError : null]}>
-                <Icon name="percent" size={14} color={apple.colors.tertiaryLabel} style={{ marginRight: 8 }} />
+                <Icon name="percent" size={14} color="#667085" style={{ marginRight: 8 }} />
                 <TextInput
                   value={formData.tasaInteres}
                   onChangeText={t => handleChange('tasaInteres', t)}
                   placeholder="Ej. 20"
-                  placeholderTextColor={apple.colors.tertiaryLabel}
+                  placeholderTextColor="#98A2B3"
                   style={styles.input}
                   keyboardType="numeric"
                   maxLength={5}
@@ -1044,7 +1034,7 @@ const CrearCliente = () => {
               <View style={styles.advanceRow}>
                 <View style={{ flex: 1, paddingRight: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Icon name="check-square-o" size={15} color={pagoAdelantado ? apple.colors.blue : apple.colors.secondaryLabel} />
+                    <Icon name="check-square-o" size={15} color={pagoAdelantado ? '#EE272D' : '#98A2B3'} />
                     <Text style={styles.advanceTitle}>Pago adelantado (Primera cuota)</Text>
                   </View>
                   <Text style={styles.advanceSub}>
@@ -1054,7 +1044,7 @@ const CrearCliente = () => {
                 <Switch
                   value={pagoAdelantado}
                   onValueChange={setPagoAdelantado}
-                  trackColor={{ false: apple.colors.separator, true: apple.colors.blue }}
+                  trackColor={{ false: '#EAECF0', true: '#EE272D' }}
                   thumbColor="#FFFFFF"
                 />
               </View>
@@ -1065,7 +1055,7 @@ const CrearCliente = () => {
               <View style={styles.quoteCard}>
                 <View style={styles.quoteHeader}>
                   <View style={styles.quoteTitleRow}>
-                    <Icon name="calculator" size={15} color={apple.colors.blue} />
+                    <Icon name="calculator" size={15} color="#EE272D" />
                     <Text style={styles.quoteTitle}>Vista previa de la cuota</Text>
                   </View>
                   <View style={styles.estimateBadge}>
@@ -1215,80 +1205,109 @@ const CrearCliente = () => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: apple.colors.bgGrouped },
+  root: { flex: 1, backgroundColor: '#F8F9FB' },
   scroll: { padding: 16, paddingBottom: 40 },
   topBar: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
   renewBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: apple.radius.m,
-    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#FECACA',
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
-  renewBtnText: { fontSize: 13, fontWeight: '600', color: apple.colors.blue },
+  renewBtnText: { fontSize: 13, fontWeight: '700', color: '#EE272D' },
   renewalBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#FEF2F2',
     padding: 12,
-    borderRadius: apple.radius.m,
+    borderRadius: 12,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#93C5FD',
+    borderColor: '#FECACA',
     gap: 10,
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
-  renewalBannerIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' },
-  renewalBannerTitle: { fontSize: 13, fontWeight: '700', color: apple.colors.blue },
-  renewalBannerSub: { fontSize: 12, color: apple.colors.secondaryLabel, marginTop: 1 },
+  renewalBannerIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' },
+  renewalBannerTitle: { fontSize: 13, fontWeight: '800', color: '#EE272D' },
+  renewalBannerSub: { fontSize: 12, color: '#667085', marginTop: 1 },
   renewalClearBtn: { padding: 6 },
-  pageTitle: { fontSize: 24, fontWeight: '800', color: apple.colors.label, letterSpacing: 0.3 },
-  pageSub: { fontSize: 13, color: apple.colors.secondaryLabel, marginTop: 4, marginBottom: 16 },
+  pageTitle: { fontSize: 22, fontWeight: '800', color: '#1E1E1F', letterSpacing: -0.3 },
+  pageSub: { fontSize: 13, color: '#667085', marginTop: 4, marginBottom: 16, lineHeight: 18 },
   section: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.l,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E8EAED',
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: { shadowColor: '#101828', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 0 },
+    }),
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  sectionIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: apple.colors.label },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  sectionIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#1E1E1F' },
   field: { marginBottom: 14 },
   fieldLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  fieldLabel: { fontSize: 13, fontWeight: '500', color: apple.colors.label },
-  fieldCounter: { fontSize: 11, color: apple.colors.tertiaryLabel },
+  fieldLabel: { fontSize: 13, fontWeight: '700', color: '#1E1E1F' },
+  fieldCounter: { fontSize: 11, color: '#98A2B3', fontWeight: '500' },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.m,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
     paddingHorizontal: 12,
     height: 44,
   },
-  inputWrapError: { borderColor: apple.colors.danger },
-  inputWrapDisabled: { backgroundColor: '#F1F5F9', opacity: 0.8 },
-  input: { flex: 1, fontSize: 15, color: apple.colors.label },
-  errorText: { fontSize: 11, color: apple.colors.danger, marginTop: 4, fontWeight: '500' },
+  inputWrapError: { borderColor: '#EE272D' },
+  inputWrapDisabled: { backgroundColor: '#F1F3F7', opacity: 0.8 },
+  input: { flex: 1, fontSize: 14, color: '#1E1E1F' },
+  errorText: { fontSize: 11, color: '#EE272D', marginTop: 4, fontWeight: '600' },
   segment: {
     flexDirection: 'row',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.m,
-    padding: 3,
+    backgroundColor: '#F1F3F7',
+    borderRadius: 12,
+    overflow: 'hidden',
+    padding: 4,
     gap: 4,
     marginBottom: 12,
   },
-  segmentOpt: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: apple.radius.s },
-  segmentOptActive: { backgroundColor: apple.colors.card, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 3, elevation: 1 },
-  segmentText: { fontSize: 13, fontWeight: '500', color: apple.colors.secondaryLabel },
-  segmentTextActive: { color: apple.colors.label, fontWeight: '600' },
-  hint: { fontSize: 12, color: apple.colors.secondaryLabel, textAlign: 'center', marginTop: 10 },
+  segmentOpt: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  segmentOptActive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: { shadowColor: '#101828', shadowOpacity: 0.06, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } },
+      android: { elevation: 0 },
+    }),
+  },
+  segmentText: { fontSize: 13, fontWeight: '600', color: '#667085' },
+  segmentTextActive: { color: '#EE272D', fontWeight: '800' },
+  hint: { fontSize: 12, color: '#667085', textAlign: 'center', marginTop: 10 },
 
   // Quick access buttons (Requisito 4)
   quickLabelRow: {
@@ -1302,25 +1321,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quickBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F1F3F7',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#EAECF0',
   },
   quickBtnActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: apple.colors.blue,
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EE272D',
   },
   quickBtnText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    fontWeight: '700',
+    color: '#667085',
   },
   quickBtnTextActive: {
-    color: apple.colors.blue,
-    fontWeight: '700',
+    color: '#EE272D',
+    fontWeight: '800',
   },
 
   // Document photo styles (Requisito 7)
@@ -1328,10 +1347,10 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
-    borderRadius: apple.radius.m,
+    borderColor: '#EAECF0',
+    borderRadius: 12,
     padding: 12,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F8F9FA',
   },
   photoEmptyRow: {
     flexDirection: 'row',
@@ -1344,15 +1363,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 10,
-    borderRadius: apple.radius.s,
-    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
   photoPickerBtnText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: apple.colors.blue,
+    fontWeight: '700',
+    color: '#1E1E1F',
   },
   photoPreviewRow: {
     flexDirection: 'row',
@@ -1366,7 +1388,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
   },
   photoThumbnail: {
     width: '100%',
@@ -1376,29 +1398,30 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 2,
     right: 2,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(30,30,31,0.7)',
     borderRadius: 6,
     padding: 2,
   },
   photoFileName: {
     fontSize: 13,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontWeight: '700',
+    color: '#1E1E1F',
   },
   photoActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: apple.colors.blue,
+    borderColor: '#EAECF0',
+    backgroundColor: '#FFFFFF',
   },
   photoActionText: {
     fontSize: 11,
-    fontWeight: '600',
-    color: apple.colors.blue,
+    fontWeight: '700',
+    color: '#EE272D',
   },
 
   // Advance Payment Switch (Requisito 8)
@@ -1409,56 +1432,63 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#F2F4F7',
   },
   advanceTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontWeight: '700',
+    color: '#1E1E1F',
   },
   advanceSub: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: '#667085',
     marginTop: 2,
     lineHeight: 16,
   },
 
   // Quote preview card
   quoteCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: apple.radius.l,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
     padding: 16,
     marginBottom: 16,
-    borderWidth: 1.5,
-    borderColor: '#93C5FD',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: { shadowColor: '#101828', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+      android: { elevation: 0 },
+    }),
   },
   quoteHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   quoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  quoteTitle: { fontSize: 15, fontWeight: '700', color: apple.colors.blue },
+  quoteTitle: { fontSize: 15, fontWeight: '800', color: '#1E1E1F' },
   estimateBadge: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
   },
-  estimateBadgeText: { fontSize: 11, fontWeight: '700', color: apple.colors.blue },
-  quoteDivider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 12 },
+  estimateBadgeText: { fontSize: 11, fontWeight: '800', color: '#EE272D' },
+  quoteDivider: { height: 1, backgroundColor: '#EAECF0', marginVertical: 12 },
   quoteRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  quoteLabel: { fontSize: 13, color: apple.colors.secondaryLabel },
-  quoteValue: { fontSize: 13, fontWeight: '600', color: apple.colors.label },
+  quoteLabel: { fontSize: 13, color: '#667085', fontWeight: '500' },
+  quoteValue: { fontSize: 13, fontWeight: '700', color: '#1E1E1F' },
   quoteAdvanceBox: {
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FFFBEB',
     padding: 10,
-    borderRadius: apple.radius.s,
+    borderRadius: 10,
     marginVertical: 8,
     borderWidth: 1,
     borderColor: '#FDE68A',
   },
   quoteAdvanceTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#92400E',
   },
   quoteAdvanceSub: {
@@ -1471,56 +1501,63 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    borderRadius: apple.radius.m,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 6,
   },
-  quoteResultLabel: { fontSize: 12, fontWeight: '600', color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5 },
-  quoteResultAmount: { fontSize: 24, fontWeight: '800', color: '#047857', marginVertical: 2 },
-  quoteResultSub: { fontSize: 12, color: '#059669', fontWeight: '500' },
-  quoteFootnote: { fontSize: 11, color: apple.colors.tertiaryLabel, textAlign: 'center', marginTop: 4, fontStyle: 'italic' },
+  quoteResultLabel: { fontSize: 12, fontWeight: '700', color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5 },
+  quoteResultAmount: { fontSize: 26, fontWeight: '900', color: '#047857', marginVertical: 2 },
+  quoteResultSub: { fontSize: 12, color: '#059669', fontWeight: '600' },
+  quoteFootnote: { fontSize: 11, color: '#98A2B3', textAlign: 'center', marginTop: 4, fontStyle: 'italic' },
 
   // Modal Renovacion
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   modalContent: {
-    backgroundColor: apple.colors.card,
-    borderTopLeftRadius: apple.radius.xl,
-    borderTopRightRadius: apple.radius.xl,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 20,
     maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: apple.colors.label },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: '#1E1E1F' },
   modalCloseBtn: { padding: 4 },
   searchWrapModal: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.m,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     paddingHorizontal: 12,
-    height: 40,
+    height: 42,
     marginBottom: 10,
     gap: 8,
   },
-  searchInputModal: { flex: 1, fontSize: 14, color: apple.colors.label },
+  searchInputModal: { flex: 1, fontSize: 14, color: '#1E1E1F' },
   paidClientItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderColor: apple.colors.separator,
+    borderBottomWidth: 1,
+    borderColor: '#EAECF0',
     gap: 12,
   },
-  paidClientName: { fontSize: 14, fontWeight: '600', color: apple.colors.label },
-  paidClientSub: { fontSize: 12, color: apple.colors.secondaryLabel, marginTop: 2 },
-  paidClientDir: { fontSize: 11, color: apple.colors.tertiaryLabel, marginTop: 1 },
+  paidClientName: { fontSize: 14, fontWeight: '700', color: '#1E1E1F' },
+  paidClientSub: { fontSize: 12, color: '#667085', marginTop: 2 },
+  paidClientDir: { fontSize: 11, color: '#98A2B3', marginTop: 1 },
   paidClientAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  paidClientActionText: { fontSize: 13, fontWeight: '600', color: apple.colors.blue },
+  paidClientActionText: { fontSize: 13, fontWeight: '700', color: '#EE272D' },
   emptyRenewWrap: { alignItems: 'center', paddingVertical: 40 },
-  emptyRenewTitle: { fontSize: 14, fontWeight: '600', color: apple.colors.secondaryLabel, marginTop: 10 },
-  emptyRenewSub: { fontSize: 12, color: apple.colors.tertiaryLabel, textAlign: 'center', marginTop: 4, paddingHorizontal: 20 },
+  emptyRenewTitle: { fontSize: 14, fontWeight: '700', color: '#667085', marginTop: 10 },
+  emptyRenewSub: { fontSize: 12, color: '#98A2B3', textAlign: 'center', marginTop: 4, paddingHorizontal: 20 },
 });
 
 export default CrearCliente;

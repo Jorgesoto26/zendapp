@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminUsuarios.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -16,8 +17,11 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
+import { SkeletonList, SkeletonUserCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import {
   getSubordinates,
@@ -174,6 +178,7 @@ export default function AdminUsuarios() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -189,17 +194,14 @@ export default function AdminUsuarios() {
             onPress={handleLogout}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="sign-out" size={17} color={apple.colors.danger} />
+            <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerOrgBtn}
             onPress={() => setOrgModalVisible(true)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="building-o" size={16} color={apple.colors.blue} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={handleCreate}>
-            <Icon name="plus" size={16} color="#FFFFFF" />
+            <Icon name="building-o" size={15} color={zendapp.colors.carbon} />
           </TouchableOpacity>
         </View>
       </View>
@@ -212,51 +214,49 @@ export default function AdminUsuarios() {
       />
 
       {/* Segmented Filter Activos / Inactivos (Requisito 2) */}
-      <View style={styles.segment}>
-        <TouchableOpacity
-          onPress={() => setStatusFilter('activos')}
-          style={[styles.segOpt, statusFilter === 'activos' && styles.segActive]}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.segText, statusFilter === 'activos' && styles.segTextActive]}>
-            Activos ({activosCount})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setStatusFilter('inactivos')}
-          style={[styles.segOpt, statusFilter === 'inactivos' && styles.segActive]}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.segText, statusFilter === 'inactivos' && styles.segTextActive]}>
-            Inactivos ({inactivosCount})
-          </Text>
-        </TouchableOpacity>
-      </View>
+        <View style={{ marginHorizontal: 16, marginTop: 6, marginBottom: 4 }}>
+          <AnimatedSegmentedControl
+            options={[
+              {
+                key: 'activos',
+                label: 'Activos',
+                badge: activosCount,
+              },
+              {
+                key: 'inactivos',
+                label: 'Inactivos',
+                badge: inactivosCount,
+              },
+            ]}
+            selectedKey={statusFilter}
+            onChange={(key) => setStatusFilter(key)}
+          />
+        </View>
 
       {/* Buscador */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={14} color={apple.colors.tertiaryLabel} style={styles.searchIcon} />
+        <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar por nombre o correo..."
-          placeholderTextColor={apple.colors.tertiaryLabel}
+          placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
           clearButtonMode="while-editing"
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+            <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Lista */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
-        </View>
-      ) : (
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <SkeletonList count={5} Component={SkeletonUserCard} />
+          </View>
+        ) : (
         <FlatList
           data={filteredUsers}
           keyExtractor={(item) => item.id}
@@ -270,10 +270,10 @@ export default function AdminUsuarios() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="users" size={48} color={apple.colors.tertiaryLabel} />
+              <Icon name="users" size={44} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>
                 {statusFilter === 'activos' ? 'No hay usuarios activos' : 'No hay usuarios inactivos'}
               </Text>
@@ -281,7 +281,7 @@ export default function AdminUsuarios() {
                 {search
                   ? 'No se encontraron coincidencias para la búsqueda'
                   : statusFilter === 'activos'
-                  ? 'Crea un nuevo vendedor usando el botón +'
+                  ? 'Crea un nuevo usuario usando el botón +'
                   : 'Los usuarios inhabilitados aparecerán en esta sección'}
               </Text>
             </View>
@@ -306,6 +306,16 @@ export default function AdminUsuarios() {
         onClose={() => setShowLogout(false)}
         onConfirm={signOut}
       />
+
+      {/* FAB Flotante para crear nuevo usuario con máxima visibilidad */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleCreate}
+        activeOpacity={0.85}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Icon name="plus" size={20} color="#FFFFFF" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -313,25 +323,25 @@ export default function AdminUsuarios() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.background,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.s,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   headerActions: {
@@ -343,72 +353,71 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F1F3F7',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#D0D5DD',
     justifyContent: 'center',
     alignItems: 'center',
-    ...apple.shadow.subtle,
   },
   headerLogoutBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#FFEBEA',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     justifyContent: 'center',
     alignItems: 'center',
-    ...apple.shadow.subtle,
   },
   headerBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    ...apple.shadow.subtle,
   },
   segment: {
     flexDirection: 'row',
-    backgroundColor: apple.colors.fill,
-    marginHorizontal: apple.spacing.l,
+    backgroundColor: '#F1F3F7',
+    marginHorizontal: 16,
     marginTop: 6,
     marginBottom: 4,
-    borderRadius: apple.radius.s,
+    borderRadius: 10,
     padding: 3,
     gap: 4,
   },
   segOpt: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: apple.radius.s - 2,
+    paddingVertical: 8,
+    borderRadius: 8,
     alignItems: 'center',
   },
   segActive: {
-    backgroundColor: apple.colors.card,
-    ...apple.shadow.subtle,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   segText: {
     fontSize: 13,
     fontWeight: '500',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   segTextActive: {
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     fontWeight: '700',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
-    marginHorizontal: apple.spacing.l,
-    marginVertical: apple.spacing.s,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    marginHorizontal: 16,
+    marginVertical: 8,
     paddingHorizontal: 12,
-    height: 40,
-    ...apple.shadow.subtle,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    height: 42,
   },
   searchIcon: {
     marginRight: 8,
@@ -416,12 +425,39 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.s,
-    paddingBottom: apple.spacing.xl,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 96,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: zendapp.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#B91C1C',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#EE272D',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {
+        elevation: 0,
+      },
+    }),
   },
   centerContainer: {
     flex: 1,
@@ -436,12 +472,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 4,
     textAlign: 'center',
   },

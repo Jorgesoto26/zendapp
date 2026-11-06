@@ -288,14 +288,22 @@ const styles = StyleSheet.create({
   },
   receiptCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 14,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    borderColor: '#EAECF0',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#101828',
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   receiptTop: {
     alignItems: 'center',
@@ -313,12 +321,12 @@ const styles = StyleSheet.create({
   receiptOrgName: {
     fontSize: 20,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: '#1E1E1F',
     letterSpacing: 0.5,
   },
   receiptOrgNit: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: '#667085',
     marginTop: 2,
   },
   statusBadge: {
@@ -326,12 +334,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
   },
   badgeConfirmed: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
   badgePending: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
   },
   statusBadgeText: {
     fontSize: 11,
@@ -339,14 +350,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   textConfirmed: {
-    color: apple.colors.success,
+    color: '#059669',
   },
   textPending: {
-    color: '#E65100',
+    color: '#B45309',
   },
   divider: {
     height: 1,
-    backgroundColor: '#EDF2F7',
+    backgroundColor: '#EAECF0',
     marginVertical: 14,
   },
   amountBox: {
@@ -356,13 +367,13 @@ const styles = StyleSheet.create({
   amountLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.tertiaryLabel,
+    color: '#667085',
     letterSpacing: 0.8,
   },
   amountValue: {
     fontSize: 28,
     fontWeight: '800',
-    color: apple.colors.success,
+    color: '#10B981',
     marginTop: 4,
   },
   detailRow: {
@@ -372,12 +383,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: '#667085',
   },
   detailVal: {
     fontSize: 13,
-    color: apple.colors.label,
-    fontWeight: '500',
+    color: '#1E1E1F',
+    fontWeight: '600',
     maxWidth: '65%',
     textAlign: 'right',
   },
@@ -385,12 +396,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#EAECF0',
     alignItems: 'center',
   },
   footerNoteText: {
     fontSize: 10,
-    color: apple.colors.tertiaryLabel,
+    color: '#98A2B3',
     textAlign: 'center',
     lineHeight: 14,
   },
@@ -399,31 +410,34 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 0.5,
-    borderTopColor: apple.colors.separator,
+    borderTopWidth: 1,
+    borderTopColor: '#EAECF0',
   },
   closeBtnAction: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F1F3F7',
   },
   closeBtnText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontWeight: '700',
+    color: '#667085',
   },
   shareBtn: {
     flex: 1.4,
     flexDirection: 'row',
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: apple.colors.blue,
+    backgroundColor: '#EE272D',
     gap: 8,
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
   shareBtnText: {
     fontSize: 15,

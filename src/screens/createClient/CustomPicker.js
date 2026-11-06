@@ -69,12 +69,12 @@ const CustomPicker = ({ data, selectedValue, onSelect, placeholder, visible, onC
                   >
                     {item.valor}
                   </Text>
-                  {selectedValue === item.id.toString() && <Icon name="check" size={16} color="#2196F3" />}
+                  {selectedValue === item.id.toString() && <Icon name="check" size={16} color="#EE272D" />}
                 </TouchableOpacity>
               )}
               ListEmptyComponent={() => (
                 <View style={styles.emptyContainer}>
-                  <Icon name="search" size={48} color="#ccc" />
+                  <Icon name="search" size={40} color="#D0D5DD" />
                   <Text style={styles.emptyText}>No se encontraron resultados</Text>
                   <Text style={styles.emptySubText}>Intenta con otro término de búsqueda</Text>
                 </View>
@@ -88,21 +88,29 @@ const CustomPicker = ({ data, selectedValue, onSelect, placeholder, visible, onC
   }
 
 const styles = StyleSheet.create({
-      modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" },
-      modalContent: { backgroundColor: "#fff", borderTopLeftRadius: apple.radius.xl, borderTopRightRadius: apple.radius.xl, height: "72%", paddingBottom: 16 },
-      modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 0.5, borderColor: "#E5E5EA" },
-      modalTitle: { fontSize: 17, fontWeight: "700", color: "#1D1D1F" },
-      modalItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, marginHorizontal: 8, borderRadius: apple.radius.m },
-      modalItemSelected: { backgroundColor: "#E8F0FE" },
-      modalItemText: { fontSize: 16, color: "#1D1D1F" },
-      modalItemTextSelected: { color: "#007AFF", fontWeight: "600" },
-      searchContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F2F2F7", margin: 12, paddingHorizontal: 12, borderRadius: apple.radius.m, borderWidth: 1, borderColor: "#E5E5EA" },
-      searchIcon: { marginRight: 8 },
-      searchInput: { flex: 1, height: 40, fontSize: 15, color: "#1D1D1F" },
-      clearButton: { padding: 4, marginLeft: 8 },
-      emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 40, paddingHorizontal: 20 },
-      emptyText: { fontSize: 16, color: "#6E6E73", marginTop: 12, fontWeight: "600" },
-      emptySubText: { fontSize: 13, color: "#8E8E93", marginTop: 4, textAlign: "center" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    height: "72%",
+    paddingBottom: 16,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+  },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 16, borderBottomWidth: 1, borderColor: "#EAECF0" },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: "#1E1E1F" },
+  modalItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, marginHorizontal: 8, marginVertical: 2, borderRadius: 10 },
+  modalItemSelected: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
+  modalItemText: { fontSize: 15, color: "#1E1E1F", fontWeight: "500" },
+  modalItemTextSelected: { color: "#EE272D", fontWeight: "700" },
+  searchContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8F9FA", margin: 12, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "#EAECF0" },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, height: 42, fontSize: 14, color: "#1E1E1F" },
+  clearButton: { padding: 4, marginLeft: 8 },
+  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 40, paddingHorizontal: 20 },
+  emptyText: { fontSize: 15, color: "#667085", marginTop: 12, fontWeight: "700" },
+  emptySubText: { fontSize: 13, color: "#98A2B3", marginTop: 4, textAlign: "center" },
 });
 
 export default CustomPicker;

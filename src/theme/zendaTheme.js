@@ -25,8 +25,8 @@ export const zenda = {
   },
   radius: { xs: 6, s: 8, m: 12, l: 16, xl: 20, pill: 999 },
   shadow: {
-    soft: Platform.select({ ios: { shadowColor: '#0F1A2E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12 }, android: { elevation: 2 }, default: {} }),
-    card: Platform.select({ ios: { shadowColor: '#0F1A2E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 16 }, android: { elevation: 3 }, default: {} }),
+    soft: Platform.select({ ios: { shadowColor: '#0F1A2E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12 }, android: { elevation: 0 }, default: {} }),
+    card: Platform.select({ ios: { shadowColor: '#0F1A2E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 16 }, android: { elevation: 0 }, default: {} }),
   },
   font: {
     display: { fontFamily: 'System', fontWeight: '800' },

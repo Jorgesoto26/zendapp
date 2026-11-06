@@ -9,16 +9,26 @@ export function AppleButton({ title, onPress, variant = 'primary', loading = fal
 
   const isPrimary = variant === 'primary';
   const isDestructive = variant === 'destructive';
-  const bg = disabled ? '#C7C7CC' : isPrimary ? apple.colors.blue : isDestructive ? apple.colors.danger : apple.colors.fill;
-  const color = isPrimary || isDestructive ? '#fff' : apple.colors.blue;
+  const isCarbon = variant === 'carbon';
+  const bg = disabled
+    ? '#D0D5DD'
+    : isPrimary
+    ? apple.colors.blue
+    : isCarbon
+    ? (apple.colors.carbon || '#1E1E1F')
+    : isDestructive
+    ? apple.colors.danger
+    : apple.colors.fill;
+  const color = isPrimary || isDestructive || isCarbon ? '#FFFFFF' : apple.colors.blue;
 
   return (
-    <Animated.View style={[{ transform: [{ scale }] }, style]}>
+    <Animated.View style={[styles.wrapper, { transform: [{ scale }] }, style]}>
       <Pressable
         onPress={onPress}
         onPressIn={onIn}
         onPressOut={onOut}
         disabled={disabled || loading}
+        android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: false }}
         style={[styles.btn, { backgroundColor: bg }, disabled && { opacity: 0.6 }]}
       >
         {loading ? <ActivityIndicator color={color} /> : <Text style={[styles.text, { color }]}>{title}</Text>}
@@ -28,9 +38,14 @@ export function AppleButton({ title, onPress, variant = 'primary', loading = fal
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    borderRadius: apple.radius.s,
+    overflow: 'hidden',
+  },
   btn: {
     height: 50,
     borderRadius: apple.radius.s,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,

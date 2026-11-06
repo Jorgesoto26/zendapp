@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminCajaDetalle.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -12,10 +13,11 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import {
   getCajaMovements,
@@ -93,6 +95,19 @@ export default function AdminCajaDetalle() {
       { key: 'retiro', label: 'Retiros' },
     ];
   }, [isAdmin]);
+
+  // Conteo en vivo por cada tipo para enriquecer los chips
+  const countsByType = useMemo(() => {
+    const counts = { todos: movements.length };
+    for (const m of movements) {
+      const t = m.tipo;
+      counts[t] = (counts[t] || 0) + 1;
+      if (t === 'retiro' && m.descripcion?.toLowerCase().includes('gasto')) {
+        counts.gasto = (counts.gasto || 0) + 1;
+      }
+    }
+    return counts;
+  }, [movements]);
 
   const loadData = useCallback(async () => {
     if (!caja?.caja_id && !caja?.id) return;
@@ -388,10 +403,11 @@ export default function AdminCajaDetalle() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={16} color={apple.colors.blue} />
+          <Icon name="chevron-left" size={15} color={zendapp.colors.primary} />
           <Text style={styles.backText}>Cajas</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 8 }}>
@@ -433,14 +449,14 @@ export default function AdminCajaDetalle() {
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
-          <Text style={[styles.summaryVal, { color: apple.colors.blue }]}>
+          <Text style={[styles.summaryVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(cajaState?.saldo_final)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>{isAdmin ? 'Ingresos' : 'Recaudado'}</Text>
-          <Text style={[styles.summaryVal, { color: apple.colors.success }]}>
+          <Text style={[styles.summaryVal, { color: zendapp.colors.success }]}>
             {formatMoney(isAdmin ? cajaState?.valor_ingresos : cajaState?.valor_recaudado)}
           </Text>
         </View>
@@ -479,40 +495,56 @@ export default function AdminCajaDetalle() {
 
       {/* Buscador */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={14} color={apple.colors.tertiaryLabel} style={styles.searchIcon} />
+        <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar movimiento..."
-          placeholderTextColor={apple.colors.tertiaryLabel}
+          placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+            <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Pills de Tipos */}
-      <View style={styles.pillsScroll}>
-        {types.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.pill, selectedType === t.key && styles.pillActive]}
-            onPress={() => setSelectedType(t.key)}
-          >
-            <Text style={[styles.pillText, selectedType === t.key && styles.pillTextActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* Pills de Tipos con Scroll Horizontal fluido */}
+      <View style={styles.pillsContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillsScrollContent}
+        >
+          {types.map((t) => {
+            const count = countsByType[t.key] || 0;
+            const isSelected = selectedType === t.key;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.pill, isSelected && styles.pillActive]}
+                onPress={() => setSelectedType(t.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>
+                  {t.label}
+                </Text>
+                <View style={[styles.pillBadge, isSelected && styles.pillBadgeActive]}>
+                  <Text style={[styles.pillBadgeText, isSelected && styles.pillBadgeTextActive]}>
+                    {count}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {/* Lista de Movimientos */}
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
+          <ActivityIndicator size="large" color={zendapp.colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -533,7 +565,7 @@ export default function AdminCajaDetalle() {
                   }}
                 >
                   <View style={[styles.movIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                    <Icon name="shopping-bag" size={15} color="#D97706" />
+                    <Icon name="shopping-bag" size={14} color="#D97706" />
                   </View>
 
                   <View style={{ flex: 1, marginHorizontal: 10 }}>
@@ -544,22 +576,22 @@ export default function AdminCajaDetalle() {
                     {/* Fila de Parámetros: Interés, Plazo, Cuotas Pagadas */}
                     <View style={styles.ventaMetricsRow}>
                       <View style={styles.ventaBadge}>
-                        <Icon name="percent" size={9} color={apple.colors.secondaryLabel} style={{ marginRight: 3 }} />
+                        <Icon name="percent" size={9} color={zendapp.colors.textSecondary} style={{ marginRight: 3 }} />
                         <Text style={styles.ventaBadgeText}>
                           {inv?.tasa_interes || '20%'}
                         </Text>
                       </View>
 
                       <View style={styles.ventaBadge}>
-                        <Icon name="calendar-o" size={9} color={apple.colors.secondaryLabel} style={{ marginRight: 3 }} />
+                        <Icon name="calendar-o" size={9} color={zendapp.colors.textSecondary} style={{ marginRight: 3 }} />
                         <Text style={styles.ventaBadgeText}>
                           {inv?.num_cuotas || 0} {inv?.periodicidad || 'diarias'}
                         </Text>
                       </View>
 
-                      <View style={[styles.ventaBadge, { backgroundColor: '#E8F5E9' }]}>
-                        <Icon name="check-circle-o" size={9} color={apple.colors.success} style={{ marginRight: 3 }} />
-                        <Text style={[styles.ventaBadgeText, { color: apple.colors.success }]}>
+                      <View style={[styles.ventaBadge, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                        <Icon name="check-circle-o" size={9} color={zendapp.colors.success} style={{ marginRight: 3 }} />
+                        <Text style={[styles.ventaBadgeText, { color: zendapp.colors.success }]}>
                           {inv?.cuotasPagadas ?? 0}/{inv?.num_cuotas || 0} pagadas
                         </Text>
                       </View>
@@ -569,7 +601,7 @@ export default function AdminCajaDetalle() {
                   </View>
 
                   <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                    <Text style={[styles.movAmount, { color: apple.colors.danger }]}>
+                    <Text style={[styles.movAmount, { color: zendapp.colors.danger }]}>
                       -{formatMoney(item.monto)}
                     </Text>
 
@@ -584,11 +616,11 @@ export default function AdminCajaDetalle() {
                             setEvidenceModalVisible(true);
                           }}
                         >
-                          <Icon name="camera" size={11} color={apple.colors.blue} />
+                          <Icon name="camera" size={11} color={zendapp.colors.primary} />
                           <Text style={styles.btnMiniPhotoText}>Doc</Text>
                         </TouchableOpacity>
                       )}
-                      <Icon name="chevron-right" size={11} color={apple.colors.tertiaryLabel} />
+                      <Icon name="chevron-right" size={11} color={zendapp.colors.textMuted} />
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -601,7 +633,7 @@ export default function AdminCajaDetalle() {
 
             return (
               <View style={styles.movCard}>
-                <View style={styles.movIconWrap}>
+                <View style={[styles.movIconWrap, isPositive ? { backgroundColor: '#ECFDF5' } : isGasto ? { backgroundColor: '#FFF7ED' } : { backgroundColor: '#FEF2F2' }]}>
                   <Icon
                     name={
                       item.tipo === 'pago'
@@ -612,8 +644,8 @@ export default function AdminCajaDetalle() {
                         ? 'arrow-down'
                         : 'arrow-up'
                     }
-                    size={15}
-                    color={isPositive ? apple.colors.success : isGasto ? '#EA580C' : apple.colors.danger}
+                    size={14}
+                    color={isPositive ? zendapp.colors.success : isGasto ? '#EA580C' : zendapp.colors.danger}
                   />
                 </View>
                 <View style={{ flex: 1, marginHorizontal: 10 }}>
@@ -623,7 +655,7 @@ export default function AdminCajaDetalle() {
                   <Text style={styles.movTime}>{formatDate(item.fecha || item.created_at)}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                  <Text style={[styles.movAmount, { color: isPositive ? apple.colors.success : apple.colors.danger }]}>
+                  <Text style={[styles.movAmount, { color: isPositive ? zendapp.colors.success : zendapp.colors.danger }]}>
                     {isPositive ? '+' : '-'}{formatMoney(item.monto)}
                   </Text>
                   {hasEvidencia && (
@@ -636,7 +668,7 @@ export default function AdminCajaDetalle() {
                         setEvidenceModalVisible(true);
                       }}
                     >
-                      <Icon name="camera" size={11} color={apple.colors.blue} />
+                      <Icon name="camera" size={11} color={zendapp.colors.primary} />
                       <Text style={styles.btnMiniPhotoText}>Foto</Text>
                     </TouchableOpacity>
                   )}
@@ -646,10 +678,10 @@ export default function AdminCajaDetalle() {
           }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="list" size={40} color={apple.colors.tertiaryLabel} />
+              <Icon name="list" size={40} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>Sin movimientos</Text>
               <Text style={styles.emptySubtitle}>No se encontraron registros para este filtro</Text>
             </View>
@@ -664,7 +696,7 @@ export default function AdminCajaDetalle() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nuevo Movimiento</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Icon name="times" size={18} color={apple.colors.secondaryLabel} />
+                <Icon name="times" size={18} color={zendapp.colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -696,7 +728,7 @@ export default function AdminCajaDetalle() {
                 value={movDesc}
                 onChangeText={setMovDesc}
                 placeholder="Ej. Consignación, transporte, combustible"
-                placeholderTextColor={apple.colors.tertiaryLabel}
+                placeholderTextColor={zendapp.colors.textMuted}
               />
             </View>
 
@@ -707,7 +739,7 @@ export default function AdminCajaDetalle() {
                 value={movMonto}
                 onChangeText={(t) => setMovMonto(formatMoneyInput(t))}
                 placeholder="$ 0"
-                placeholderTextColor={apple.colors.tertiaryLabel}
+                placeholderTextColor={zendapp.colors.textMuted}
                 keyboardType="numeric"
               />
             </View>
@@ -730,14 +762,14 @@ export default function AdminCajaDetalle() {
           <View style={[styles.modalCard, { maxHeight: '80%' }]}>
             <View style={styles.subModalHeader}>
               <View style={styles.subWarnIconWrap}>
-                <Icon name="exclamation-triangle" size={24} color="#D97706" />
+                <Icon name="exclamation-triangle" size={22} color="#D97706" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.subModalTitle}>Vendedores con caja abierta</Text>
                 <Text style={styles.subModalBadge}>{openSubordinates.length} caja(s) pendientes</Text>
               </View>
               <TouchableOpacity onPress={() => setSubModalVisible(false)}>
-                <Icon name="times" size={18} color={apple.colors.secondaryLabel} />
+                <Icon name="times" size={18} color={zendapp.colors.textMuted} />
               </TouchableOpacity>
             </View>
 
@@ -755,7 +787,7 @@ export default function AdminCajaDetalle() {
                       Apertura: {new Date(sub.fecha_apertura).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                     <Text style={styles.subSaldo}>
-                      Saldo actual: <Text style={{ color: apple.colors.blue, fontWeight: '700' }}>{formatMoney(sub.saldo_final)}</Text>
+                      Saldo actual: <Text style={{ color: zendapp.colors.carbon, fontWeight: '700' }}>{formatMoney(sub.saldo_final)}</Text>
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -766,7 +798,7 @@ export default function AdminCajaDetalle() {
                     }}
                   >
                     <Text style={styles.subInspectBtnText}>Ver caja</Text>
-                    <Icon name="chevron-right" size={10} color={apple.colors.blue} />
+                    <Icon name="chevron-right" size={10} color={zendapp.colors.primary} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -777,7 +809,7 @@ export default function AdminCajaDetalle() {
                 <Text style={styles.modalBtnCancelText}>Volver</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalBtnConfirm, { backgroundColor: apple.colors.danger }]}
+                style={[styles.modalBtnConfirm, { backgroundColor: zendapp.colors.primary }]}
                 onPress={() => executeClose(caja.caja_id || caja.id)}
                 disabled={closing}
               >
@@ -808,17 +840,17 @@ export default function AdminCajaDetalle() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.s,
-    backgroundColor: apple.colors.card,
-    borderBottomWidth: 0.5,
-    borderBottomColor: apple.colors.separator,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAECF0',
   },
   backBtn: {
     flexDirection: 'row',
@@ -828,27 +860,27 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
     marginLeft: 4,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   headerSubtitle: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   btnCloseCaja: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.danger,
+    backgroundColor: zendapp.colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
     gap: 5,
   },
   btnCloseCajaText: {
@@ -859,10 +891,10 @@ const styles = StyleSheet.create({
   btnNewMov: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.carbon,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
     gap: 5,
   },
   btnNewMovText: {
@@ -872,46 +904,47 @@ const styles = StyleSheet.create({
   },
   summaryBar: {
     flexDirection: 'row',
-    backgroundColor: apple.colors.card,
-    paddingHorizontal: apple.spacing.l,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: apple.colors.separator,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAECF0',
   },
   summaryCol: {
     flex: 1,
     alignItems: 'center',
   },
   summaryDivider: {
-    width: 0.5,
-    backgroundColor: apple.colors.separator,
+    width: 1,
+    backgroundColor: '#EAECF0',
     marginVertical: 4,
   },
   summaryLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
   summaryVal: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     marginTop: 3,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
-    marginHorizontal: apple.spacing.l,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginHorizontal: 16,
     marginTop: 10,
     marginBottom: 6,
     paddingHorizontal: 12,
-    height: 38,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    height: 40,
+    borderWidth: 1.2,
+    borderColor: '#D8DCE4',
   },
   searchIcon: {
     marginRight: 8,
@@ -919,63 +952,114 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
-  pillsScroll: {
+  pillsContainer: {
+    marginVertical: 4,
+  },
+  pillsScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    gap: 8,
     flexDirection: 'row',
-    paddingHorizontal: apple.spacing.l,
-    paddingVertical: 6,
-    gap: 6,
+    alignItems: 'center',
   },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: apple.radius.m,
-    backgroundColor: apple.colors.card,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    paddingVertical: 7,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#D8DCE4',
   },
   pillActive: {
-    backgroundColor: apple.colors.blue,
-    borderColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
+    borderColor: '#B91C1C',
   },
   pillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: '#555E6D',
   },
   pillTextActive: {
     color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  pillBadge: {
+    backgroundColor: '#EAEFF5',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    minWidth: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  pillBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#555E6D',
+  },
+  pillBadgeTextActive: {
+    color: '#FFFFFF',
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: apple.spacing.xl,
+    paddingBottom: 24,
   },
   movCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    ...apple.shadow.subtle,
-    ...apple.border.card,
+    borderWidth: 1.2,
+    borderColor: '#D8DCE4',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#101828',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   movCardVenta: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     padding: 12,
     marginBottom: 8,
-    ...apple.shadow.subtle,
-    ...apple.border.card,
+    borderWidth: 1.2,
+    borderColor: '#D8DCE4',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#101828',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   movDescVenta: {
     fontSize: 14,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   ventaMetricsRow: {
     flexDirection: 'row',
@@ -988,7 +1072,9 @@ const styles = StyleSheet.create({
   ventaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.bgGrouped,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 6,
@@ -996,13 +1082,15 @@ const styles = StyleSheet.create({
   ventaBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   btnMiniPhoto: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#EBF5FF',
+    backgroundColor: '#FEECEC',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1010,24 +1098,24 @@ const styles = StyleSheet.create({
   btnMiniPhotoText: {
     fontSize: 10,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   movIconWrap: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: apple.colors.bgGrouped,
+    backgroundColor: '#F8F9FA',
     justifyContent: 'center',
     alignItems: 'center',
   },
   movDesc: {
     fontSize: 13,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   movTime: {
     fontSize: 11,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   movAmount: {
@@ -1047,25 +1135,37 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
     marginTop: 10,
   },
   emptySubtitle: {
     fontSize: 12,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-    padding: apple.spacing.l,
+    padding: 16,
   },
   modalCard: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
-    padding: apple.spacing.l,
-    ...apple.shadow.elevated,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1075,8 +1175,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   movTypeSelector: {
     flexDirection: 'row',
@@ -1087,19 +1187,20 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: apple.radius.s,
-    backgroundColor: apple.colors.bgGrouped,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   movTypeBtnActive: {
-    backgroundColor: apple.colors.blue,
-    borderColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
+    borderColor: zendapp.colors.primary,
   },
   movTypeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   movTypeTextActive: {
     color: '#FFFFFF',
@@ -1109,42 +1210,43 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
     marginBottom: 4,
   },
   input: {
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    overflow: 'hidden',
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    color: apple.colors.label,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    color: zendapp.colors.carbon,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   modalActions: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 12,
+    marginTop: 14,
   },
   modalBtnCancel: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: apple.radius.s,
-    backgroundColor: apple.colors.bgGrouped,
+    borderRadius: 10,
+    backgroundColor: '#F2F4F7',
     alignItems: 'center',
   },
   modalBtnCancelText: {
     fontSize: 14,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
   },
   modalBtnConfirm: {
     flex: 2,
     paddingVertical: 12,
-    borderRadius: apple.radius.s,
-    backgroundColor: apple.colors.blue,
+    borderRadius: 10,
+    backgroundColor: zendapp.colors.primary,
     alignItems: 'center',
   },
   modalBtnConfirmText: {
@@ -1169,8 +1271,8 @@ const styles = StyleSheet.create({
   },
   subModalTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   subModalBadge: {
     fontSize: 12,
@@ -1179,14 +1281,14 @@ const styles = StyleSheet.create({
   },
   subModalExplain: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     lineHeight: 18,
     marginBottom: 12,
   },
   subListHeader: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     marginBottom: 6,
@@ -1194,41 +1296,44 @@ const styles = StyleSheet.create({
   subCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    overflow: 'hidden',
     padding: 10,
     marginBottom: 6,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   subVendorName: {
     fontSize: 14,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   subDetails: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   subSaldo: {
     fontSize: 12,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     marginTop: 2,
   },
   subInspectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#FEECEC',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
   },
   subInspectBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   btnReopenCaja: {
     flexDirection: 'row',
@@ -1236,7 +1341,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D97706',
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
     gap: 5,
   },
   btnReopenCajaText: {
@@ -1248,7 +1353,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: '#FDE68A',
-    borderRadius: apple.radius.m,
+    borderRadius: 12,
     marginHorizontal: 16,
     marginTop: 10,
     marginBottom: 4,
@@ -1284,7 +1389,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#D97706',
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
     marginTop: 10,

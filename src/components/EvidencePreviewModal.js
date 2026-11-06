@@ -97,10 +97,10 @@ export default function EvidencePreviewModal({
           {/* Image Canvas */}
           <View style={styles.imageBox}>
             {loading ? (
-              <ActivityIndicator size="large" color={apple.colors.blue} />
+              <ActivityIndicator size="large" color="#EE272D" />
             ) : loadError ? (
               <View style={styles.emptyBox}>
-                <Icon name="exclamation-circle" size={48} color={apple.colors.danger} />
+                <Icon name="exclamation-circle" size={48} color="#EE272D" />
                 <Text style={styles.emptyText}>No se pudo cargar la imagen</Text>
               </View>
             ) : resolvedUri ? (
@@ -219,15 +219,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: apple.colors.blue,
+    backgroundColor: '#EE272D',
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
+    ...Platform.select({
+      android: { elevation: 0 },
+    }),
   },
   galleryBtn: {
-    backgroundColor: '#30D158',
+    backgroundColor: '#10B981',
   },
   removeBtn: {
-    backgroundColor: '#FF453A',
+    backgroundColor: '#EE272D',
   },
   actionText: {
     color: '#FFFFFF',

@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminReportes.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -11,11 +12,14 @@ import {
   RefreshControl,
   Share,
   Alert,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
+import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import { getReporteConsolidado } from '../../services/adminService';
 
@@ -101,6 +105,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -110,36 +115,30 @@ Generado el: ${new Date().toLocaleString('es-CO')}
           </Text>
         </View>
         <TouchableOpacity
+          style={styles.headerLogoutBtn}
           onPress={() => setShowLogout(true)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={{ padding: 6 }}
         >
-          <Icon name="sign-out" size={20} color={apple.colors.secondaryLabel} />
+          <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
         </TouchableOpacity>
       </View>
 
       {/* Selector de Tipo */}
-      <View style={styles.typeSelector}>
-        {[
-          { key: 'consolidado', label: 'Consolidado' },
-          { key: 'gasto', label: 'Gastos' },
-          { key: 'movimiento', label: 'Movimientos' },
-        ].map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={[styles.typeBtn, tipo === t.key && styles.typeBtnActive]}
-            onPress={() => setTipo(t.key)}
-          >
-            <Text style={[styles.typeBtnText, tipo === t.key && styles.typeBtnTextActive]}>
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={{ marginHorizontal: 16, marginVertical: 6 }}>
+          <AnimatedSegmentedControl
+            options={[
+              { key: 'consolidado', label: 'Consolidado' },
+              { key: 'gasto', label: 'Gastos' },
+              { key: 'movimiento', label: 'Movimientos' },
+            ]}
+            selectedKey={tipo}
+            onChange={(key) => setTipo(key)}
+          />
+        </View>
 
       {/* Rango de Fechas */}
       <View style={styles.dateBar}>
-        <Icon name="calendar" size={14} color={apple.colors.secondaryLabel} />
+        <Icon name="calendar" size={14} color={zendapp.colors.primary} />
         <Text style={styles.dateText}>
           {fechaIni} al {fechaFin}
         </Text>
@@ -149,32 +148,32 @@ Generado el: ${new Date().toLocaleString('es-CO')}
       <View style={styles.summaryCard}>
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>Recaudado</Text>
-          <Text style={[styles.summaryVal, { color: apple.colors.success }]}>
+          <Text style={[styles.summaryVal, { color: zendapp.colors.success }]}>
             {formatMoney(totalRecaudado)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>Ventas</Text>
-          <Text style={[styles.summaryVal, { color: apple.colors.blue }]}>
+          <Text style={[styles.summaryVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(totalVentas)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
           <Text style={styles.summaryLabel}>Gastos</Text>
-          <Text style={[styles.summaryVal, { color: apple.colors.danger }]}>
+          <Text style={[styles.summaryVal, { color: zendapp.colors.danger }]}>
             {formatMoney(totalGastos)}
           </Text>
         </View>
       </View>
 
       {/* Lista de Vendedores */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
-        </View>
-      ) : (
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <SkeletonList count={4} Component={SkeletonCarteraCard} />
+          </View>
+        ) : (
         <FlatList
           data={data}
           keyExtractor={(item) => item.usuario_id}
@@ -191,7 +190,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
                   style={styles.btnExport}
                   onPress={() => handleExport(item)}
                 >
-                  <Icon name="file-pdf-o" size={13} color={apple.colors.blue} />
+                  <Icon name="file-pdf-o" size={12} color={zendapp.colors.primary} />
                   <Text style={styles.btnExportText}>Exportar</Text>
                 </TouchableOpacity>
               </View>
@@ -201,7 +200,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
               <View style={styles.grid}>
                 <View style={styles.gridItem}>
                   <Text style={styles.gridLabel}>Recaudado</Text>
-                  <Text style={[styles.gridVal, { color: apple.colors.success }]}>
+                  <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
                     {formatMoney(item.total_recaudado)}
                   </Text>
                 </View>
@@ -211,7 +210,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
                 </View>
                 <View style={styles.gridItem}>
                   <Text style={styles.gridLabel}>Gastos</Text>
-                  <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
+                  <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
                     {formatMoney(item.total_gastos)}
                   </Text>
                 </View>
@@ -235,10 +234,10 @@ Generado el: ${new Date().toLocaleString('es-CO')}
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="bar-chart" size={48} color={apple.colors.tertiaryLabel} />
+              <Icon name="bar-chart" size={44} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>Sin datos</Text>
               <Text style={styles.emptySubtitle}>No hay información para el rango de fechas seleccionado</Text>
             </View>
@@ -257,107 +256,147 @@ Generado el: ${new Date().toLocaleString('es-CO')}
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.xs,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
+  },
+  headerLogoutBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   typeSelector: {
     flexDirection: 'row',
-    marginHorizontal: apple.spacing.l,
-    marginVertical: apple.spacing.s,
-    backgroundColor: apple.colors.bgGrouped,
-    borderRadius: apple.radius.s,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    backgroundColor: '#F1F3F7',
+    borderRadius: 10,
     padding: 3,
+    gap: 4,
   },
   typeBtn: {
     flex: 1,
-    paddingVertical: 7,
+    paddingVertical: 8,
     alignItems: 'center',
-    borderRadius: 7,
+    borderRadius: 8,
   },
   typeBtnActive: {
-    backgroundColor: apple.colors.card,
-    ...apple.shadow.subtle,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   typeBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   typeBtnTextActive: {
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     fontWeight: '700',
   },
   dateBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: apple.spacing.l,
-    marginBottom: apple.spacing.s,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.s,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     gap: 8,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   dateText: {
     fontSize: 13,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   summaryCard: {
     flexDirection: 'row',
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
-    marginHorizontal: apple.spacing.l,
-    marginBottom: apple.spacing.m,
-    padding: apple.spacing.m,
-    ...apple.shadow.subtle,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   summaryCol: {
     flex: 1,
     alignItems: 'center',
   },
   summaryDivider: {
-    width: 0.5,
-    backgroundColor: apple.colors.separator,
+    width: 1,
+    backgroundColor: '#EAECF0',
   },
   summaryLabel: {
     fontSize: 10,
-    color: apple.colors.secondaryLabel,
+    fontWeight: '600',
+    color: zendapp.colors.textSecondary,
     marginBottom: 2,
+    textTransform: 'uppercase',
   },
   summaryVal: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
-    paddingBottom: apple.spacing.xl,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   card: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
-    padding: apple.spacing.m,
-    marginBottom: apple.spacing.m,
-    ...apple.shadow.card,
-    ...apple.border.card,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -367,50 +406,60 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 15,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   userRole: {
     fontSize: 10,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 1,
   },
   btnExport: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: apple.radius.s,
-    backgroundColor: apple.colors.blueLight,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FEECEC',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     gap: 5,
   },
   btnExportText: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   divider: {
-    height: 0.5,
-    backgroundColor: apple.colors.separator,
+    height: 1,
+    backgroundColor: '#EAECF0',
     marginVertical: 10,
   },
   grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 6,
   },
   gridItem: {
     flex: 1,
     alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    padding: 8,
   },
   gridLabel: {
     fontSize: 10,
-    color: apple.colors.secondaryLabel,
-    marginBottom: 1,
+    color: zendapp.colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 2,
+    textTransform: 'uppercase',
   },
   gridVal: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   centerContainer: {
     flex: 1,
@@ -425,12 +474,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 4,
   },
 });

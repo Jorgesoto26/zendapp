@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminCajas.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -13,10 +14,11 @@ import {
   Modal,
   BackHandler,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -31,6 +33,7 @@ import { FormatMoneyDecimales } from '../../utils/utilities';
 import { CajaCard } from './components/CajaCard';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
+import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 
 const getTodayIso = () => {
@@ -329,6 +332,7 @@ export default function AdminCajas() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -344,7 +348,7 @@ export default function AdminCajas() {
             onPress={() => setShowLogout(true)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="sign-out" size={16} color={apple.colors.danger} />
+            <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={handlePressAbrirMasivo} disabled={opening}>
             <Icon name="archive" size={14} color="#FFFFFF" />
@@ -364,7 +368,7 @@ export default function AdminCajas() {
       {subAdminsWithoutCaja && subAdminsWithoutCaja.length > 0 && (
         <View style={styles.subTeamsBar}>
           <View style={styles.subTeamsTitleRow}>
-            <Icon name="sitemap" size={12} color="#5856D6" style={{ marginRight: 6 }} />
+            <Icon name="sitemap" size={12} color={zendapp.colors.primary} style={{ marginRight: 6 }} />
             <Text style={styles.subTeamsLabel}>Otros equipos a cargo:</Text>
           </View>
           <ScrollView
@@ -384,7 +388,7 @@ export default function AdminCajas() {
                 }
                 activeOpacity={0.7}
               >
-                <Icon name="shield" size={10} color="#5856D6" style={{ marginRight: 4 }} />
+                <Icon name="shield" size={10} color={zendapp.colors.primary} style={{ marginRight: 4 }} />
                 <Text style={styles.subTeamChipText}>
                   {adm.nombre} ({adm.cantidad_subordinados || 0}) ➔
                 </Text>
@@ -401,11 +405,11 @@ export default function AdminCajas() {
             <Icon
               name={adminOpenCount >= 3 ? 'exclamation-circle' : 'info-circle'}
               size={13}
-              color={adminOpenCount >= 3 ? apple.colors.danger : apple.colors.blue}
+              color={adminOpenCount >= 3 ? zendapp.colors.danger : zendapp.colors.primary}
               style={{ marginRight: 6 }}
             />
-            <Text style={[styles.openCajasBannerTitle, adminOpenCount >= 3 && { color: apple.colors.danger }]}>
-              'Tu caja activa actual (toca para ver):'
+            <Text style={[styles.openCajasBannerTitle, adminOpenCount >= 3 && { color: zendapp.colors.danger }]}>
+              Tu caja activa actual (toca para ver):
             </Text>
           </View>
           <View style={styles.openCajasPillsRow}>
@@ -423,7 +427,7 @@ export default function AdminCajas() {
                   <Icon
                     name="folder-open-o"
                     size={11}
-                    color={isCurrent ? '#fff' : (adminOpenCount >= 3 ? apple.colors.danger : apple.colors.blue)}
+                    color={isCurrent ? '#fff' : (adminOpenCount >= 3 ? zendapp.colors.danger : zendapp.colors.primary)}
                     style={{ marginRight: 5 }}
                   />
                   <Text style={[styles.openCajaPillText, isCurrent && styles.openCajaPillTextActive]}>
@@ -464,7 +468,7 @@ export default function AdminCajas() {
             <Icon
               name="calendar"
               size={12}
-              color={isCustom ? '#fff' : apple.colors.blue}
+              color={isCustom ? '#fff' : zendapp.colors.primary}
               style={{ marginRight: 5 }}
             />
             <Text style={[styles.filterChipText, isCustom && styles.filterChipTextActive]}>
@@ -475,23 +479,23 @@ export default function AdminCajas() {
 
         {isCustom && (
           <View style={styles.activeFilterBadge}>
-            <Icon name="calendar-check-o" size={11} color={apple.colors.blue} style={{ marginRight: 5 }} />
+            <Icon name="calendar-check-o" size={11} color={zendapp.colors.primary} style={{ marginRight: 5 }} />
             <Text style={styles.activeFilterText}>
-              Consultando fecha: <Text style={{ fontWeight: '700', color: apple.colors.blue }}>{formatReadableDate(selectedDate)}</Text>
+              Consultando fecha: <Text style={{ fontWeight: '700', color: zendapp.colors.primary }}>{formatReadableDate(selectedDate)}</Text>
             </Text>
             <TouchableOpacity onPress={() => setSelectedDate(getTodayIso())} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Icon name="times-circle" size={14} color={apple.colors.secondaryLabel} style={{ marginLeft: 8 }} />
+              <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} style={{ marginLeft: 8 }} />
             </TouchableOpacity>
           </View>
         )}
       </View>
 
       {/* Lista de Cajas */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
-        </View>
-      ) : (
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <SkeletonList count={5} Component={SkeletonCarteraCard} />
+          </View>
+        ) : (
         <FlatList
           data={cajas}
           keyExtractor={(item) => String(item.caja_id || item.id)}
@@ -505,10 +509,10 @@ export default function AdminCajas() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="archive" size={48} color={apple.colors.tertiaryLabel} />
+              <Icon name="archive" size={44} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>No hay cajas registradas</Text>
               <Text style={styles.emptySubtitle}>
                 {isHoy
@@ -535,13 +539,13 @@ export default function AdminCajas() {
             {/* Header del Calendario */}
             <View style={styles.calendarNav}>
               <TouchableOpacity onPress={handlePrevMonth} style={styles.calNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Icon name="chevron-left" size={14} color={apple.colors.blue} />
+                <Icon name="chevron-left" size={14} color={zendapp.colors.primary} />
               </TouchableOpacity>
               <Text style={styles.calMonthTitle}>
                 {MONTH_NAMES[calMonth]} {calYear}
               </Text>
               <TouchableOpacity onPress={handleNextMonth} style={styles.calNavBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Icon name="chevron-right" size={14} color={apple.colors.blue} />
+                <Icon name="chevron-right" size={14} color={zendapp.colors.primary} />
               </TouchableOpacity>
             </View>
 
@@ -595,7 +599,7 @@ export default function AdminCajas() {
                 value={customDateInput}
                 onChangeText={setCustomDateInput}
                 placeholder="AAAA-MM-DD"
-                placeholderTextColor={apple.colors.tertiaryLabel}
+                placeholderTextColor={zendapp.colors.textMuted}
                 keyboardType="numbers-and-punctuation"
               />
               <TouchableOpacity style={styles.manualApplyBtn} onPress={handleApplyCustomInput}>
@@ -622,45 +626,45 @@ export default function AdminCajas() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.s,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   headerLogoutBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFEBEA',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
     justifyContent: 'center',
     alignItems: 'center',
-    ...apple.shadow.subtle,
   },
   headerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: apple.radius.m,
+    borderRadius: 8,
     gap: 6,
-    ...apple.shadow.subtle,
   },
   headerBtnText: {
     fontSize: 13,
@@ -669,9 +673,9 @@ const styles = StyleSheet.create({
   },
   filterSection: {
     alignSelf: 'center',
-    paddingHorizontal: apple.spacing.l,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: zendapp.colors.bg,
   },
   filterRow: {
     flexDirection: 'row',
@@ -682,19 +686,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: apple.radius.m,
-    backgroundColor: apple.colors.card,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
   },
   filterChipActive: {
-    backgroundColor: apple.colors.blue,
-    borderColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
+    borderColor: zendapp.colors.primary,
   },
   filterChipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   filterChipTextActive: {
     color: '#FFFFFF',
@@ -703,21 +707,21 @@ const styles = StyleSheet.create({
   activeFilterBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EBF3FF',
+    backgroundColor: '#FEECEC',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
     marginTop: 8,
   },
   activeFilterText: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.s,
-    paddingBottom: apple.spacing.xl,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   centerContainer: {
     flex: 1,
@@ -732,12 +736,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.carbon,
     marginTop: 14,
   },
   emptySubtitle: {
     fontSize: 13,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 4,
     textAlign: 'center',
     maxWidth: 280,
@@ -752,10 +756,22 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 360,
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.l,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 20,
-    ...apple.shadow.elevated,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   calendarNav: {
     flexDirection: 'row',
@@ -768,15 +784,15 @@ const styles = StyleSheet.create({
   },
   calMonthTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   weekRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 8,
-    borderBottomWidth: 0.5,
-    borderBottomColor: apple.colors.separator,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAECF0',
     paddingBottom: 6,
   },
   weekText: {
@@ -784,7 +800,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   daysGrid: {
     flexDirection: 'row',
@@ -804,23 +820,23 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   dayCellSelected: {
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
   },
   dayCellToday: {
     borderWidth: 1,
-    borderColor: apple.colors.blue,
+    borderColor: zendapp.colors.primary,
   },
   dayText: {
     fontSize: 13,
     fontWeight: '500',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   dayTextSelected: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
   dayTextToday: {
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
     fontWeight: '700',
   },
   manualInputRow: {
@@ -828,22 +844,24 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
     paddingTop: 12,
-    borderTopWidth: 0.5,
-    borderTopColor: apple.colors.separator,
+    borderTopWidth: 1,
+    borderTopColor: '#EAECF0',
   },
   manualInput: {
     flex: 1,
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
     paddingHorizontal: 12,
-    height: 38,
+    height: 40,
     fontSize: 13,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   manualApplyBtn: {
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
     paddingHorizontal: 14,
-    borderRadius: apple.radius.s,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -862,15 +880,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
     padding: 10,
-    backgroundColor: apple.colors.secondarySystemBackground,
-    borderRadius: apple.radius.m,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
   },
   openCajasBannerTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   openCajasPillsRow: {
     flexDirection: 'row',
@@ -881,28 +899,29 @@ const styles = StyleSheet.create({
   openCajaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 8,
     paddingVertical: 5,
-    borderRadius: apple.radius.s,
-    borderWidth: 0.5,
-    borderColor: apple.colors.separator,
+    borderRadius: 6,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   openCajaPillActive: {
-    backgroundColor: apple.colors.blue,
-    borderColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
+    borderColor: zendapp.colors.primary,
   },
   openCajaPillText: {
     fontSize: 11,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   openCajaPillTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
   cancelModalText: {
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     fontWeight: '600',
     fontSize: 13,
   },
@@ -911,10 +930,10 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 4,
     padding: 8,
-    backgroundColor: '#F7F6FD',
-    borderRadius: apple.radius.m,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E6E4F7',
+    borderColor: '#EAECF0',
   },
   subTeamsTitleRow: {
     flexDirection: 'row',
@@ -924,7 +943,7 @@ const styles = StyleSheet.create({
   subTeamsLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#3B3988',
+    color: zendapp.colors.carbon,
   },
   subTeamsScroll: {
     alignItems: 'center',
@@ -935,7 +954,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D8D5F5',
+    borderColor: '#D0D5DD',
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -944,6 +963,6 @@ const styles = StyleSheet.create({
   subTeamChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#5856D6',
+    color: zendapp.colors.primary,
   },
 });

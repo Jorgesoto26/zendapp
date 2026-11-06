@@ -9,14 +9,15 @@ import { getDbConnection, updateData, insertTables, getData } from '../../../dat
 import { IdInsertion, getDateOdooMilisec, getDate, Capitalize, FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, generateUUID } from '../../../utils/utilities';
 import { getCajaActual } from '../../../services/cajaService';
 import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 import { appAlert } from '../../../components/AppAlert';
 import { eventBus, EVENTS } from '../../../utils/eventBus';
 import { SyncWithSupabase } from '../../../utils/sync';
 import { useAuth } from '../../../context/AuthContext';
 import PaymentReceiptModal from '../../../components/PaymentReceiptModal';
 
-const getStatusColor = (tipo) => ({ pago: apple.colors.success, 'no pago': apple.colors.danger, parcial: apple.colors.warning, pendiente: apple.colors.separator }[ (tipo||'').toLowerCase().trim()] || apple.colors.separator);
-const getStatusBg = (tipo) => ({ pago: '#E8F5E9', 'no pago': '#FFEBEE', parcial: '#FFF8E1', pendiente: apple.colors.fill }[ (tipo||'').toLowerCase().trim()] || apple.colors.fill);
+const getStatusColor = (tipo) => ({ pago: zendapp.colors.success, 'no pago': zendapp.colors.primary, parcial: zendapp.colors.warning, pendiente: '#D0D5DD' }[ (tipo||'').toLowerCase().trim()] || '#D0D5DD');
+const getStatusBg = (tipo) => ({ pago: '#ECFDF5', 'no pago': '#FEF2F2', parcial: '#FFFBEB', pendiente: '#F8F9FA' }[ (tipo||'').toLowerCase().trim()] || '#F8F9FA');
 
 const getCurrentLocationSafe = () =>
   new Promise((res) => {
@@ -468,16 +469,19 @@ const ItemPayments = memo(({
   const textoChip = estadoMovil === 'actualizado' && tipoTramitado ? tipoTramitado : paymentType;
   const valorAMostrar = estadoMovil === 'actualizado' ? valorPagado : amount;
   const isPending = status === 'PENDIENTE';
-  const amountColor = !isPending && tipoTramitado ? (tipoTramitado === 'NO PAGO' ? apple.colors.danger : tipoTramitado === 'PARCIAL' ? apple.colors.warning : apple.colors.success) : apple.colors.success;
+  const amountColor = !isPending && tipoTramitado
+    ? (tipoTramitado === 'NO PAGO' ? zendapp.colors.primary : tipoTramitado === 'PARCIAL' ? zendapp.colors.warning : zendapp.colors.success)
+    : zendapp.colors.success;
+
   const handlePressCard = () => {
     navigation.navigate('CreditDetail', { invoiceId: id, clientName: name, address, telefono, latitud, longitud, saldo });
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }], marginHorizontal: 14, marginBottom: 8 }}>
+    <Animated.View style={{ transform: [{ scale }], marginHorizontal: 16, marginBottom: 10 }}>
       <TouchableOpacity activeOpacity={0.9} onPress={handlePressCard} onPressIn={pressIn} onPressOut={pressOut} style={styles.card}>
         <View style={styles.content}>
-          {/* Fila 1: Nombre + Teléfono al lado | GPS reemplaza estado arriba */}
+          {/* Fila 1: Nombre + Teléfono al lado | GPS */}
           <View style={styles.topRow}>
             <View style={styles.nameContainer}>
               <View style={styles.nameRow}>
@@ -491,7 +495,7 @@ const ItemPayments = memo(({
                   style={styles.phonePill}
                   activeOpacity={0.7}
                 >
-                  <Icon name="phone" size={10} color={apple.colors.success} />
+                  <Icon name="phone" size={10} color={zendapp.colors.success} />
                   <Text style={styles.phoneText} numberOfLines={1}>{telefono || '—'}</Text>
                 </TouchableOpacity>
               </View>
@@ -506,10 +510,10 @@ const ItemPayments = memo(({
                   appAlert('Sin ubicación', 'Este cliente no tiene coordenadas GPS registradas.');
                 }
               }}
-              style={[styles.gpsPillTop, !(latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0) && { opacity: 0.5, borderColor: apple.colors.tertiaryLabel }]}
+              style={[styles.gpsPillTop, !(latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0) && { opacity: 0.5, borderColor: '#D0D5DD' }]}
               activeOpacity={0.7}
             >
-              <Icon name="map-marker" size={13} color={latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0 ? apple.colors.blue : apple.colors.tertiaryLabel} />
+              <Icon name="map-marker" size={13} color={latitud != null && longitud != null && Number(latitud) !== 0 && Number(longitud) !== 0 ? zendapp.colors.carbon : zendapp.colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -522,11 +526,11 @@ const ItemPayments = memo(({
                 {!isPending && tipoTramitado && (
                   <View style={styles.syncBadge}>
                     {(propPendienteSync !== undefined ? propPendienteSync : pendienteSync) ? (
-                      <Icon name="check" size={11} color={apple.colors.tertiaryLabel} />
+                      <Icon name="check" size={11} color={zendapp.colors.textMuted} />
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="check" size={11} color="#007AFF" />
-                        <Icon name="check" size={11} color="#007AFF" style={{ marginLeft: -4 }} />
+                        <Icon name="check" size={11} color={zendapp.colors.primary} />
+                        <Icon name="check" size={11} color={zendapp.colors.primary} style={{ marginLeft: -4 }} />
                       </View>
                     )}
                   </View>
@@ -535,23 +539,21 @@ const ItemPayments = memo(({
             </View>
             <View style={styles.saldoBox}>
               <Text style={styles.saldoLabel}>SALDO PENDIENTE</Text>
-              <Text style={[styles.saldo, saldo === 0 && { color: apple.colors.success }]}>{FormatMoneyDecimales(saldo)}</Text>
+              <Text style={[styles.saldo, saldo === 0 && { color: zendapp.colors.success }]}>{FormatMoneyDecimales(saldo)}</Text>
             </View>
           </View>
-
-
 
           {/* Fila 3: Botones o Info tramitado */}
           {isPending ? (
             <View style={styles.actions}>
               <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineSuccess]} onPress={() => executePaymentAction('pago', Math.min(valorCuota, saldo))} disabled={loading}>
-                {loading ? <ActivityIndicator size="small" color={apple.colors.success} /> : <><Icon name="check" size={13} color={apple.colors.success} /><Text style={styles.actionTextSuccess}> Pagar</Text></>}
+                {loading ? <ActivityIndicator size="small" color={zendapp.colors.success} /> : <><Icon name="check" size={13} color={zendapp.colors.success} /><Text style={styles.actionTextSuccess}> Pagar</Text></>}
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineDanger]} onPress={() => setModalNoPago(true)}>
-                <Icon name="times" size={13} color={apple.colors.danger} /><Text style={styles.actionTextDanger}> No pago</Text>
+                <Icon name="times" size={13} color={zendapp.colors.primary} /><Text style={styles.actionTextDanger}> No pago</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineWarning]} onPress={() => setModalParcial(true)}>
-                <Icon name="adjust" size={13} color={apple.colors.warning} /><Text style={styles.actionTextWarning}> Abono / Total</Text>
+                <Icon name="adjust" size={13} color="#D97706" /><Text style={styles.actionTextWarning}> Abono / Total</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -569,7 +571,7 @@ const ItemPayments = memo(({
                 <View style={styles.tramitadoSep} />
                 <View style={styles.tramitadoCol}>
                   <Text style={styles.tramitadoLabel}>SALDO VENCIDO</Text>
-                  <Text style={[styles.tramitadoVal, { color: Number(saldoVencido) > 0 ? apple.colors.danger : apple.colors.success }]}>{FormatMoneyDecimales(saldoVencido)}</Text>
+                  <Text style={[styles.tramitadoVal, { color: Number(saldoVencido) > 0 ? zendapp.colors.danger : zendapp.colors.success }]}>{FormatMoneyDecimales(saldoVencido)}</Text>
                 </View>
               </View>
               {tipoTramitado !== 'NO PAGO' && (
@@ -578,7 +580,7 @@ const ItemPayments = memo(({
                   onPress={handleOpenReceiptForTramitado}
                   activeOpacity={0.8}
                 >
-                  <Icon name="file-text-o" size={13} color={apple.colors.blue} />
+                  <Icon name="file-text-o" size={13} color={zendapp.colors.primary} />
                   <Text style={styles.receiptShareBtnText}>Ver y compartir comprobante de pago</Text>
                 </TouchableOpacity>
               )}
@@ -592,14 +594,14 @@ const ItemPayments = memo(({
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>Abonar o Pagar Total</Text>
           <Text style={styles.sheetSub}>{name} · Saldo {FormatMoneyDecimales(saldo)}</Text>
-          <TextInput placeholder="$ 0" keyboardType="numeric" style={styles.sheetInput} value={valorParcial} onChangeText={t => setValorParcial(formatMoneyInput(t))} placeholderTextColor={apple.colors.tertiaryLabel} />
+          <TextInput placeholder="$ 0" keyboardType="numeric" style={styles.sheetInput} value={valorParcial} onChangeText={t => setValorParcial(formatMoneyInput(t))} placeholderTextColor={zendapp.colors.textMuted} />
           {saldo > 0 && (
             <TouchableOpacity
               style={styles.sheetTotalQuickBtn}
               onPress={() => setValorParcial(formatMoneyInput(String(saldo)))}
               activeOpacity={0.7}
             >
-              <Icon name="check-circle" size={13} color={apple.colors.blue} />
+              <Icon name="check-circle" size={13} color={zendapp.colors.carbon} />
               <Text style={styles.sheetTotalQuickBtnText}>Pagar saldo total: {FormatMoneyDecimales(saldo)}</Text>
             </TouchableOpacity>
           )}
@@ -624,8 +626,8 @@ const ItemPayments = memo(({
           <Text style={styles.sheetTitle}>¿Confirmar no pago?</Text>
           <Text style={styles.sheetSub}>Se registrará visita sin recaudo.</Text>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: apple.colors.fill }]} onPress={() => setModalNoPago(false)}><Text style={{ fontWeight: '600', color: apple.colors.label }}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: apple.colors.danger }]} onPress={() => executePaymentAction('nopago', 0)}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontWeight: '600', color: '#fff' }}>Confirmar</Text>}</TouchableOpacity>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#F2F4F7' }]} onPress={() => setModalNoPago(false)}><Text style={{ fontWeight: '600', color: zendapp.colors.carbon }}>Cancelar</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: zendapp.colors.primary }]} onPress={() => executePaymentAction('nopago', 0)}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontWeight: '700', color: '#fff' }}>Confirmar</Text>}</TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -655,94 +657,93 @@ export default ItemPayments;
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: apple.radius.l,
-    borderWidth: 1,
-    borderColor: '#E8EAED',
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: '#D8DCE4',
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.11,
-        shadowRadius: 12,
+        shadowColor: '#101828',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.07,
+        shadowRadius: 6,
       },
-      android: { elevation: 12 },
-      default: { elevation: 12 },
+      android: { elevation: 0 },
+      default: { elevation: 0 },
     }),
   },
-  content: { padding: 12 },
+  content: { padding: 14 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   nameContainer: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  name: { fontSize: 16, fontWeight: '700', color: apple.colors.label, letterSpacing: -0.3, flexShrink: 1 },
-  addr: { fontSize: 12, color: apple.colors.secondaryLabel, marginTop: 1 },
-  phonePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'transparent', borderWidth: 1, borderColor: apple.colors.success, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
-  phoneText: { fontSize: 11, fontWeight: '600', color: '#000', maxWidth: 110 },
-  gpsPillTop: { width: 28, height: 28, borderRadius: apple.radius.m, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', borderWidth: 1, borderColor: '#000', marginLeft: 8, flexShrink: 0 },
+  name: { fontSize: 16, fontWeight: '700', color: zendapp.colors.carbon, letterSpacing: -0.3, flexShrink: 1 },
+  addr: { fontSize: 12, color: zendapp.colors.textSecondary, marginTop: 1 },
+  phonePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D0D5DD', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  phoneText: { fontSize: 11, fontWeight: '600', color: zendapp.colors.carbon, maxWidth: 110 },
+  gpsPillTop: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#D0D5DD', marginLeft: 8, flexShrink: 0 },
   gpsText: { fontSize: 11, fontWeight: '600' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8F9FB', borderRadius: apple.radius.m, paddingHorizontal: 10, paddingVertical: 6, marginTop: 8 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F8F9FA', borderRadius: 10, borderWidth: 1, borderColor: '#EAECF0', paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
   amountBox: { flexDirection: 'column' },
-  amountLabel: { fontSize: 9, fontWeight: '700', color: apple.colors.secondaryLabel, letterSpacing: 0.3 },
+  amountLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
   amount: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
   syncBadge: { flexDirection: 'row', alignItems: 'center' },
   saldoBox: { flexDirection: 'column', alignItems: 'flex-end' },
-  saldoLabel: { fontSize: 9, fontWeight: '700', color: apple.colors.tertiaryLabel, letterSpacing: 0.3 },
-  saldo: { fontSize: 13, fontWeight: '700', color: apple.colors.label },
-  actions: { flexDirection: 'row', gap: 4, marginTop: 8 },
-  actionBtn: { flex: 1, flexDirection: 'row', height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: '#FFFFFF' },
-  actionOutlineSuccess: { borderColor: apple.colors.success },
-  actionOutlineDanger: { borderColor: apple.colors.danger },
-  actionOutlineWarning: { borderColor: apple.colors.warning },
-  actionCall: { borderColor: apple.colors.blue, backgroundColor: '#FFFFFF' },
-  actionTextSuccess: { color: apple.colors.success, fontWeight: '700', fontSize: 11 },
-  actionTextDanger: { color: apple.colors.danger, fontWeight: '700', fontSize: 11 },
-  actionTextWarning: { color: apple.colors.warning, fontWeight: '700', fontSize: 11 },
-  actionTextCall: { color: apple.colors.blue, fontWeight: '700', fontSize: 11 },
-  tramitadoInfo: { flexDirection: 'row', backgroundColor: '#F8F9FB', borderRadius: apple.radius.m, paddingVertical: 8, paddingHorizontal: 6, marginTop: 8, alignItems: 'center' },
+  saldoLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textMuted, letterSpacing: 0.3 },
+  saldo: { fontSize: 13, fontWeight: '800', color: zendapp.colors.carbon },
+  actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  actionBtn: { flex: 1, flexDirection: 'row', height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: '#FFFFFF' },
+  actionOutlineSuccess: { borderColor: zendapp.colors.success, backgroundColor: '#ECFDF5' },
+  actionOutlineDanger: { borderColor: zendapp.colors.primary, backgroundColor: '#FEF2F2' },
+  actionOutlineWarning: { borderColor: zendapp.colors.warning, backgroundColor: '#FFFBEB' },
+  actionTextSuccess: { color: zendapp.colors.success, fontWeight: '700', fontSize: 11 },
+  actionTextDanger: { color: zendapp.colors.primary, fontWeight: '700', fontSize: 11 },
+  actionTextWarning: { color: '#D97706', fontWeight: '700', fontSize: 11 },
+  tramitadoInfo: { flexDirection: 'row', backgroundColor: '#F8F9FA', borderRadius: 10, borderWidth: 1, borderColor: '#EAECF0', paddingVertical: 8, paddingHorizontal: 6, marginTop: 8, alignItems: 'center' },
   tramitadoCol: { flex: 1, alignItems: 'center' },
-  tramitadoLabel: { fontSize: 9, fontWeight: '700', color: apple.colors.secondaryLabel, letterSpacing: 0.3 },
-  tramitadoVal: { fontSize: 12, fontWeight: '700', color: apple.colors.label, marginTop: 2 },
-  tramitadoSep: { width: 1, height: 24, backgroundColor: '#E8EAED' },
-  sheet: { backgroundColor: apple.colors.card, borderRadius: apple.radius.xl, padding: 20 },
-  handle: { width: 36, height: 5, borderRadius: 3, backgroundColor: apple.colors.separator, alignSelf: 'center', marginBottom: 16 },
-  sheetTitle: { fontSize: 17, fontWeight: '700', color: apple.colors.label, textAlign: 'center' },
-  sheetSub: { fontSize: 13, color: apple.colors.secondaryLabel, textAlign: 'center', marginTop: 4 },
-  sheetInput: { backgroundColor: apple.colors.fill, borderRadius: apple.radius.s, borderWidth: 1, borderColor: apple.colors.separator, padding: 14, marginTop: 16, fontSize: 17, color: apple.colors.label, textAlign: 'center' },
-  sheetPrimary: { backgroundColor: apple.colors.blue, borderRadius: apple.radius.s, height: 48, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  sheetPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  sheetBtn: { flex: 1, height: 46, borderRadius: apple.radius.s, alignItems: 'center', justifyContent: 'center' },
+  tramitadoLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
+  tramitadoVal: { fontSize: 12, fontWeight: '700', color: zendapp.colors.carbon, marginTop: 2 },
+  tramitadoSep: { width: 1, height: 24, backgroundColor: '#EAECF0' },
+  sheet: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#EAECF0' },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#D0D5DD', alignSelf: 'center', marginBottom: 16 },
+  sheetTitle: { fontSize: 17, fontWeight: '800', color: zendapp.colors.carbon, textAlign: 'center' },
+  sheetSub: { fontSize: 13, color: zendapp.colors.textSecondary, textAlign: 'center', marginTop: 4 },
+  sheetInput: { backgroundColor: '#F8F9FA', borderRadius: 8, borderWidth: 1, borderColor: '#D0D5DD', padding: 12, marginTop: 14, fontSize: 17, color: zendapp.colors.carbon, textAlign: 'center' },
+  sheetPrimary: { backgroundColor: zendapp.colors.primary, borderRadius: 10, height: 46, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  sheetPrimaryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  sheetBtn: { flex: 1, height: 46, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   receiptShareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#F0F7FF',
-    borderRadius: apple.radius.m,
+    backgroundColor: '#FEECEC',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D0E4FF',
-    paddingVertical: 7,
+    borderColor: '#FECACA',
+    paddingVertical: 8,
     paddingHorizontal: 12,
     marginTop: 8,
   },
   receiptShareBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   sheetTotalQuickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#F0F7FF',
+    backgroundColor: '#F8F9FA',
     borderWidth: 1,
-    borderColor: '#D0E4FF',
-    borderRadius: apple.radius.s,
+    borderColor: '#D0D5DD',
+    borderRadius: 8,
     paddingVertical: 10,
     marginTop: 10,
   },
   sheetTotalQuickBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.carbon,
   },
 });

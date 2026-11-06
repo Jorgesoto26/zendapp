@@ -28,20 +28,20 @@ export function AppAlertProvider({ children }) {
   };
 
     const iconMap = {
-    info: { name: 'info', color: '#0F172A', bg: '#F1F5F9', border: '#E2E8F0' },
-    warning: { name: 'exclamation-triangle', color: '#B45309', bg: '#FFFBEB', border: '#FDE68A' },
-    error: { name: 'times', color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-    success: { name: 'check', color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0' },
+    info: { name: 'info', color: '#1E1E1F', bg: '#F1F3F7', border: '#EAECF0' },
+    warning: { name: 'exclamation-triangle', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
+    error: { name: 'times', color: '#EE272D', bg: '#FEF2F2', border: '#FECACA' },
+    success: { name: 'check', color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
   };
   const iconCfg = config.icon || iconMap[config.type] || iconMap.info;
 
   return (
     <AlertContext.Provider value={{ showAlert, hideAlert: hide }}>
       {children}
-      <Modal isVisible={visible} onBackdropPress={hide} backdropOpacity={0.4} animationIn="zoomIn" animationOut="zoomOut" useNativeDriver backdropTransitionOutTiming={0} style={styles.modal}>
+      <Modal isVisible={visible} onBackdropPress={hide} backdropOpacity={0.45} animationIn="zoomIn" animationOut="zoomOut" useNativeDriver backdropTransitionOutTiming={0} style={styles.modal}>
         <View style={styles.sheet}>
           <View style={[styles.iconWrap, { backgroundColor: iconCfg.bg, borderColor: iconCfg.border }]}>
-            <Icon name={iconCfg.name} size={22} color={iconCfg.color} />
+            <Icon name={iconCfg.name} size={20} color={iconCfg.color} />
           </View>
           {!!config.title && <Text style={styles.title}>{config.title}</Text>}
           {!!config.message && <Text style={styles.message}>{config.message}</Text>}
@@ -79,16 +79,16 @@ export function appAlert(title, message, buttons) {
 
 const styles = StyleSheet.create({
   modal: { justifyContent: 'center', alignItems: 'center' },
-  sheet: { backgroundColor: '#fff', borderRadius: apple.radius.l, padding: 20, width: '86%', maxWidth: 360, alignSelf: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
-  iconWrap: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12, borderWidth: 1 },
-  title: { fontSize: 15, fontWeight: '800', color: '#0F172A', textAlign: 'center', letterSpacing: -0.2 },
-  message: { fontSize: 13, color: '#64748B', textAlign: 'center', marginTop: 6, lineHeight: 18, paddingHorizontal: 4, fontWeight: '500' },
+  sheet: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, width: '86%', maxWidth: 360, alignSelf: 'center', borderWidth: 1, borderColor: '#EAECF0' },
+  iconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12, borderWidth: 1 },
+  title: { fontSize: 16, fontWeight: '800', color: '#1E1E1F', textAlign: 'center', letterSpacing: -0.2 },
+  message: { fontSize: 13, color: '#667085', textAlign: 'center', marginTop: 6, lineHeight: 18, paddingHorizontal: 4, fontWeight: '500' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  btn: { flex: 1, height: 44, borderRadius: apple.radius.m, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  btnDefault: { backgroundColor: '#0F172A', borderColor: '#0F172A' },
-  btnDefaultText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  btnCancel: { backgroundColor: '#fff', borderColor: '#E2E8F0' },
-  btnCancelText: { color: '#0F172A', fontWeight: '700', fontSize: 13 },
-  btnDestructive: { backgroundColor: '#0F172A', borderColor: '#0F172A' },
-  btnDestructiveText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  btn: { flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  btnDefault: { backgroundColor: '#EE272D', borderColor: '#EE272D' },
+  btnDefaultText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+  btnCancel: { backgroundColor: '#FFFFFF', borderColor: '#EAECF0' },
+  btnCancelText: { color: '#1E1E1F', fontWeight: '700', fontSize: 13 },
+  btnDestructive: { backgroundColor: '#EE272D', borderColor: '#EE272D' },
+  btnDestructiveText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
 });

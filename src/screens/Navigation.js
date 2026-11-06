@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -21,6 +21,7 @@ import {
   AdminReportes,
 } from './admin';
 import { useAuth } from '../context/AuthContext';
+import { zendapp } from '../theme/zendappTheme';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -68,14 +69,24 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: '#E8EAED',
-          height: 64,
+          borderTopColor: '#EAECF0',
+          height: Platform.OS === 'ios' ? 70 : 64,
           paddingTop: 6,
-          paddingBottom: 8,
+          paddingBottom: Platform.OS === 'ios' ? 14 : 8,
+          elevation: 0,
+          shadowColor: '#101828',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 6,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1, marginTop: 2 },
-        tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+          letterSpacing: 0.2,
+          marginTop: 2,
+        },
+        tabBarActiveTintColor: zendapp.colors.primary,
+        tabBarInactiveTintColor: '#98A2B3',
         tabBarItemStyle: { justifyContent: 'center', alignItems: 'center' },
         headerShown: false,
       }}
@@ -88,7 +99,7 @@ function MainTabs() {
           options={{
             tabBarIcon: ({ color, focused }) => (
               <View style={{ alignItems: 'center', justifyContent: 'center', width: 36, height: 28 }}>
-                <Icon name={item.icon} size={22} color={color} />
+                <Icon name={item.icon} size={21} color={color} />
               </View>
             ),
             tabBarLabel: item.title,
@@ -104,8 +115,8 @@ function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#007bff" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FB' }}>
+        <ActivityIndicator size="large" color={zendapp.colors.primary} />
       </View>
     );
   }

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 import { appAlert } from '../../../components/AppAlert';
 import { getAdminOrganizacion, updateAdminOrganizacion } from '../../../services/adminService';
 import { pickImage, getSignedUrl } from '../../../services/multimediaService';
@@ -131,14 +132,14 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
               <Text style={styles.sub}>Logo, datos de comprobante y apertura de caja</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Icon name="times" size={20} color={apple.colors.secondaryLabel} />
+              <Icon name="times" size={18} color={zendapp.colors.textMuted} />
             </TouchableOpacity>
           </View>
 
           {loading ? (
             <View style={{ padding: 40, alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={apple.colors.blue} />
-              <Text style={{ marginTop: 12, color: apple.colors.secondaryLabel }}>Cargando datos...</Text>
+              <ActivityIndicator size="large" color={zendapp.colors.primary} />
+              <Text style={{ marginTop: 12, color: zendapp.colors.textSecondary }}>Cargando datos...</Text>
             </View>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
@@ -150,7 +151,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                     <Image source={{ uri: logoPreviewUrl }} style={styles.logoImage} resizeMode="contain" />
                   ) : (
                     <View style={styles.logoPlaceholder}>
-                      <Icon name="building-o" size={32} color={apple.colors.tertiaryLabel} />
+                      <Icon name="building-o" size={30} color={zendapp.colors.textMuted} />
                       <Text style={styles.logoPlaceholderText}>Sin logo</Text>
                     </View>
                   )}
@@ -161,7 +162,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                     onPress={() => handlePickLogo('camera')}
                     activeOpacity={0.8}
                   >
-                    <Icon name="camera" size={13} color={apple.colors.blue} />
+                    <Icon name="camera" size={13} color={zendapp.colors.carbon} />
                     <Text style={styles.logoBtnText}>Tomar foto</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -169,17 +170,17 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                     onPress={() => handlePickLogo('gallery')}
                     activeOpacity={0.8}
                   >
-                    <Icon name="image" size={13} color={apple.colors.blue} />
+                    <Icon name="image" size={13} color={zendapp.colors.carbon} />
                     <Text style={styles.logoBtnText}>Galería</Text>
                   </TouchableOpacity>
                   {logoPath && (
                     <TouchableOpacity
-                      style={[styles.logoBtn, { borderColor: apple.colors.danger }]}
+                      style={[styles.logoBtn, { borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
                       onPress={() => { setLogoPath(null); setLogoPreviewUrl(null); }}
                       activeOpacity={0.8}
                     >
-                      <Icon name="trash-o" size={13} color={apple.colors.danger} />
-                      <Text style={[styles.logoBtnText, { color: apple.colors.danger }]}>Quitar</Text>
+                      <Icon name="trash-o" size={13} color={zendapp.colors.primary} />
+                      <Text style={[styles.logoBtnText, { color: zendapp.colors.primary }]}>Quitar</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -193,7 +194,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                 value={nombre}
                 onChangeText={setNombre}
                 placeholder="Ej. Inversiones Zenda S.A.S."
-                placeholderTextColor={apple.colors.tertiaryLabel}
+                placeholderTextColor={zendapp.colors.textMuted}
               />
 
               <Text style={styles.inputLabel}>NIT / Identificación Fiscal</Text>
@@ -202,7 +203,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                 value={nit}
                 onChangeText={setNit}
                 placeholder="Ej. 900.123.456-7"
-                placeholderTextColor={apple.colors.tertiaryLabel}
+                placeholderTextColor={zendapp.colors.textMuted}
               />
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -214,7 +215,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                     onChangeText={setTelefono}
                     placeholder="300 123 4567"
                     keyboardType="phone-pad"
-                    placeholderTextColor={apple.colors.tertiaryLabel}
+                    placeholderTextColor={zendapp.colors.textMuted}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -224,7 +225,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                     value={direccion}
                     onChangeText={setDireccion}
                     placeholder="Calle 10 # 20-30"
-                    placeholderTextColor={apple.colors.tertiaryLabel}
+                    placeholderTextColor={zendapp.colors.textMuted}
                   />
                 </View>
               </View>
@@ -239,7 +240,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                 onPress={() => setModoApertura('admin_masivo')}
                 activeOpacity={0.8}
               >
-                <View style={styles.modoRadio}>
+                <View style={[styles.modoRadio, modoApertura === 'admin_masivo' && { borderColor: zendapp.colors.primary }]}>
                   {modoApertura === 'admin_masivo' && <View style={styles.modoRadioDot} />}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -258,7 +259,7 @@ export default function OrganizationModal({ visible, onClose, onSaved }) {
                 onPress={() => setModoApertura('vendedor_dia')}
                 activeOpacity={0.8}
               >
-                <View style={styles.modoRadio}>
+                <View style={[styles.modoRadio, modoApertura === 'vendedor_dia' && { borderColor: zendapp.colors.primary }]}>
                   {modoApertura === 'vendedor_dia' && <View style={styles.modoRadioDot} />}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -300,34 +301,36 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 480,
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
     padding: 20,
     maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 16,
-    paddingBottom: 10,
-    borderBottomWidth: 0.5,
-    borderColor: apple.colors.separator,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderColor: '#EAECF0',
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   sub: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   sectionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginTop: 14,
@@ -337,17 +340,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F8F9FA',
     padding: 12,
-    borderRadius: apple.radius.m,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   logoPreviewBox: {
     width: 80,
     height: 80,
-    borderRadius: apple.radius.m,
-    backgroundColor: '#fff',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#D0D5DD',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -362,7 +367,7 @@ const styles = StyleSheet.create({
   },
   logoPlaceholderText: {
     fontSize: 10,
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textMuted,
     marginTop: 4,
   },
   logoBtnCol: {
@@ -374,56 +379,56 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D0E4FF',
-    borderRadius: apple.radius.s,
-    paddingVertical: 6,
+    borderColor: '#D0D5DD',
+    borderRadius: 8,
+    paddingVertical: 7,
     paddingHorizontal: 10,
   },
   logoBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: apple.colors.blue,
+    color: zendapp.colors.carbon,
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
     marginTop: 10,
     marginBottom: 4,
   },
   input: {
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#D0D5DD',
     paddingHorizontal: 12,
     height: 44,
     fontSize: 14,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   modoCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.m,
-    borderWidth: 1.5,
-    borderColor: apple.colors.separator,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     padding: 12,
     marginBottom: 8,
   },
   modoCardSelected: {
-    borderColor: apple.colors.blue,
-    backgroundColor: '#F0F7FF',
+    borderColor: zendapp.colors.primary,
+    backgroundColor: '#FEECEC',
   },
   modoRadio: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: apple.colors.secondaryLabel,
+    borderColor: '#D0D5DD',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -432,16 +437,16 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
   },
   modoTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   modoSub: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
     lineHeight: 15,
   },
@@ -449,35 +454,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 14,
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderColor: apple.colors.separator,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: '#EAECF0',
   },
   cancelBtn: {
     flex: 1,
     height: 46,
-    borderRadius: apple.radius.m,
-    backgroundColor: apple.colors.fill,
+    borderRadius: 10,
+    backgroundColor: '#F2F4F7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
     fontSize: 14,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   saveBtn: {
     flex: 1,
     height: 46,
-    borderRadius: apple.radius.m,
-    backgroundColor: apple.colors.blue,
+    borderRadius: 10,
+    backgroundColor: zendapp.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#fff',
+    color: '#FFFFFF',
   },
 });
 

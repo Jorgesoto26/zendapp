@@ -1,8 +1,8 @@
 // src/screens/admin/components/CajaCard.js
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../../theme/appleTheme';
+import { zendapp } from '../../../theme/zendappTheme';
 
 const formatMoney = (val) => {
   const num = parseFloat(val) || 0;
@@ -46,7 +46,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         <View style={styles.titleCol}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={[styles.avatarBadge, isAdmin ? styles.avatarAdmin : styles.avatarVendedor]}>
-              <Icon name={isAdmin ? 'shield' : 'user'} size={14} color={isAdmin ? '#5856D6' : apple.colors.blue} />
+              <Icon name={isAdmin ? 'shield' : 'user'} size={14} color={isAdmin ? '#5856D6' : zendapp.colors.primary} />
             </View>
             <View style={{ marginLeft: 8, flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -58,7 +58,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
                 <Text style={styles.roleText}>{caja.rol_usuario?.toUpperCase()}</Text>
                 {hasTeam ? (
                   <View style={styles.teamBadge}>
-                    <Icon name="users" size={10} color="#5856D6" style={{ marginRight: 3 }} />
+                    <Icon name="users" size={10} color={zendapp.colors.carbon} style={{ marginRight: 3 }} />
                     <Text style={styles.teamBadgeText}>
                       {caja.cantidad_subordinados || 0} a cargo
                     </Text>
@@ -71,8 +71,8 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
 
         {/* Estado badge */}
         <View style={[styles.statusBadge, isOpen ? styles.statusBadgeOpen : styles.statusBadgeClosed]}>
-          <View style={[styles.statusDot, { backgroundColor: isOpen ? apple.colors.success : apple.colors.danger }]} />
-          <Text style={[styles.statusText, { color: isOpen ? apple.colors.success : apple.colors.danger }]}>
+          <View style={[styles.statusDot, { backgroundColor: isOpen ? zendapp.colors.success : zendapp.colors.danger }]} />
+          <Text style={[styles.statusText, { color: isOpen ? zendapp.colors.success : zendapp.colors.danger }]}>
             {isOpen ? 'ABIERTA' : 'CERRADA'}
           </Text>
         </View>
@@ -87,7 +87,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
             <View style={styles.hierarchyIconCircle}>
-              <Icon name="sitemap" size={12} color="#5856D6" />
+              <Icon name="sitemap" size={12} color={zendapp.colors.primary} />
             </View>
             <View style={{ marginLeft: 8, flex: 1 }}>
               <Text style={styles.hierarchyTitle}>Ver cajas del equipo</Text>
@@ -100,14 +100,14 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
           </View>
           <View style={styles.hierarchyArrow}>
             <Text style={styles.hierarchyActionText}>Explorar</Text>
-            <Icon name="chevron-right" size={11} color="#5856D6" style={{ marginLeft: 4 }} />
+            <Icon name="chevron-right" size={10} color={zendapp.colors.primary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
       )}
 
       {/* Fecha de apertura */}
       <View style={styles.fechaRow}>
-        <Icon name="calendar-check-o" size={11} color={apple.colors.secondaryLabel} style={{ marginRight: 5 }} />
+        <Icon name="calendar-check-o" size={11} color={zendapp.colors.textSecondary} style={{ marginRight: 5 }} />
         <Text style={styles.fechaText}>
           Apertura: <Text style={styles.fechaBold}>{formatFechaApertura(caja.fecha_apertura)}</Text>
         </Text>
@@ -136,7 +136,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         </View>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
-          <Text style={[styles.gridVal, { color: apple.colors.blue }]}>
+          <Text style={[styles.gridVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(caja.saldo_final)}
           </Text>
         </View>
@@ -148,13 +148,13 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         <View style={[styles.grid, { marginTop: 6 }]}>
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Ingresos</Text>
-            <Text style={[styles.gridVal, { color: apple.colors.success }]}>
+            <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
               {formatMoney(caja.valor_ingresos)}
             </Text>
           </View>
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Retiros / Gastos</Text>
-            <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
+            <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
               {formatMoney(retirosGastos)}
             </Text>
           </View>
@@ -169,7 +169,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
             </View>
             <View style={styles.gridItem}>
               <Text style={styles.gridLabel}>Recaudado</Text>
-              <Text style={[styles.gridVal, { color: apple.colors.success }]}>
+              <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
                 {formatMoney(caja.valor_recaudado)}
               </Text>
             </View>
@@ -182,7 +182,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
             </View>
             <View style={styles.gridItem}>
               <Text style={styles.gridLabel}>Gastos</Text>
-              <Text style={[styles.gridVal, { color: apple.colors.danger }]}>
+              <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
                 {formatMoney(caja.valor_gastos)}
               </Text>
             </View>
@@ -202,16 +202,16 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         ) : (
           <>
             <Text style={styles.footerStat}>
-              Clientes: <Text style={{ fontWeight: '700', color: apple.colors.label }}>{caja.total_clientes || 0}</Text>
+              Clientes: <Text style={{ fontWeight: '700', color: zendapp.colors.carbon }}>{caja.total_clientes || 0}</Text>
             </Text>
             <Text style={styles.footerStat}>
-              No Pagos: <Text style={{ fontWeight: '700', color: apple.colors.danger }}>{caja.cantidad_nopagos || 0}</Text>
+              No Pagos: <Text style={{ fontWeight: '700', color: zendapp.colors.danger }}>{caja.cantidad_nopagos || 0}</Text>
             </Text>
           </>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <Text style={styles.verMovText}>Movimientos{caja.total_movimientos != null ? ` (${caja.total_movimientos})` : ''}</Text>
-          <Icon name="chevron-right" size={11} color={apple.colors.blue} style={{ marginLeft: 4 }} />
+          <Icon name="chevron-right" size={11} color={zendapp.colors.primary} style={{ marginLeft: 5 }} />
         </View>
       </View>
     </TouchableOpacity>
@@ -220,16 +220,28 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.m,
-    padding: apple.spacing.m,
-    marginBottom: apple.spacing.m,
-    ...apple.shadow.card,
-    ...apple.border.card,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   myCajaCard: {
     borderWidth: 1.5,
-    borderColor: apple.colors.blue,
+    borderColor: zendapp.colors.primary,
   },
   header: {
     flexDirection: 'row',
@@ -248,20 +260,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarVendedor: {
-    backgroundColor: '#EBF5FF',
+    backgroundColor: '#FEECEC',
   },
   avatarAdmin: {
-    backgroundColor: '#F3EEFD',
+    backgroundColor: '#F0EFFF',
   },
   userName: {
     fontSize: 15,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   roleText: {
     fontSize: 10,
     fontWeight: '700',
-    color: apple.colors.tertiaryLabel,
+    color: zendapp.colors.textSecondary,
     letterSpacing: 0.5,
     marginTop: 1,
   },
@@ -270,13 +282,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: apple.radius.pill,
+    borderRadius: 12,
   },
   statusBadgeOpen: {
     backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
   },
   statusBadgeClosed: {
     backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   statusDot: {
     width: 6,
@@ -296,11 +312,11 @@ const styles = StyleSheet.create({
   },
   fechaText: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   fechaBold: {
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   progressContainer: {
     marginTop: 2,
@@ -315,27 +331,27 @@ const styles = StyleSheet.create({
   progressLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   progressVal: {
     fontSize: 11,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.carbon,
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F1F3F7',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.success,
     borderRadius: 3,
   },
   divider: {
-    height: 0.5,
-    backgroundColor: apple.colors.separator,
+    height: 1,
+    backgroundColor: '#EAECF0',
     marginVertical: 10,
   },
   grid: {
@@ -344,13 +360,15 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     flex: 1,
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.s,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     padding: 8,
   },
   gridLabel: {
     fontSize: 10,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -358,7 +376,7 @@ const styles = StyleSheet.create({
   gridVal: {
     fontSize: 13,
     fontWeight: '700',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
     marginTop: 2,
   },
   footerRow: {
@@ -367,22 +385,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     paddingTop: 8,
-    borderTopWidth: 0.5,
-    borderTopColor: apple.colors.separator,
+    borderTopWidth: 1,
+    borderTopColor: '#EAECF0',
   },
   footerStat: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
   },
   verMovText: {
     fontSize: 11,
     fontWeight: '700',
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   teamBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0EFFF',
+    backgroundColor: '#F1F3F7',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -391,16 +411,16 @@ const styles = StyleSheet.create({
   teamBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#5856D6',
+    color: zendapp.colors.carbon,
   },
   btnHierarchy: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8F8FD',
+    backgroundColor: '#F8F9FA',
     borderWidth: 1,
-    borderColor: '#E4E2F8',
-    borderRadius: apple.radius.s,
+    borderColor: '#EAECF0',
+    borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 10,
     marginTop: 8,
@@ -410,18 +430,18 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#EAE8FC',
+    backgroundColor: '#FEECEC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   hierarchyTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#3B3988',
+    color: zendapp.colors.carbon,
   },
   hierarchySubtitle: {
     fontSize: 11,
-    color: apple.colors.secondaryLabel,
+    color: zendapp.colors.textSecondary,
     marginTop: 1,
   },
   hierarchyArrow: {
@@ -431,12 +451,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D4D2F2',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
   },
   hierarchyActionText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#5856D6',
+    color: zendapp.colors.primary,
   },
 });

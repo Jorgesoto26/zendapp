@@ -1,3 +1,4 @@
+import AppBackground from '../../components/AppBackground';
 // src/screens/admin/AdminCarteraDetalle.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -12,10 +13,12 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { apple } from '../../theme/appleTheme';
+import { zendapp } from '../../theme/zendappTheme';
+import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { appAlert } from '../../components/AppAlert';
 import {
   getCarteraDetail,
@@ -163,10 +166,11 @@ export default function AdminCarteraDetalle() {
 
   return (
     <SafeAreaView style={styles.root}>
+      <AppBackground />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={16} color={apple.colors.blue} />
+          <Icon name="chevron-left" size={15} color={zendapp.colors.primary} />
           <Text style={styles.backText}>Cartera</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 10 }}>
@@ -184,35 +188,35 @@ export default function AdminCarteraDetalle() {
           onPress={handleOpenTraslado}
           activeOpacity={0.8}
         >
-          <Icon name="exchange" size={13} color="#fff" style={{ marginRight: 6 }} />
+          <Icon name="exchange" size={12} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.btnTrasladarHeaderText}>Trasladar cartera</Text>
         </TouchableOpacity>
       </View>
 
       {/* Buscador */}
       <View style={styles.searchContainer}>
-        <Icon name="search" size={14} color={apple.colors.tertiaryLabel} style={styles.searchIcon} />
+        <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Buscar cliente o documento..."
-          placeholderTextColor={apple.colors.tertiaryLabel}
+          placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
           clearButtonMode="while-editing"
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Icon name="times-circle" size={14} color={apple.colors.tertiaryLabel} />
+            <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Lista de Crditos */}
-      {loading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={apple.colors.blue} />
-        </View>
-      ) : (
+      {/* Lista de Créditos */}
+        {loading ? (
+          <View style={{ flex: 1, paddingTop: 10 }}>
+            <SkeletonList count={5} Component={SkeletonCarteraCard} />
+          </View>
+        ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.invoice_id}
@@ -230,7 +234,7 @@ export default function AdminCarteraDetalle() {
                       {item.nombre_cliente} {item.apellido_cliente || ''}
                     </Text>
                     <Text style={styles.clientDoc}>
-                      Doc: {item.documento || 'S/D'}  Tel: {item.telefono || 'S/T'}
+                      Doc: {item.documento || 'S/D'} · Tel: {item.telefono || 'S/T'}
                     </Text>
                   </View>
                   <View style={styles.saldoWrap}>
@@ -248,7 +252,7 @@ export default function AdminCarteraDetalle() {
                   </View>
                   <View style={styles.gridCol}>
                     <Text style={styles.gridLabel}>Saldo Vencido</Text>
-                    <Text style={[styles.gridVal, hasVencido && { color: apple.colors.danger }]}>
+                    <Text style={[styles.gridVal, hasVencido && { color: zendapp.colors.danger }]}>
                       {formatMoney(item.saldo_vencido)}
                     </Text>
                   </View>
@@ -267,7 +271,7 @@ export default function AdminCarteraDetalle() {
                       style={styles.btnCastigar}
                       onPress={() => openCastigarModal(item)}
                     >
-                      <Icon name="ban" size={12} color={apple.colors.danger} />
+                      <Icon name="ban" size={12} color={zendapp.colors.primary} />
                       <Text style={styles.btnCastigarText}>Castigar Cartera</Text>
                     </TouchableOpacity>
                   ) : <View />}
@@ -277,7 +281,7 @@ export default function AdminCarteraDetalle() {
                     onPress={() => handleOpenCredit(item)}
                   >
                     <Text style={styles.btnVerText}>Ver Detalle</Text>
-                    <Icon name="arrow-right" size={12} color={apple.colors.blue} style={{ marginLeft: 4 }} />
+                    <Icon name="arrow-right" size={12} color={zendapp.colors.primary} style={{ marginLeft: 6 }} />
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
@@ -285,12 +289,12 @@ export default function AdminCarteraDetalle() {
           }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={apple.colors.blue} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={zendapp.colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Icon name="inbox" size={48} color={apple.colors.tertiaryLabel} />
-              <Text style={styles.emptyTitle}>Sin crditos</Text>
-              <Text style={styles.emptySubtitle}>Este vendedor no tiene crditos con saldo pendiente</Text>
+              <Icon name="inbox" size={44} color={zendapp.colors.border} />
+              <Text style={styles.emptyTitle}>Sin créditos</Text>
+              <Text style={styles.emptySubtitle}>Este usuario no tiene créditos con saldo pendiente</Text>
             </View>
           }
         />
@@ -306,15 +310,15 @@ export default function AdminCarteraDetalle() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalIconWrapDanger}>
-              <Icon name="ban" size={24} color={apple.colors.danger} />
+              <Icon name="ban" size={22} color={zendapp.colors.primary} />
             </View>
             <Text style={styles.modalTitle}>Castigar Cartera</Text>
             <Text style={styles.modalDesc}>
-              Estás seguro de castigar el crédito de{' '}
-              <Text style={{ fontWeight: '700', color: apple.colors.label }}>
+              ¿Estás seguro de castigar el crédito de{' '}
+              <Text style={{ fontWeight: '700', color: zendapp.colors.carbon }}>
                 {selectedCastigoInvoice?.nombre_cliente} {selectedCastigoInvoice?.apellido_cliente || ''}
               </Text>
-              Esta acción bloqueará futuros créditos a este cliente y saldrá de la ruta de cobro activa.
+              ? Esta acción bloqueará futuros créditos a este cliente y saldrá de la ruta de cobro activa.
             </Text>
 
             <View style={styles.modalActions}>
@@ -352,17 +356,17 @@ export default function AdminCarteraDetalle() {
         <View style={styles.modalOverlay}>
           <View style={styles.trasladoCard}>
             <View style={styles.modalIconWrapPrimary}>
-              <Icon name="exchange" size={24} color={apple.colors.blue} />
+              <Icon name="exchange" size={22} color={zendapp.colors.primary} />
             </View>
             <Text style={styles.modalTitle}>Trasladar Cartera</Text>
             <Text style={styles.modalDesc}>
-              Trasladar cartera permite asignar los clientes de este vendedor a otro vendedor para que contine gestionando su cartera.
+              Permite transferir los clientes de este vendedor a otro usuario para continuar con su cobro y gestión.
             </Text>
 
             {/* Vendedor Origen */}
             <Text style={styles.fieldLabel}>Vendedor de origen:</Text>
             <View style={styles.readOnlyField}>
-              <Icon name="user" size={14} color={apple.colors.secondaryLabel} style={{ marginRight: 8 }} />
+              <Icon name="user" size={14} color={zendapp.colors.textSecondary} style={{ marginRight: 8 }} />
               <Text style={styles.readOnlyText}>
                 {user?.nombre} {user?.apellido || ''} (Seleccionado)
               </Text>
@@ -371,11 +375,11 @@ export default function AdminCarteraDetalle() {
             {/* Vendedor Destino */}
             <Text style={styles.fieldLabel}>Vendedor de destino:</Text>
             {loadingDestinatarios ? (
-              <ActivityIndicator size="small" color={apple.colors.blue} style={{ marginVertical: 12 }} />
+              <ActivityIndicator size="small" color={zendapp.colors.primary} style={{ marginVertical: 12 }} />
             ) : destinatarios.length === 0 ? (
               <View style={styles.emptyDestinoBox}>
                 <Text style={styles.emptyDestinoText}>
-                  No hay otros vendedores activos disponibles en tu jerarqua.
+                  No hay otros usuarios activos disponibles en tu jerarquía.
                 </Text>
               </View>
             ) : (
@@ -393,7 +397,7 @@ export default function AdminCarteraDetalle() {
                         <Text style={[styles.destinoName, isSelected && styles.destinoNameSelected]}>
                           {v.nombre} {v.apellido || ''}
                         </Text>
-                        <Text style={styles.destinoRole}>{v.rol?.toUpperCase()}  ACTIVO</Text>
+                        <Text style={styles.destinoRole}>{v.rol?.toUpperCase()} · ACTIVO</Text>
                       </View>
                       <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>
                         {isSelected && <View style={styles.radioDot} />}
@@ -439,81 +443,95 @@ export default function AdminCarteraDetalle() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: apple.colors.bg,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: apple.spacing.l,
-    paddingTop: apple.spacing.m,
-    paddingBottom: apple.spacing.s,
-    backgroundColor: apple.colors.bg,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: zendapp.colors.bg,
   },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: apple.spacing.xs,
-    paddingRight: apple.spacing.s,
+    paddingVertical: 6,
+    paddingRight: 8,
   },
   backText: {
-    ...apple.typography.body,
-    color: apple.colors.blue,
+    fontSize: 15,
+    fontWeight: '700',
+    color: zendapp.colors.primary,
     marginLeft: 4,
   },
   headerTitle: {
-    ...apple.typography.headline,
-    color: apple.colors.label,
+    fontSize: 18,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   headerSubtitle: {
-    ...apple.typography.caption1,
-    color: apple.colors.secondaryLabel,
+    fontSize: 12,
+    color: zendapp.colors.textSecondary,
+    marginTop: 1,
   },
   btnTrasladarHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: apple.radius.m,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   btnTrasladarHeaderText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.card,
-    marginHorizontal: apple.spacing.l,
-    marginVertical: apple.spacing.s,
-    paddingHorizontal: apple.spacing.m,
-    borderRadius: apple.radius.m,
-    height: 38,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    height: 42,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
   },
   searchIcon: {
-    marginRight: apple.spacing.s,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    ...apple.typography.body,
+    fontSize: 14,
     paddingVertical: 0,
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   listContent: {
-    padding: apple.spacing.l,
-    paddingBottom: apple.spacing.xl * 2,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 32,
   },
   card: {
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.l,
-    padding: apple.spacing.m,
-    marginBottom: apple.spacing.m,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
-    ...apple.shadow.small,
+    borderColor: '#EAECF0',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -521,29 +539,32 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   clientName: {
-    ...apple.typography.headline,
-    color: apple.colors.label,
+    fontSize: 16,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
   },
   clientDoc: {
-    ...apple.typography.caption1,
-    color: apple.colors.secondaryLabel,
+    fontSize: 12,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   saldoWrap: {
     alignItems: 'flex-end',
   },
   saldoVal: {
-    ...apple.typography.headline,
-    color: apple.colors.blue,
+    fontSize: 16,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
   },
   saldoLabel: {
-    ...apple.typography.caption2,
-    color: apple.colors.secondaryLabel,
+    fontSize: 11,
+    color: zendapp.colors.textSecondary,
+    marginTop: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: apple.colors.separator,
-    marginVertical: apple.spacing.m,
+    backgroundColor: '#EAECF0',
+    marginVertical: 12,
   },
   detailGrid: {
     flexDirection: 'row',
@@ -553,48 +574,50 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   gridLabel: {
-    ...apple.typography.caption2,
-    color: apple.colors.secondaryLabel,
+    fontSize: 11,
+    color: zendapp.colors.textSecondary,
     marginBottom: 2,
   },
   gridVal: {
-    ...apple.typography.subheadline,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontSize: 13,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
   },
   cardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: apple.spacing.m,
-    paddingTop: apple.spacing.s,
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
   },
   btnCastigar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: apple.radius.s,
-    backgroundColor: '#FFE5E5',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
   },
   btnCastigarText: {
-    ...apple.typography.caption1,
-    color: apple.colors.danger,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontSize: 11,
+    color: zendapp.colors.primary,
+    fontWeight: '700',
+    marginLeft: 5,
   },
   btnVer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 6,
     paddingHorizontal: 8,
   },
   btnVerText: {
-    ...apple.typography.subheadline,
-    color: apple.colors.blue,
-    fontWeight: '500',
+    fontSize: 12,
+    color: zendapp.colors.carbon,
+    fontWeight: '700',
   },
   centerContainer: {
     flex: 1,
@@ -604,196 +627,199 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: apple.spacing.xl * 2,
+    paddingVertical: 60,
   },
   emptyTitle: {
-    ...apple.typography.headline,
-    color: apple.colors.secondaryLabel,
-    marginTop: apple.spacing.m,
+    fontSize: 16,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
+    marginTop: 12,
   },
   emptySubtitle: {
-    ...apple.typography.subheadline,
-    color: apple.colors.tertiaryLabel,
+    fontSize: 13,
+    color: zendapp.colors.textSecondary,
     textAlign: 'center',
-    marginTop: apple.spacing.xs,
-    paddingHorizontal: apple.spacing.xl,
+    marginTop: 4,
+    paddingHorizontal: 24,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: apple.spacing.l,
+    padding: 16,
   },
   modalCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.xl,
-    padding: apple.spacing.l,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    ...apple.shadow.large,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   trasladoCard: {
     width: '100%',
     maxWidth: 420,
-    backgroundColor: apple.colors.card,
-    borderRadius: apple.radius.xl,
-    padding: apple.spacing.l,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
     maxHeight: '85%',
-    ...apple.shadow.large,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   modalIconWrapDanger: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#FFE5E5',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: apple.spacing.m,
+    marginBottom: 12,
   },
   modalIconWrapPrimary: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#EBF3FF',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEECEC',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: apple.spacing.m,
+    marginBottom: 12,
     alignSelf: 'center',
   },
   modalTitle: {
-    ...apple.typography.title3,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontSize: 18,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
     textAlign: 'center',
-    marginBottom: apple.spacing.s,
+    marginBottom: 6,
   },
   modalDesc: {
-    ...apple.typography.subheadline,
-    color: apple.colors.secondaryLabel,
+    fontSize: 13,
+    color: zendapp.colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: apple.spacing.l,
+    lineHeight: 18,
+    marginBottom: 16,
   },
   fieldLabel: {
-    ...apple.typography.caption1,
-    fontWeight: '600',
-    color: apple.colors.secondaryLabel,
+    fontSize: 11,
+    fontWeight: '700',
+    color: zendapp.colors.textSecondary,
     marginBottom: 6,
     textTransform: 'uppercase',
   },
   readOnlyField: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F8F9FA',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: apple.radius.m,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
-    marginBottom: apple.spacing.m,
+    borderColor: '#EAECF0',
+    marginBottom: 14,
   },
   readOnlyText: {
-    ...apple.typography.body,
-    color: apple.colors.label,
+    fontSize: 13,
+    color: zendapp.colors.carbon,
     fontWeight: '600',
   },
   destinosList: {
     maxHeight: 180,
-    marginBottom: apple.spacing.m,
+    marginBottom: 14,
   },
   destinoItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.m,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: apple.colors.separator,
+    borderColor: '#EAECF0',
   },
   destinoItemSelected: {
-    borderColor: apple.colors.blue,
-    backgroundColor: '#F0F6FF',
+    borderColor: zendapp.colors.primary,
+    backgroundColor: '#FEECEC',
   },
   destinoName: {
-    ...apple.typography.body,
-    fontWeight: '600',
-    color: apple.colors.label,
+    fontSize: 13,
+    fontWeight: '700',
+    color: zendapp.colors.carbon,
   },
   destinoNameSelected: {
-    color: apple.colors.blue,
+    color: zendapp.colors.primary,
   },
   destinoRole: {
-    ...apple.typography.caption2,
-    color: apple.colors.secondaryLabel,
+    fontSize: 10,
+    color: zendapp.colors.textSecondary,
     marginTop: 2,
   },
   radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 1.5,
-    borderColor: apple.colors.tertiaryLabel,
+    borderColor: '#D0D5DD',
     justifyContent: 'center',
     alignItems: 'center',
   },
   radioCircleSelected: {
-    borderColor: apple.colors.blue,
+    borderColor: zendapp.colors.primary,
   },
   radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: apple.colors.blue,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: zendapp.colors.primary,
   },
   emptyDestinoBox: {
     padding: 16,
-    backgroundColor: apple.colors.fill,
-    borderRadius: apple.radius.m,
-    marginBottom: apple.spacing.m,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    marginBottom: 14,
   },
   emptyDestinoText: {
-    ...apple.typography.subheadline,
-    color: apple.colors.secondaryLabel,
+    fontSize: 13,
+    color: zendapp.colors.textSecondary,
     textAlign: 'center',
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     width: '100%',
-    marginTop: apple.spacing.s,
+    marginTop: 10,
   },
   modalBtn: {
     flex: 1,
     height: 44,
-    borderRadius: apple.radius.m,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalBtnCancel: {
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F2F4F7',
   },
   modalBtnCancelText: {
-    ...apple.typography.body,
+    fontSize: 14,
     fontWeight: '600',
-    color: apple.colors.label,
+    color: zendapp.colors.carbon,
   },
   modalBtnDanger: {
-    backgroundColor: apple.colors.danger,
+    backgroundColor: zendapp.colors.primary,
   },
   modalBtnDangerText: {
-    ...apple.typography.body,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   modalBtnPrimary: {
-    backgroundColor: apple.colors.blue,
+    backgroundColor: zendapp.colors.primary,
   },
   modalBtnPrimaryText: {
-    ...apple.typography.body,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

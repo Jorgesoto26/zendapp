@@ -148,8 +148,8 @@ export default function ConceptPickerModal({
           {/* List */}
           {loading && concepts.length === 0 ? (
             <View style={{ padding: 30, alignItems: 'center' }}>
-              <ActivityIndicator color={apple.colors.blue} size="small" />
-              <Text style={{ marginTop: 8, fontSize: 13, color: apple.colors.secondaryLabel }}>
+              <ActivityIndicator color="#EE272D" size="small" />
+              <Text style={{ marginTop: 8, fontSize: 13, color: '#667085' }}>
                 Cargando conceptos de la base de datos...
               </Text>
             </View>
@@ -171,13 +171,13 @@ export default function ConceptPickerModal({
                     <Text style={[styles.itemText, isSelected && styles.itemTextSelected]}>
                       {item.nombre}
                     </Text>
-                    {isSelected && <Icon name="check" size={14} color={apple.colors.blue} />}
+                    {isSelected && <Icon name="check" size={14} color="#EE272D" />}
                   </TouchableOpacity>
                 );
               }}
               ListEmptyComponent={
                 <View style={styles.empty}>
-                  <Icon name="tags" size={24} color={apple.colors.tertiaryLabel} />
+                  <Icon name="tags" size={24} color="#98A2B3" />
                   <Text style={[styles.emptyText, { marginTop: 8 }]}>
                     No hay conceptos parametrizados en la base de datos.
                   </Text>
@@ -200,11 +200,13 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '75%',
     paddingHorizontal: 20,
     paddingTop: 16,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   header: {
     flexDirection: 'row',
@@ -214,70 +216,73 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
-    color: apple.colors.label,
+    fontWeight: '800',
+    color: '#1E1E1F',
   },
   subTitle: {
     fontSize: 12,
-    color: apple.colors.secondaryLabel,
+    color: '#667085',
     marginTop: 2,
     textTransform: 'capitalize',
   },
   closeBtn: {
     padding: 6,
     borderRadius: 14,
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F1F3F7',
   },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: apple.colors.fill,
+    backgroundColor: '#F8F9FA',
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
     paddingHorizontal: 12,
     marginBottom: 12,
-    height: 40,
+    height: 42,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: apple.colors.label,
+    color: '#1E1E1F',
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: apple.colors.separator,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAECF0',
     gap: 12,
   },
   itemRowSelected: {
-    backgroundColor: '#F0F8FF',
+    backgroundColor: '#FEF2F2',
   },
   itemDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: apple.colors.tertiaryLabel,
+    backgroundColor: '#D0D5DD',
   },
   itemDotSelected: {
-    backgroundColor: apple.colors.blue,
+    backgroundColor: '#EE272D',
   },
   itemText: {
     flex: 1,
-    fontSize: 15,
-    color: apple.colors.label,
+    fontSize: 14,
+    color: '#1E1E1F',
+    fontWeight: '500',
   },
   itemTextSelected: {
-    color: apple.colors.blue,
-    fontWeight: '600',
+    color: '#EE272D',
+    fontWeight: '800',
   },
   empty: {
     padding: 24,
     alignItems: 'center',
   },
   emptyText: {
-    color: apple.colors.secondaryLabel,
+    color: '#667085',
     fontSize: 14,
     textAlign: 'center',
   },
