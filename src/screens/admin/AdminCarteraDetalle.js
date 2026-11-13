@@ -26,10 +26,10 @@ import {
   getSubordinates,
   trasladarCartera,
 } from '../../services/adminService';
+import { formatCurrency } from '../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 export default function AdminCarteraDetalle() {

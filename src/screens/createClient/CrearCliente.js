@@ -34,6 +34,12 @@ import {
   FormatMoneyDecimales,
   getAndIncrementConsecutivo,
 } from '../../utils/utilities';
+import {
+  formatCurrency,
+  getCurrencySymbol,
+  getCurrencyDecimals,
+  parseMoneyToNumericByCurrency,
+} from '../../utils/currency';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import {
   capturePhotoFromCamera,
@@ -60,6 +66,7 @@ const FormField = React.memo(({
   label,
   value,
   onChangeText,
+  onBlur,
   placeholder,
   keyboardType,
   icon,
@@ -78,6 +85,7 @@ const FormField = React.memo(({
       <TextInput
         value={value}
         onChangeText={onChangeText}
+        onBlur={onBlur}
         placeholder={placeholder}
         placeholderTextColor={apple.colors.tertiaryLabel}
         style={[styles.input, !editable && { color: apple.colors.secondaryLabel }]}
@@ -94,6 +102,7 @@ const CrearCliente = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { userId, profile } = useAuth();
+  const userCurrency = profile?.currency_code || 'COP';
   const fade = useRef(new Animated.Value(0)).current;
 
   const [formData, setFormData] = useState({
@@ -227,7 +236,7 @@ const CrearCliente = () => {
   useEffect(() => {
     const isTelValid = cleanTel.length >= 10 && cleanTel.length <= 12;
     const isDocValid = cleanDoc.length >= 6 && cleanDoc.length <= 12;
-    const isValorValid = parseMoneyToNumeric(formData.valor) > 0;
+    const isValorValid = parseMoneyToNumericByCurrency(formData.valor, userCurrency) > 0;
     const isNombreValid = (formData.nombre || '').trim() !== '';
     const isDireccionValid = (formData.direccion || '').trim() !== '';
     const isCuotasValid = !cuotasError;
@@ -246,7 +255,7 @@ const CrearCliente = () => {
 
   // Calculo de la Cuota Estimada
   const quoteSummary = useMemo(() => {
-    const montoNum = parseMoneyToNumeric(formData.valor);
+    const montoNum = parseMoneyToNumericByCurrency(formData.valor, userCurrency);
     if (!montoNum || montoNum <= 0) return null;
 
     const cuotasNum = parseInt(formData.numCuotas, 10);
@@ -284,11 +293,11 @@ const CrearCliente = () => {
       pagoAdelantado,
       saldoInicial: pagoAdelantado ? totalFactura - valorCuota : totalFactura,
     };
-  }, [formData.valor, formData.numCuotas, formData.tasaInteres, periodicidad, pagoAdelantado]);
+  }, [formData.valor, formData.numCuotas, formData.tasaInteres, periodicidad, pagoAdelantado, userCurrency]);
 
   const handleChange = useCallback((name, value) => {
     if (name === 'valor') {
-      const formatted = formatMoneyInput(value);
+      const formatted = formatMoneyInput(value, userCurrency);
       setFormData(p => ({ ...p, [name]: formatted }));
       return;
     }
@@ -312,7 +321,7 @@ const CrearCliente = () => {
       return;
     }
     setFormData(p => ({ ...p, [name]: value }));
-  }, []);
+  }, [userCurrency]);
 
   const handleSelectQuickCuotas = (cuotas) => {
     setFormData(p => ({ ...p, numCuotas: String(cuotas) }));
@@ -397,7 +406,7 @@ const CrearCliente = () => {
       return;
     }
 
-    const montoNum = parseMoneyToNumeric(formData.valor);
+    const montoNum = parseMoneyToNumericByCurrency(formData.valor, userCurrency);
     if (!montoNum || montoNum <= 0) {
       appAlert('Valor inválido', 'El monto del crédito debe ser mayor a 0');
       return;
@@ -413,7 +422,7 @@ const CrearCliente = () => {
     if (maxVenta > 0 && montoNum > maxVenta) {
       appAlert(
         'Límite de venta excedido',
-        `El monto ($${montoNum.toLocaleString('es-CO')}) excede tu límite máximo permitido por venta ($${maxVenta.toLocaleString('es-CO')}).`
+        `El monto (${formatCurrency(montoNum, userCurrency)}) excede tu límite máximo permitido por venta (${formatCurrency(maxVenta, userCurrency)}).`
       );
       return;
     }
@@ -506,6 +515,7 @@ const CrearCliente = () => {
         documento: cleanDoc,
         genero: genero || 'masculino',
         monto: montoNum,
+        currency_code: userCurrency,
         vendedor_id: userId,
         caja_id: cajaAbierta.id,
         plazo_id: matchingPlazoId,
@@ -552,8 +562,8 @@ const CrearCliente = () => {
         const isPagadaAdelantada = (i === 1 && pagoAdelantado);
 
         await database.executeSql(
-          `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado, currency_code)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             `local_cuota_${tempId}_${i}`,
             String(tempId),
@@ -562,6 +572,7 @@ const CrearCliente = () => {
             valCuota,
             isPagadaAdelantada ? 'pagada' : 'pendiente',
             isPagadaAdelantada ? valCuota : 0,
+            userCurrency,
           ]
         );
       }
@@ -577,8 +588,8 @@ const CrearCliente = () => {
           saldo, valorInicial, valorCuota, num_cuotas, cuotasPagas, cuotasVencidas,
           estado, estadoMovil, fecha, idVendedor, usuarioId, paymentTermId, detalles,
           consecutivoTramitado, latitud, longitud, previous_invoice_id,
-          periodicidad, tasa_interes, pago_adelantado, foto_documento_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pendiente', 'actualizado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          periodicidad, tasa_interes, pago_adelantado, foto_documento_path, currency_code
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pendiente', 'actualizado', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           String(tempId),
           nombre.trim(),
@@ -605,14 +616,15 @@ const CrearCliente = () => {
           tasaPorcentaje,
           pagoAdelantado ? 1 : 0,
           uploadedDocPath,
+          userCurrency,
         ]
       );
 
       // 8. Registrar movimiento de venta (egreso de capital prestado)
       const clienteDesc = `${nombre.trim()} ${apellido.trim()}`.trim();
       await database.executeSql(
-        `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre)
-         VALUES (?, ?, ?, ?, 'venta', 'sincronizado', ?, ?, ?, ?)`,
+        `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre, currency_code)
+         VALUES (?, ?, ?, ?, 'venta', 'sincronizado', ?, ?, ?, ?, ?)`,
         [
           tempId - 1,
           `Venta: ${clienteDesc} (${cleanDoc})`,
@@ -622,6 +634,7 @@ const CrearCliente = () => {
           nowIso,
           String(tempId),
           clienteDesc,
+          userCurrency,
         ]
       );
 
@@ -643,8 +656,8 @@ const CrearCliente = () => {
         // Registrar pago imputado al próximo día de recaudo
         await database.executeSql(
           `INSERT OR REPLACE INTO pagos (
-            id, tipo, valor, horaDispositivo, idFactura, valorFactura, estadoMovil, nombre, secuencia_pago, idCaja
-          ) VALUES (?, 'pago', ?, ?, ?, ?, 'actualizado', ?, ?, ?)`,
+            id, tipo, valor, horaDispositivo, idFactura, valorFactura, estadoMovil, nombre, secuencia_pago, idCaja, currency_code
+          ) VALUES (?, 'pago', ?, ?, ?, ?, 'actualizado', ?, ?, ?, ?)`,
           [
             advPagoId,
             valorCuota,
@@ -654,13 +667,14 @@ const CrearCliente = () => {
             clienteDesc,
             consecutivo,
             cajaAbierta.id,
+            userCurrency,
           ]
         );
 
         // Movimiento informativo con fecha del próximo día de recaudo
         await database.executeSql(
-          `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre)
-           VALUES (?, ?, ?, ?, 'pago', 'actualizado', ?, ?, ?, ?)`,
+          `INSERT INTO movimientos (id, descripcion, monto, horaDispositivo, tipo, estadoMovil, idCaja, fecha, idFactura, cliente_nombre, currency_code)
+           VALUES (?, ?, ?, ?, 'pago', 'actualizado', ?, ?, ?, ?, ?)`,
           [
             advPagoId,
             `Pago adelantado cuota 1: ${clienteDesc}`,
@@ -670,6 +684,7 @@ const CrearCliente = () => {
             advDateIso,
             String(tempId),
             clienteDesc,
+            userCurrency,
           ]
         );
       }
@@ -689,7 +704,7 @@ const CrearCliente = () => {
       }
 
       const mensajeConfirmacion = pagoAdelantado
-        ? `El crédito para ${clienteDesc} quedó registrado con la 1ª cuota abonada para el próximo día de recaudo (${proximoRecaudoStr}). Saldo a cobrar: ${FormatMoneyDecimales(saldoInicialFactura)}.`
+        ? `El crédito para ${clienteDesc} quedó registrado con la 1ª cuota abonada para el próximo día de recaudo (${proximoRecaudoStr}). Saldo a cobrar: ${FormatMoneyDecimales(saldoInicialFactura, userCurrency)}.`
         : previousInvoiceId
         ? `La renovación de crédito para ${clienteDesc} quedó registrada exitosamente.`
         : `El crédito para ${clienteDesc} quedó registrado exitosamente.`;
@@ -940,7 +955,12 @@ const CrearCliente = () => {
                 label="Capital a prestar *"
                 value={formData.valor}
                 onChangeText={t => handleChange('valor', t)}
-                placeholder="$ 0"
+                onBlur={() => {
+                  if (formData.valor) {
+                    handleChange('valor', formatMoneyInput(formData.valor, userCurrency, { forceDecimals: true }));
+                  }
+                }}
+                placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
                 keyboardType="numeric"
               />
 
@@ -1067,15 +1087,15 @@ const CrearCliente = () => {
 
                 <View style={styles.quoteRow}>
                   <Text style={styles.quoteLabel}>Capital solicitado:</Text>
-                  <Text style={styles.quoteValue}>{FormatMoneyDecimales(quoteSummary.capital)}</Text>
+                  <Text style={styles.quoteValue}>{FormatMoneyDecimales(quoteSummary.capital, userCurrency)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
                   <Text style={styles.quoteLabel}>Interés estimado ({quoteSummary.tasaPorcentaje}%):</Text>
-                  <Text style={styles.quoteValue}>+ {FormatMoneyDecimales(quoteSummary.montoInteres)}</Text>
+                  <Text style={styles.quoteValue}>+ {FormatMoneyDecimales(quoteSummary.montoInteres, userCurrency)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
                   <Text style={styles.quoteLabel}>Total del crédito:</Text>
-                  <Text style={[styles.quoteValue, { fontWeight: '700' }]}>{FormatMoneyDecimales(quoteSummary.totalFactura)}</Text>
+                  <Text style={[styles.quoteValue, { fontWeight: '700' }]}>{FormatMoneyDecimales(quoteSummary.totalFactura, userCurrency)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
                   <Text style={styles.quoteLabel}>Plazo y periodicidad:</Text>
@@ -1088,7 +1108,7 @@ const CrearCliente = () => {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.quoteAdvanceTitle}>Pago adelantado activo</Text>
                       <Text style={styles.quoteAdvanceSub}>
-                        Se cobrará la 1ª cuota de {FormatMoneyDecimales(quoteSummary.valorCuota)} asignada al próximo día de recaudo ({quoteSummary.proximoRecaudoStr}). Saldo a deber: {FormatMoneyDecimales(quoteSummary.saldoInicial)}.
+                        Se cobrará la 1ª cuota de {FormatMoneyDecimales(quoteSummary.valorCuota, userCurrency)} asignada al próximo día de recaudo ({quoteSummary.proximoRecaudoStr}). Saldo a deber: {FormatMoneyDecimales(quoteSummary.saldoInicial, userCurrency)}.
                       </Text>
                     </View>
                   </View>
@@ -1096,7 +1116,7 @@ const CrearCliente = () => {
 
                 <View style={styles.quoteResultBox}>
                   <Text style={styles.quoteResultLabel}>Cuota {periodicidad} a pagar:</Text>
-                  <Text style={styles.quoteResultAmount}>{FormatMoneyDecimales(quoteSummary.valorCuota)}</Text>
+                  <Text style={styles.quoteResultAmount}>{FormatMoneyDecimales(quoteSummary.valorCuota, userCurrency)}</Text>
                   <Text style={styles.quoteResultSub}>{quoteSummary.numCuotas} cuota(s) calculada(s)</Text>
                 </View>
 

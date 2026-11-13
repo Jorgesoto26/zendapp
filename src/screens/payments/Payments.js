@@ -141,7 +141,8 @@ const calculateStats = async (clients) => {
 
 export default function Payments() {
   const navigation = useNavigation();
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
+  const userCurrency = profile?.currency_code || 'COP';
   const [showPending, setShowPending] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [clients, setClients] = useState([]);
@@ -362,8 +363,8 @@ export default function Payments() {
                 </View>
               </View>
               <Text style={styles.statMiniVal}>
-                {FormatMoneyDecimales(stats.collected)}
-                <Text style={styles.statMiniMuted}> / {FormatMoneyDecimales(stats.pendingAmount)}</Text>
+                {FormatMoneyDecimales(stats.collected, userCurrency)}
+                <Text style={styles.statMiniMuted}> / {FormatMoneyDecimales(stats.pendingAmount, userCurrency)}</Text>
               </Text>
             </View>
           </View>

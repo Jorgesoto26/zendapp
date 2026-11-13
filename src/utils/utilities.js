@@ -12,6 +12,13 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { Alert, Linking } from 'react-native'; // Agregado para usar Alert
 import { appAlert } from '../components/AppAlert';
+import {
+    formatCurrency,
+    formatMoneyInputByCurrency,
+    parseMoneyToNumericByCurrency,
+    cleanMoneyValueByCurrency,
+    DEFAULT_CURRENCY_CODE,
+} from './currency';
 /* export const clienConect=async()=>{
   try{
   const db = await getDbConnection();
@@ -137,16 +144,12 @@ export const getDate = () => {
 }
 
 export const NumberWithCommas = (value) => {
-    const numericValue = value.toString().replace(/[^0-9]/g, "");
-    return parseInt(numericValue).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const numericValue = value ? value.toString().replace(/[^0-9]/g, "") : "0";
+    return parseInt(numericValue, 10).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-export const FormatMoney = (value) => {
-    if (value < 0) {
-        return '$ -' + NumberWithCommas(value);
-    } else {
-        return '$ ' + NumberWithCommas(value);
-    }
+export const FormatMoney = (value, currencyCode = DEFAULT_CURRENCY_CODE) => {
+    return formatCurrency(value, currencyCode, { showSymbol: true, forceDecimals: 0 });
 };
 
 export const NumberWithCommasDecimales = (value) => {
@@ -164,47 +167,36 @@ export const NumberWithCommasDecimales = (value) => {
     }
 };
 
-export const FormatMoneyDecimales = (value) => {
-    const numericValue = parseFloat(String(value).replace(/[$,]/g, '').trim());
+export const FormatMoneyDecimales = (value, currencyCode = DEFAULT_CURRENCY_CODE) => {
+    return formatCurrency(value, currencyCode, { showSymbol: true });
+};
 
-    if (isNaN(numericValue)) {
-        return 'Invalid value';
+/**
+ * Extrae y limpia caracteres monetarios respetando la moneda (enteros para COP/CLP, fraccionarios para MXN/PEN).
+ */
+export const cleanMoneyValue = (value, currencyCode = DEFAULT_CURRENCY_CODE) => {
+    return cleanMoneyValueByCurrency(value, currencyCode);
+};
+
+/**
+ * Formatea un valor monetario en tiempo real para inputs con soporte multi-moneda.
+ * Soporta firma clásica formatMoneyInput(value, withSymbol) y formatMoneyInput(value, withSymbol, currencyCode)
+ * así como formatMoneyInput(value, currencyCode).
+ */
+export const formatMoneyInput = (value, withSymbol = true, currencyCode = DEFAULT_CURRENCY_CODE, options = {}) => {
+    if (typeof withSymbol === 'string') {
+        // Invocado como formatMoneyInput(val, 'MXN') o formatMoneyInput(val, 'MXN', { forceDecimals: true })
+        const opts = typeof currencyCode === 'object' ? currencyCode : options;
+        return formatMoneyInputByCurrency(value, withSymbol, true, opts);
     }
-
-    return '$ ' + NumberWithCommasDecimales(value);
+    return formatMoneyInputByCurrency(value, currencyCode, withSymbol, options);
 };
 
 /**
- * Extrae solo dígitos y remueve ceros a la izquierda.
- * No permite puntos, comas, espacios ni ningún caracter no numérico.
- * Si el usuario intenta escribir 0 al inicio, retorna '' (no permite iniciar con $0 ni 0).
+ * Convierte cualquier texto formateado en un número puro listo para guardarse en BD.
  */
-export const cleanMoneyValue = (value) => {
-    if (value === null || value === undefined) return '';
-    const digits = String(value).replace(/\D/g, '');
-    return digits.replace(/^0+/, '');
-};
-
-/**
- * Formatea un valor monetario en tiempo real para inputs con formato moneda de pesos:
- * - Filtra caracteres no numéricos
- * - No permite que inicie con $0 ni 0
- * - Aplica puntos separadores de miles de pesos (ej. $ 50.000)
- */
-export const formatMoneyInput = (value, withSymbol = true) => {
-    const clean = cleanMoneyValue(value);
-    if (!clean) return '';
-    const formatted = clean.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return withSymbol ? `$ ${formatted}` : formatted;
-};
-
-/**
- * Convierte cualquier texto formateado (ej. '$ 50.000' o '50.000') en un número puro
- * listo para guardarse en la base de datos (ej. 50000).
- */
-export const parseMoneyToNumeric = (value) => {
-    const clean = cleanMoneyValue(value);
-    return clean ? parseFloat(clean) : 0;
+export const parseMoneyToNumeric = (value, currencyCode = DEFAULT_CURRENCY_CODE) => {
+    return parseMoneyToNumericByCurrency(value, currencyCode);
 };
 
 export const FormatNumber = (value) => {

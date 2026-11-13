@@ -22,10 +22,10 @@ import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl'
 import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import { getReporteConsolidado } from '../../services/adminService';
+import { formatCurrency } from '../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 const getTodayIso = () => {

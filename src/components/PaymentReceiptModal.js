@@ -50,9 +50,15 @@ export default function PaymentReceiptModal({
     orgLogo = null,
     metodo = 'Efectivo',
     isPendingSync = false,
+    currency_code = 'COP',
+    currencyCode = 'COP',
+    locale = 'es-CO',
   } = receiptData;
 
-  const formattedDate = new Date(fecha).toLocaleString('es-CO', {
+  const activeCurrency = currency_code || currencyCode || 'COP';
+  const activeLocale = locale || 'es-CO';
+
+  const formattedDate = new Date(fecha).toLocaleString(activeLocale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -80,9 +86,10 @@ Comprobante N°: ${String(id).slice(-8).toUpperCase()}
 Fecha: ${formattedDate}
 ---------------------------------
 Cliente: ${clienteNombre} ${clienteDoc ? '(' + clienteDoc + ')' : ''}
-Valor Recibido: ${FormatMoneyDecimales(valor)}
-${saldoRestante !== null ? 'Saldo Restante: ' + FormatMoneyDecimales(saldoRestante) : ''}
+Valor Recibido: ${FormatMoneyDecimales(valor, activeCurrency)}
+${saldoRestante !== null ? 'Saldo Restante: ' + FormatMoneyDecimales(saldoRestante, activeCurrency) : ''}
 Método: ${metodo}
+Moneda: ${activeCurrency}
 Atendido por: ${vendedorNombre}
 Operación: ${id}
 ${isPendingSync ? '⚠️ Pago registrado offline (pendiente de sincronizar)' : '✅ Pago confirmado'}
@@ -161,8 +168,8 @@ Gracias por su pago.
               <View style={styles.divider} />
 
               <View style={styles.amountBox}>
-                <Text style={styles.amountLabel}>VALOR RECIBIDO</Text>
-                <Text style={styles.amountValue}>{FormatMoneyDecimales(valor)}</Text>
+                <Text style={styles.amountLabel}>VALOR RECIBIDO ({activeCurrency})</Text>
+                <Text style={styles.amountValue}>{FormatMoneyDecimales(valor, activeCurrency)}</Text>
               </View>
 
               <View style={styles.divider} />
@@ -202,7 +209,7 @@ Gracias por su pago.
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Saldo Restante:</Text>
                   <Text style={[styles.detailVal, { color: apple.colors.blue, fontWeight: '700' }]}>
-                    {FormatMoneyDecimales(saldoRestante)}
+                    {FormatMoneyDecimales(saldoRestante, activeCurrency)}
                   </Text>
                 </View>
               ) : null}

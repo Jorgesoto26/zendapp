@@ -4,10 +4,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
 import { zendapp } from '../../../theme/zendappTheme';
+import { formatCurrency } from '../../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
@@ -47,6 +47,15 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
                   {user.email}
                 </Text>
               ) : null}
+              {/* Badge Territorial y Moneda */}
+              <View style={styles.geoBadge}>
+                <Icon name="map-marker" size={10} color="#059669" style={{ marginRight: 3 }} />
+                <Text style={styles.geoBadgeText} numberOfLines={1}>
+                  {user.city_nombre
+                    ? `${user.city_nombre}${user.division_nombre ? ', ' + user.division_nombre : ''}`
+                    : user.country_nombre || 'Colombia'} · {user.currency_code || 'COP'}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -89,15 +98,15 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
       <View style={styles.grid}>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>Max Caja</Text>
-          <Text style={styles.gridValue}>{formatMoney(user.dinero_max_caja)}</Text>
+          <Text style={styles.gridValue}>{formatMoney(user.dinero_max_caja, user.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>Max Venta</Text>
-          <Text style={styles.gridValue}>{formatMoney(user.dinero_max_venta)}</Text>
+          <Text style={styles.gridValue}>{formatMoney(user.dinero_max_venta, user.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>Max Gasto</Text>
-          <Text style={styles.gridValue}>{formatMoney(user.dinero_max_gasto)}</Text>
+          <Text style={styles.gridValue}>{formatMoney(user.dinero_max_gasto, user.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>Max Cuotas</Text>
@@ -219,6 +228,22 @@ const styles = StyleSheet.create({
   },
   badgeTextVendedor: {
     color: zendapp.colors.primary,
+  },
+  geoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 3,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  geoBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#065F46',
   },
   statusDot: {
     width: 9,

@@ -162,7 +162,7 @@ const getUltimoTramite = async (db, idFactura) => {
 const ItemPayments = memo(({
   id, name, address, amount, status, paymentType, estadoPago, saldo, cuotasPagas,
   saldoVencido, nombreUno, valorCuota, onPaymentSuccess, estadoMovil, telefono,
-  latitud, longitud, valorCredito, documento,
+  latitud, longitud, valorCredito, documento, currency_code: propCurrencyCode,
   tipoTramitado: propTipoTramitado,
   valorPagado: propValorPagado,
   pendienteSync: propPendienteSync,
@@ -170,6 +170,7 @@ const ItemPayments = memo(({
 }) => {
   const navigation = useNavigation();
   const { profile } = useAuth() || {};
+  const itemCurrency = propCurrencyCode || profile?.currency_code || 'COP';
   const [modalParcial, setModalParcial] = useState(false);
   const [modalNoPago, setModalNoPago] = useState(false);
   const [valorParcial, setValorParcial] = useState('');

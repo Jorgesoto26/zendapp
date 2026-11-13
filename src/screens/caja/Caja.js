@@ -202,13 +202,14 @@ export default function CajaScreen() {
     if (!canOpenCaja) {
       return appAlert('Acceso restringido', 'Tu organización opera bajo Modalidad A: Solo el administrador puede realizar la apertura de cajas.');
     }
-    const val = parseMoneyToNumeric(saldoInicial);
+    const userCurrency = profile?.currency_code || 'COP';
+    const val = parseMoneyToNumeric(saldoInicial, userCurrency);
     if (val < 0) return appAlert('Error', 'Saldo inicial no puede ser negativo');
     const maxCaja = Number(profile?.dinero_max_caja || 0);
     if (!isAdmin && maxCaja > 0 && val > maxCaja) {
       return appAlert(
         'Límite de caja excedido',
-        `El saldo inicial ($${val.toLocaleString('es-CO')}) excede el límite asignado a tu perfil ($${maxCaja.toLocaleString('es-CO')}).`
+        `El saldo inicial (${FormatMoneyDecimales(val, userCurrency)}) excede el límite asignado a tu perfil (${FormatMoneyDecimales(maxCaja, userCurrency)}).`
       );
     }
     try {

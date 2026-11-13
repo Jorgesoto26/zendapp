@@ -34,6 +34,10 @@ export const createAdminUser = async (userData) => {
     permite_modificar_pagos = false,
     saldo_inicial_caja = 0,
     superior_id = null,
+    country_id = 'CO',
+    administrative_division_id = null,
+    city_id = null,
+    timezone = null,
   } = userData;
 
   const rpcParams = {
@@ -49,6 +53,10 @@ export const createAdminUser = async (userData) => {
     p_permite_borrar_venta: !!permite_borrar_venta,
     p_permite_modificar_pagos: !!permite_modificar_pagos,
     p_saldo_inicial: parseFloat(saldo_inicial_caja) || 0,
+    p_country_id: country_id || 'CO',
+    p_administrative_division_id: administrative_division_id || null,
+    p_city_id: city_id || null,
+    p_timezone: timezone || null,
   };
 
   if (superior_id) {
@@ -77,11 +85,15 @@ export const updateAdminUser = async (userId, userData) => {
     permite_borrar_venta,
     permite_modificar_pagos,
     password,
+    country_id,
+    administrative_division_id,
+    city_id,
+    timezone,
   } = userData;
 
   const hasNewPassword = Boolean(password && password.trim().length >= 6);
 
-  // Construir parmetros base (9 parmetros estndar)
+  // Construir parámetros base
   const rpcParams = {
     p_user_id: userId,
     p_nombre: nombre,
@@ -92,6 +104,10 @@ export const updateAdminUser = async (userId, userData) => {
     p_max_cuotas: max_cuotas !== undefined ? parseInt(max_cuotas, 10) : null,
     p_permite_borrar_venta: permite_borrar_venta !== undefined ? !!permite_borrar_venta : null,
     p_permite_modificar_pagos: permite_modificar_pagos !== undefined ? !!permite_modificar_pagos : null,
+    p_country_id: country_id !== undefined ? country_id : null,
+    p_administrative_division_id: administrative_division_id !== undefined ? administrative_division_id : null,
+    p_city_id: city_id !== undefined ? city_id : null,
+    p_timezone: timezone !== undefined ? timezone : null,
   };
 
   // Solo incluir p_password si se ingres una nueva contrasea vlida

@@ -29,10 +29,10 @@ import { formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { supabase } from '../../lib/supabase';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
+import { formatCurrency } from '../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 const formatDate = (isoStr) => {

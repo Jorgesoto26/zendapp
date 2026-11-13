@@ -177,11 +177,12 @@ export default function MovementsScreen() {
     if (!caja) return appAlert('Error', 'Debes tener una caja abierta');
 
     // Validar límite de gasto / retiro
+    const userCurrency = profile?.currency_code || 'COP';
     const maxGasto = parseFloat(profile?.dinero_max_gasto) || 0;
     if (formTipo === 'retiro' && maxGasto > 0 && monto > maxGasto) {
       return appAlert(
         'Límite de gasto excedido',
-        `El monto ($${monto.toLocaleString('es-CO')}) excede tu límite máximo permitido por gasto ($${maxGasto.toLocaleString('es-CO')}).`
+        `El monto (${FormatMoneyDecimales(monto, userCurrency)}) excede tu límite máximo permitido por gasto (${FormatMoneyDecimales(maxGasto, userCurrency)}).`
       );
     }
     setSaving(true);
