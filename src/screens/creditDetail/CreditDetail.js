@@ -81,6 +81,7 @@ export default function CreditDetail({ route, navigation }) {
             tasa_interes: row.tasa_interes,
             pago_adelantado: Number(row.pago_adelantado) === 1,
             foto_documento_path: row.foto_documento_path || null,
+            currency_code: row.currency_code || 'COP',
           });
           setClient({
             nombre: row.nombreUno,
@@ -174,7 +175,7 @@ export default function CreditDetail({ route, navigation }) {
         try {
           const { data: inv } = await supabase
             .from('invoice')
-            .select('id, amount, saldo, status, created_at, plazo_id, interes_id, client_id, usuario_id, latitud, longitud, periodicidad, num_cuotas, tasa_interes, pago_adelantado')
+            .select('id, amount, saldo, status, created_at, plazo_id, interes_id, client_id, usuario_id, latitud, longitud, periodicidad, num_cuotas, tasa_interes, pago_adelantado, currency_code')
             .eq('id', invoiceId)
             .single();
 
@@ -328,6 +329,7 @@ export default function CreditDetail({ route, navigation }) {
 
   const totalPagado = pagos.reduce((a, p) => a + Number(p.amount || 0), 0);
   const saldoActual = Number(invoice?.saldo ?? saldoInicial ?? 0);
+  const invoiceCurrency = invoice?.currency_code || 'COP';
   const isCreditCompleted = saldoActual <= 0 || (invoice?.status || '').toLowerCase() === 'pagado' || (invoice?.status || '').toLowerCase() === 'pagada';
 
   const handleRenewPress = () => {
@@ -375,6 +377,7 @@ export default function CreditDetail({ route, navigation }) {
       orgNit: orgData.nit,
       orgLogo: orgData.logo,
       metodo: (paymentItem.method || 'Efectivo'),
+      currency_code: invoice?.currency_code || 'COP',
       isPendingSync: false,
     });
     setReceiptModalVisible(true);
@@ -466,7 +469,7 @@ export default function CreditDetail({ route, navigation }) {
                 <View style={styles.summaryBox}>
                   <Text style={styles.summaryLabel}>PRÉSTAMO</Text>
                   <Text style={styles.summaryVal}>
-                    {invoice ? FormatMoneyDecimales(invoice.amount) : '—'}
+                    {invoice ? FormatMoneyDecimales(invoice.amount, invoiceCurrency) : '—'}
                   </Text>
                 </View>
                 <View style={styles.summaryBox}>
@@ -477,7 +480,7 @@ export default function CreditDetail({ route, navigation }) {
                       { color: saldoActual > 0 ? '#EE272D' : '#10B981' },
                     ]}
                   >
-                    {FormatMoneyDecimales(saldoActual)}
+                    {FormatMoneyDecimales(saldoActual, invoiceCurrency)}
                   </Text>
                 </View>
                 <View style={styles.summaryBox}>
@@ -585,7 +588,7 @@ export default function CreditDetail({ route, navigation }) {
                         {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString() : '—'}
                       </Text>
                       <Text style={[styles.td, { flex: 1.2, textAlign: 'right', fontWeight: '700', color: '#1E1E1F' }]}>
-                        {FormatMoneyDecimales(item.monto)}
+                        {FormatMoneyDecimales(item.monto, invoiceCurrency)}
                       </Text>
                       <View style={{ flex: 1.2, alignItems: 'center' }}>
                         <StatusBadge estado={item.estado} />
@@ -613,7 +616,7 @@ export default function CreditDetail({ route, navigation }) {
             </View>
             <View style={styles.totalPagosBadge}>
               <Text style={styles.totalPagosText}>
-                {pagos.length} • {FormatMoneyDecimales(totalPagado)}
+                {pagos.length} • {FormatMoneyDecimales(totalPagado, invoiceCurrency)}
               </Text>
             </View>
           </View>
@@ -642,7 +645,7 @@ export default function CreditDetail({ route, navigation }) {
                       {item.payment_date ? new Date(item.payment_date).toLocaleDateString() : new Date(item.created_at || Date.now()).toLocaleDateString()}
                     </Text>
                     <Text style={[styles.td, { flex: 1, textAlign: 'right', fontWeight: '700', color: '#10B981' }]}>
-                      {FormatMoneyDecimales(item.amount)}
+                      {FormatMoneyDecimales(item.amount, invoiceCurrency)}
                     </Text>
                     <Text style={[styles.td, { flex: 0.8, textAlign: 'center', color: '#667085', fontSize: 12 }]}>
                       {(item.method || '—').toUpperCase()}

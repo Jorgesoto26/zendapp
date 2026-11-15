@@ -3,10 +3,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { zendapp } from '../../../theme/zendappTheme';
+import { formatCurrency } from '../../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {

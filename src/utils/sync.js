@@ -281,6 +281,7 @@ const SendVentas = async () => {
           tasa_interes: payload.tasa_interes != null ? parseFloat(payload.tasa_interes) : null,
           pago_adelantado: !!payload.pago_adelantado,
           foto_documento: payload.foto_documento || null,
+          currency_code: payload.currency_code || 'COP',
         });
 
         // Compatibilidad retroactiva si la base de datos remota aún tiene la versión previa de RPC (PGRST202)
@@ -443,6 +444,7 @@ const SendPay = async () => {
         descripcion: p.descripcion || '',
         secuencia_pago: p.secuencia_pago,
         client_uuid: pUuid,
+        currency_code: p.currency_code || null,
       },
     };
     addToSyncCollection(payload, p.id, 'payment');
@@ -481,6 +483,7 @@ const SendMovimientos = async () => {
         idCaja: m.idCaja || m.caja_id,
         concepto_id: m.concepto_id || null,
         evidencia_path: m.evidencia_path || null,
+        currency_code: m.currency_code || null,
       },
     };
     addToSyncCollection(payload, m.id, 'movimiento');

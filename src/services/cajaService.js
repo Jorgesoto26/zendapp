@@ -2,6 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { getDbConnection, getData } from '../database/db';
 import { eventBus, EVENTS } from '../utils/eventBus';
+import { formatCurrency } from '../utils/currency';
 
 export const getDeviceTimezone = () => {
   try {
@@ -363,7 +364,8 @@ export async function abrirCaja(saldoInicial = 0) {
   if (isVendedorDia) {
     const maxCaja = Number(profile?.dinero_max_caja) || 0;
     if (maxCaja > 0 && saldoNum > maxCaja) {
-      throw new Error(`El saldo inicial (${saldoNum.toLocaleString('es-CO')}) excede tu límite permitido por caja (${maxCaja.toLocaleString('es-CO')}).`);
+      const userCurr = profile?.currency_code || 'COP';
+      throw new Error(`El saldo inicial (${formatCurrency(saldoNum, userCurr)}) excede tu límite permitido por caja (${formatCurrency(maxCaja, userCurr)}).`);
     }
   }
 

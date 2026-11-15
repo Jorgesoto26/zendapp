@@ -6,6 +6,7 @@ import { getDbConnection, getData } from '../database/db';
 import { SyncWithSupabase } from '../utils/sync';
 import { supabase } from '../lib/supabase';
 import { saveMovimientoLocal } from './cajaService';
+import { formatCurrency } from '../utils/currency';
 
 async function ensureLocationPermission() {
   if (Platform.OS === 'android') {
@@ -136,7 +137,8 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
     if (val <= 0) throw new Error('El monto del gasto debe ser mayor que 0');
     const maxGasto = parseFloat(profile?.dinero_max_gasto) || 0;
     if (maxGasto > 0 && val > maxGasto) {
-      throw new Error(`El monto ($${val.toLocaleString('es-CO')}) excede tu límite máximo permitido por gasto ($${maxGasto.toLocaleString('es-CO')}).`);
+      const uCurr = profile?.currency_code || 'COP';
+      throw new Error(`El monto (${formatCurrency(val, uCurr)}) excede tu límite máximo permitido por gasto (${formatCurrency(maxGasto, uCurr)}).`);
     }
 
     targetTipo = 'gasto';
@@ -187,7 +189,8 @@ export async function updateCashMovement({ id, monto, cajaId, profile, motivo })
     const maxPermitido = saldoPendiente + oldVal;
 
     if (facturaRow && val > maxPermitido) {
-      throw new Error(`El monto ($${val.toLocaleString('es-CO')}) supera el saldo pendiente del crédito ($${maxPermitido.toLocaleString('es-CO')}).`);
+      const fCurr = facturaRow?.currency_code || profile?.currency_code || 'COP';
+      throw new Error(`El monto (${formatCurrency(val, fCurr)}) supera el saldo pendiente del crédito (${formatCurrency(maxPermitido, fCurr)}).`);
     }
 
     // Caso A: Pago editado a monto 0 -> Se convierte automáticamente a 'nopago'

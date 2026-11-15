@@ -3,10 +3,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { zendapp } from '../../../theme/zendappTheme';
+import { formatCurrency } from '../../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 const formatFechaApertura = (dateStr) => {
@@ -132,12 +132,12 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
       <View style={styles.grid}>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>Saldo Inicial</Text>
-          <Text style={styles.gridVal}>{formatMoney(caja.saldo_inicial)}</Text>
+          <Text style={styles.gridVal}>{formatMoney(caja.saldo_inicial, caja.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
           <Text style={styles.gridLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
           <Text style={[styles.gridVal, { color: zendapp.colors.carbon }]}>
-            {formatMoney(caja.saldo_final)}
+            {formatMoney(caja.saldo_final, caja.currency_code)}
           </Text>
         </View>
       </View>
@@ -149,13 +149,13 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Ingresos</Text>
             <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
-              {formatMoney(caja.valor_ingresos)}
+              {formatMoney(caja.valor_ingresos, caja.currency_code)}
             </Text>
           </View>
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Retiros / Gastos</Text>
             <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
-              {formatMoney(retirosGastos)}
+              {formatMoney(retirosGastos, caja.currency_code)}
             </Text>
           </View>
         </View>
@@ -165,12 +165,12 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
           <View style={[styles.grid, { marginTop: 6 }]}>
             <View style={styles.gridItem}>
               <Text style={styles.gridLabel}>Debido Cobrar</Text>
-              <Text style={styles.gridVal}>{formatMoney(caja.valor_debido_cobrar)}</Text>
+              <Text style={styles.gridVal}>{formatMoney(caja.valor_debido_cobrar, caja.currency_code)}</Text>
             </View>
             <View style={styles.gridItem}>
               <Text style={styles.gridLabel}>Recaudado</Text>
               <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
-                {formatMoney(caja.valor_recaudado)}
+                {formatMoney(caja.valor_recaudado, caja.currency_code)}
               </Text>
             </View>
           </View>
@@ -178,12 +178,12 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
           <View style={[styles.grid, { marginTop: 6 }]}>
             <View style={styles.gridItem}>
               <Text style={styles.gridLabel}>Ventas</Text>
-              <Text style={styles.gridVal}>{formatMoney(caja.valor_ventas)}</Text>
+              <Text style={styles.gridVal}>{formatMoney(caja.valor_ventas, caja.currency_code)}</Text>
             </View>
             <View style={styles.gridItem}>
               <Text style={styles.gridLabel}>Gastos</Text>
               <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
-                {formatMoney(caja.valor_gastos)}
+                {formatMoney(caja.valor_gastos, caja.currency_code)}
               </Text>
             </View>
           </View>

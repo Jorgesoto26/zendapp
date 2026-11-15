@@ -77,7 +77,7 @@ export const AuthService = async (db, email, password) => {
     if (isOfflineLogin) {
       console.log('Iniciando sesion en modo OFFLINE para:', cleanEmail);
 
-      const params = await getData(db, `SELECT id, valor FROM parametrizacion WHERE id IN (2, 3, 4, 5, 6, 7, 8, 10)`);
+      const params = await getData(db, `SELECT id, valor FROM parametrizacion WHERE id IN (2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15)`);
       const pMap = {};
       params?.forEach(p => { pMap[p.id] = p.valor; });
 
@@ -89,6 +89,11 @@ export const AuthService = async (db, email, password) => {
       const cachedNombre = pMap[7] || 'Usuario';
       const cachedSuperiorId = pMap[8];
       const cachedModoApertura = pMap[10] || 'admin_masivo';
+      const cachedCountryId = pMap[11] || 'CO';
+      const cachedCurrencyCode = pMap[12] || 'COP';
+      const cachedLocale = pMap[13] || 'es-CO';
+      const cachedTimezone = pMap[14] || 'America/Bogota';
+      const cachedCityId = pMap[15] || null;
 
       if (!cachedUserId || !cachedEmail) {
         return {
@@ -147,7 +152,20 @@ export const AuthService = async (db, email, password) => {
         rol: cachedRol,
         superior_id: cachedSuperiorId,
         activo: true,
+        country_id: cachedCountryId,
+        currency_code: cachedCurrencyCode,
+        locale: cachedLocale,
+        timezone: cachedTimezone,
+        city_id: cachedCityId,
       };
+
+      if (!offlineProfile.currency_code) {
+        offlineProfile.country_id = cachedCountryId;
+        offlineProfile.currency_code = cachedCurrencyCode;
+        offlineProfile.locale = cachedLocale;
+        offlineProfile.timezone = cachedTimezone;
+        offlineProfile.city_id = cachedCityId;
+      }
 
       const offlineSession = {
         access_token: cachedToken || `offline_token_${cachedUserId}`,
@@ -310,6 +328,11 @@ export const AuthService = async (db, email, password) => {
         updateData(db, 'parametrizacion', { id: 7, valor: profile.nombre }),
         updateData(db, 'parametrizacion', { id: 8, valor: profile.superior_id }),
         updateData(db, 'parametrizacion', { id: 10, valor: profile.modo_apertura_caja || 'admin_masivo' }),
+        updateData(db, 'parametrizacion', { id: 11, valor: profile.country_id || 'CO' }),
+        updateData(db, 'parametrizacion', { id: 12, valor: profile.currency_code || 'COP' }),
+        updateData(db, 'parametrizacion', { id: 13, valor: profile.locale || 'es-CO' }),
+        updateData(db, 'parametrizacion', { id: 14, valor: profile.timezone || 'America/Bogota' }),
+        updateData(db, 'parametrizacion', { id: 15, valor: profile.city_id || '' }),
       ]);
       try {
         await AsyncStorage.setItem('cached_profile', JSON.stringify(profile));

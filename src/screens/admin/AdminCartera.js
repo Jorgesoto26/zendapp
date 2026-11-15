@@ -25,10 +25,10 @@ import { useAuth } from '../../context/AuthContext';
 import { getCarteraSummary } from '../../services/adminService';
 import { CarteraUserCard } from './components/CarteraUserCard';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
+import { formatCurrency } from '../../utils/currency';
 
-const formatMoney = (val) => {
-  const num = parseFloat(val) || 0;
-  return '$' + num.toLocaleString('es-CO');
+const formatMoney = (val, currencyCode = 'COP') => {
+  return formatCurrency(val, currencyCode);
 };
 
 export default function AdminCartera() {

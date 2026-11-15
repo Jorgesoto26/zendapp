@@ -1,4 +1,5 @@
 import { enablePromise, openDatabase } from 'react-native-sqlite-storage';
+import { syncGeoCatalogToSQLite } from '../services/geoService';
 
 enablePromise(true);
 
@@ -121,9 +122,21 @@ export async function ensureDatabaseIntegrity(db) {
 
     // Asegurar columnas en cuotas
     await ensureColumnExists(db, 'cuotas', 'payment_id', 'TEXT');
+    await ensureColumnExists(db, 'cuotas', 'currency_code', 'TEXT');
 
-    // Asegurar columnas en movimientos
+    // Asegurar columnas en facturas, pagos, cajas y movimientos
+    await ensureColumnExists(db, 'facturas', 'currency_code', 'TEXT');
+    await ensureColumnExists(db, 'pagos', 'currency_code', 'TEXT');
+    await ensureColumnExists(db, 'cajas', 'currency_code', 'TEXT');
+    await ensureColumnExists(db, 'movimientos', 'currency_code', 'TEXT');
     await ensureColumnExists(db, 'movimientos', 'client_uuid', 'TEXT');
+
+    // Catálogo Geográfico y Monedas Offline
+    try {
+      await syncGeoCatalogToSQLite(db);
+    } catch (eGeo) {
+      console.log('syncGeoCatalogToSQLite warning:', eGeo);
+    }
 
     // Tablas de multimedia y organizaciones locales
     await db.executeSql(`CREATE TABLE IF NOT EXISTS evidencias_locales (
@@ -206,9 +219,19 @@ export async function ensureDatabaseIntegrity(db) {
         (7, 'name', NULL),
         (8, 'partner_id', NULL),
         (9, 'version', '2.6.3'),
-        (10, 'modo_apertura_caja', 'admin_masivo')`);
+        (10, 'modo_apertura_caja', 'admin_masivo'),
+        (11, 'country_id', 'CO'),
+        (12, 'currency_code', 'COP'),
+        (13, 'locale', 'es-CO'),
+        (14, 'timezone', 'America/Bogota'),
+        (15, 'city_id', 'CO-CAL-MNZ')`);
     } else {
       await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (10, 'modo_apertura_caja', 'admin_masivo')`);
+      await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (11, 'country_id', 'CO')`);
+      await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (12, 'currency_code', 'COP')`);
+      await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (13, 'locale', 'es-CO')`);
+      await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (14, 'timezone', 'America/Bogota')`);
+      await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (15, 'city_id', 'CO-CAL-MNZ')`);
     }
   } catch (err) {
     console.log('ensureDatabaseIntegrity warning:', err);
