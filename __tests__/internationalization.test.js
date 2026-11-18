@@ -312,6 +312,21 @@ describe('Zenda Internationalization & Regionalization Test Suite', () => {
       expect(copInit).toBe('$ 500.000');
     });
 
+    test('Campos de dinero vacíos por defecto respetan el placeholder y no bloquean el tipeo', () => {
+      // Campo vacío no genera 'R$ 0.00', sino cadena vacía para que se vea el placeholder
+      expect(formatMoneyInput('', 'BRL', { forceDecimals: true })).toBe('');
+      expect(formatMoneyInput(null, 'BRL', { forceDecimals: true })).toBe('');
+      expect(parseMoneyToNumericByCurrency('', 'BRL')).toBe(0);
+
+      // Si por alguna razón el texto tenía 'R$ 0.00' y el usuario digita '4' al final ('R$ 0.004'),
+      // no se bloquea ni se descarta el '4', sino que se toma como 'R$ 4'
+      const typedOverZero = formatMoneyInput('R$ 0.004', 'BRL');
+      expect(typedOverZero).toBe('R$ 4');
+
+      const typedOverZero2 = formatMoneyInput('R$ 0.0040', 'BRL');
+      expect(typedOverZero2).toBe('R$ 40');
+    });
+
     test('Catálogo contiene São Paulo y Rio de Janeiro', () => {
       const spDiv = getAdministrativeDivisions('BR').find(d => d.id === 'BR-SP');
       expect(spDiv).toBeDefined();

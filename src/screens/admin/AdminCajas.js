@@ -28,6 +28,7 @@ import {
   getAdminOpenCajas,
   getSubordinates,
 } from '../../services/adminService';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 import { getDeviceTimezone } from '../../services/cajaService';
 import { FormatMoneyDecimales } from '../../utils/utilities';
 import { CajaCard } from './components/CajaCard';
@@ -35,6 +36,7 @@ import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { eventBus, EVENTS } from '../../utils/eventBus';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 const getTodayIso = () => {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -90,7 +92,7 @@ const MONTH_NAMES = [
 
 export default function AdminCajas() {
   const navigation = useNavigation();
-  const { userId, signOut } = useAuth();
+  const { userId, signOut, isReadOnly } = useAuth();
   const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mis Cajas' }]);
   const [subAdmins, setSubAdmins] = useState([]);
 
@@ -202,6 +204,12 @@ export default function AdminCajas() {
   };
 
   const handlePressAbrirMasivo = async () => {
+    if (isReadOnly) {
+      return appAlert(
+        'Modo Solo Lectura',
+        'No es posible abrir cajas en modo solo lectura por pago pendiente de suscripción. Regulariza tu cuenta en Reportes > Facturación.'
+      );
+    }
     setOpening(true);
     let openCajasList = [];
     try {
@@ -337,6 +345,7 @@ export default function AdminCajas() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Gestión de Cajas</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             Supervisión diaria · {adminOpenCount > 0 ? 'Caja activa' : 'Sin caja activa'}
@@ -356,6 +365,8 @@ export default function AdminCajas() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <BillingAlertBanner />
 
       {/* Breadcrumb de Navegación Jerárquica */}
       <HierarchyBreadcrumb

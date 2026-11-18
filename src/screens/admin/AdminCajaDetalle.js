@@ -29,7 +29,7 @@ import { formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { supabase } from '../../lib/supabase';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrency, getCurrencySymbol, getCurrencyDecimals } from '../../utils/currency';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -46,6 +46,7 @@ export default function AdminCajaDetalle() {
   const navigation = useNavigation();
   const { caja } = route.params || {};
   const [cajaState, setCajaState] = useState(caja || {});
+  const cajaCurrency = cajaState?.currency_code || caja?.currency_code || 'COP';
   const [reopening, setReopening] = useState(false);
 
   const [movements, setMovements] = useState([]);
@@ -737,8 +738,13 @@ export default function AdminCajaDetalle() {
               <TextInput
                 style={styles.input}
                 value={movMonto}
-                onChangeText={(t) => setMovMonto(formatMoneyInput(t))}
-                placeholder="$ 0"
+                onChangeText={(t) => setMovMonto(formatMoneyInput(t, cajaCurrency))}
+                onBlur={() => {
+                  if (movMonto) {
+                    setMovMonto(formatMoneyInput(movMonto, cajaCurrency, { forceDecimals: true }));
+                  }
+                }}
+                placeholder={`${getCurrencySymbol(cajaCurrency)} ${getCurrencyDecimals(cajaCurrency) > 0 ? '0.00' : '0'}`}
                 placeholderTextColor={zendapp.colors.textMuted}
                 keyboardType="numeric"
               />

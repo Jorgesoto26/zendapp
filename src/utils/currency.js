@@ -193,6 +193,12 @@ export const formatMoneyInputByCurrency = (
 
     if (!clean) return '';
 
+    // Si el valor era '0.00' (o '0,00') y el usuario digitó números al final (ej. '0.004'),
+    // extraer los nuevos dígitos para que nunca se bloquee la digitación.
+    if (/^0[.,]0{2,}\d+/.test(clean)) {
+      clean = clean.replace(/^0[.,]0{2,}/, '');
+    }
+
     // Si termina con coma o punto (el usuario recién presionó el separador decimal al final)
     let hasTrailingDot = false;
     if (clean.endsWith('.') || clean.endsWith(',')) {

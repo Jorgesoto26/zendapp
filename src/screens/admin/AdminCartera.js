@@ -23,8 +23,10 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import { getCarteraSummary } from '../../services/adminService';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 import { CarteraUserCard } from './components/CarteraUserCard';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 import { formatCurrency } from '../../utils/currency';
 
 const formatMoney = (val, currencyCode = 'COP') => {
@@ -131,6 +133,7 @@ export default function AdminCartera() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Cartera</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             Saldos consolidados al corte
@@ -144,6 +147,8 @@ export default function AdminCartera() {
           <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
         </TouchableOpacity>
       </View>
+
+      <BillingAlertBanner />
 
       {/* Breadcrumb de Navegación Jerárquica */}
       <HierarchyBreadcrumb

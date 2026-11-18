@@ -23,6 +23,7 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonList, SkeletonUserCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 import {
   getSubordinates,
   createAdminUser,
@@ -33,9 +34,10 @@ import { UserCard } from './components/UserCard';
 import { UserModal } from './components/UserModal';
 import OrganizationModal from './components/OrganizationModal';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 export default function AdminUsuarios() {
-  const { userId, signOut } = useAuth();
+  const { userId, signOut, isReadOnly } = useAuth();
   const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mi Equipo' }]);
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -131,16 +133,28 @@ export default function AdminUsuarios() {
   };
 
   const handleCreate = () => {
+    if (isReadOnly) {
+      return appAlert(
+        'Modo Solo Lectura',
+        'No es posible crear nuevos usuarios o rutas mientras la suscripción mensual esté vencida. Realiza el pago en la sección Reportes > Facturación.'
+      );
+    }
     setEditingUser(null);
     setModalVisible(true);
   };
 
   const handleEdit = (user) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible modificar usuarios en modo solo lectura por pago pendiente de suscripción.');
+    }
     setEditingUser(user);
     setModalVisible(true);
   };
 
   const handleToggle = async (user) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible habilitar o inhabilitar usuarios en modo solo lectura por pago pendiente de suscripción.');
+    }
     try {
       const res = await toggleAdminUser(user.id);
       appAlert(
@@ -154,6 +168,9 @@ export default function AdminUsuarios() {
   };
 
   const handleSaveUser = async (formData) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'Operación no permitida en modo solo lectura por pago pendiente de suscripción.');
+    }
     try {
       if (editingUser) {
         await updateAdminUser(editingUser.id, formData);
@@ -183,6 +200,7 @@ export default function AdminUsuarios() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Usuarios</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             {activosCount} activos · {inactivosCount} inactivos
@@ -205,6 +223,8 @@ export default function AdminUsuarios() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <BillingAlertBanner />
 
       {/* Breadcrumb de Navegación Jerárquica */}
       <HierarchyBreadcrumb

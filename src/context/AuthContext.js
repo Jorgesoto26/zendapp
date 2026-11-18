@@ -4,6 +4,7 @@ import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { SUPABASE_URL } from '../config/env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDbConnection, getData } from '../database/db';
+import { getBillingStatus } from '../services/billingService';
 
 let isAuthServiceRunning = false;
 export const setAuthServiceRunning = (val) => {
@@ -17,6 +18,7 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [billingStatus, setBillingStatus] = useState(null);
 
   const fetchUserData = useCallback(async (userId, accessToken) => {
     try {
@@ -79,6 +81,10 @@ export function AuthProvider({ children }) {
         return;
       }
       if (p) setProfile(p);
+      try {
+        const b = await getBillingStatus();
+        setBillingStatus(b);
+      } catch {}
     }
   }, [fetchUserData]);
 
@@ -181,6 +187,14 @@ export function AuthProvider({ children }) {
           if (effectiveProfile) setProfile(effectiveProfile);
           setSession(sess);
           setLoading(false);
+        }
+
+        // Cargar estado de facturación para la app
+        try {
+          const bStatus = await getBillingStatus();
+          if (mounted) setBillingStatus(bStatus);
+        } catch (eB) {
+          console.log('Error initial billing fetch:', eB);
         }
       } catch (e) {
         if (mounted) {
@@ -295,6 +309,10 @@ export function AuthProvider({ children }) {
     refreshProfile,
     signOut,
     setAuthSession,
+    billingStatus,
+    isReadOnly: billingStatus?.is_read_only === true,
+    isSuspended: billingStatus?.is_suspended === true,
+    refreshBillingStatus: refreshProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

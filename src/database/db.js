@@ -233,8 +233,65 @@ export async function ensureDatabaseIntegrity(db) {
       await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (14, 'timezone', 'America/Bogota')`);
       await db.executeSql(`INSERT OR IGNORE INTO parametrizacion (id, nombre, valor) VALUES (15, 'city_id', 'CO-CAL-MNZ')`);
     }
+
+    // Auto-curar fechas de cuotas desfasadas
+    await healCuotasFechas(db);
   } catch (err) {
     console.log('ensureDatabaseIntegrity warning:', err);
+  }
+}
+
+/**
+ * Auto-cura las fechas de vencimiento de cuotas en SQLite si fueron generadas con desfase de días
+ * (por ejemplo créditos con pago adelantado donde la cuota 1 se guardó con fecha posterior a la creación).
+ */
+export async function healCuotasFechas(db) {
+  try {
+    const facturasBroken = await getData(
+      db,
+      `SELECT f.id, f.fecha, f.periodicidad, f.pago_adelantado, f.num_cuotas, c.fecha_vencimiento AS cuota1_fecha
+       FROM facturas f
+       JOIN cuotas c ON (c.invoice_id = f.id OR CAST(c.invoice_id AS TEXT) = CAST(f.id AS TEXT)) AND c.numero = 1
+       WHERE (f.pago_adelantado = 1 OR f.pago_adelantado = '1')
+         AND date(substr(c.fecha_vencimiento, 1, 10)) > date(substr(f.fecha, 1, 10))`
+    );
+
+    if (facturasBroken && facturasBroken.length > 0) {
+      for (const f of facturasBroken) {
+        const cleanF = String(f.fecha).split('T')[0].split(' ')[0];
+        const p = cleanF.split('-').map(Number);
+        if (p.length === 3 && !isNaN(p[0])) {
+          const baseDate = new Date(p[0], p[1] - 1, p[2]);
+          const periodicidad = (f.periodicidad || 'diario').toLowerCase().trim();
+          const cuotas = await getData(
+            db,
+            `SELECT id, numero FROM cuotas WHERE invoice_id = ? OR CAST(invoice_id AS TEXT) = ? ORDER BY numero ASC`,
+            [String(f.id), String(f.id)]
+          );
+          for (const c of cuotas) {
+            const num = Number(c.numero);
+            const offset = num - 1; // Cuota 1 = fecha factura (offset 0), Cuota 2 = offset 1, etc.
+            let dVenc = new Date(baseDate);
+            if (periodicidad === 'semanal') {
+              dVenc.setDate(dVenc.getDate() + (offset * 7));
+            } else if (periodicidad === 'quincenal') {
+              dVenc.setDate(dVenc.getDate() + (offset * 15));
+            } else if (periodicidad === 'mensual') {
+              dVenc.setMonth(dVenc.getMonth() + offset);
+            } else {
+              dVenc.setDate(dVenc.getDate() + offset);
+            }
+            const fechaVenc = dVenc.toISOString().slice(0, 10);
+            await db.executeSql(
+              `UPDATE cuotas SET fecha_vencimiento = ? WHERE id = ?`,
+              [fechaVenc, c.id]
+            );
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log('healCuotasFechas error:', e);
   }
 }
 

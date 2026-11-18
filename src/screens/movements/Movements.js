@@ -28,6 +28,7 @@ import {
   cancelInvoiceSale,
 } from '../../services/movementsService';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, Capitalize } from '../../utils/utilities';
+import { getCurrencySymbol, getCurrencyDecimals } from '../../utils/currency';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
@@ -41,10 +42,13 @@ import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonItem } from '../../components/Skeleton';
 import { pickImage } from '../../services/multimediaService';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 export default function MovementsScreen() {
   const navigation = useNavigation();
-  const { profile, userId } = useAuth();
+  const { profile, userId, isReadOnly } = useAuth();
+  const userCurrency = profile?.currency_code || 'COP';
 
   const [caja, setCaja] = useState(null);
   const [items, setItems] = useState([]);
@@ -258,6 +262,9 @@ export default function MovementsScreen() {
 
   // Abrir modal de edición con validación de sincronización (Requisito 3.1)
   const handleOpenEdit = (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible editar movimientos en modo solo lectura por pago de suscripción pendiente.');
+    }
     const isPendingSync =
       item.estadoMovil === 'actualizado' ||
       item.estadoMovil === 'enviando' ||
@@ -348,6 +355,9 @@ export default function MovementsScreen() {
 
   // Reversión / Anulación de Venta según permisos (Requisito 4)
   const handleDeleteVenta = async (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible anular ventas en modo solo lectura por pago de suscripción pendiente.');
+    }
     if (!permiteBorrarVenta) {
       return appAlert('Permiso denegado', 'No tienes autorización para eliminar o anular ventas.');
     }
@@ -423,6 +433,9 @@ export default function MovementsScreen() {
 
   // Reversión de Pago según permisos
   const handleRevertPago = async (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible revertir pagos en modo solo lectura por pago de suscripción pendiente.');
+    }
     if (!permiteModificarPagos) {
       return appAlert('Permiso denegado', 'No tienes autorización para modificar o revertir pagos.');
     }
@@ -616,6 +629,7 @@ export default function MovementsScreen() {
         <AppBackground />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Movimientos</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSub}>
             {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
           </Text>
@@ -646,10 +660,13 @@ export default function MovementsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Movimientos</Text>
+        <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
         <Text style={styles.headerSub}>
           {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
         </Text>
       </View>
+
+      <BillingAlertBanner />
 
       {/* Controles y Filtros */}
       <View style={styles.controls}>
@@ -704,11 +721,14 @@ export default function MovementsScreen() {
       {/* FAB para registrar nuevo movimiento manual */}
       <TouchableOpacity
         style={[styles.fab, !caja && { backgroundColor: apple.colors.tertiaryLabel }]}
-        onPress={() =>
+        onPress={() => {
+          if (isReadOnly) {
+            return appAlert('Modo Solo Lectura', 'No es posible registrar nuevos movimientos en modo solo lectura por pago de suscripción pendiente.');
+          }
           caja?.estado === 'abierta'
             ? setModalVisible(true)
-            : appAlert('Caja requerida', 'Debes tener una caja abierta para registrar ingresos, retiros o gastos.')
-        }
+            : appAlert('Caja requerida', 'Debes tener una caja abierta para registrar ingresos, retiros o gastos.');
+        }}
       >
         <Icon name="plus" size={18} color="#fff" />
       </TouchableOpacity>
@@ -833,9 +853,14 @@ export default function MovementsScreen() {
             <TextInput
               style={styles.input}
               value={formMonto}
-              onChangeText={t => setFormMonto(formatMoneyInput(t))}
+              onChangeText={t => setFormMonto(formatMoneyInput(t, userCurrency))}
+              onBlur={() => {
+                if (formMonto) {
+                  setFormMonto(formatMoneyInput(formMonto, userCurrency, { forceDecimals: true }));
+                }
+              }}
               keyboardType="numeric"
-              placeholder="$ 0"
+              placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
               placeholderTextColor={apple.colors.tertiaryLabel}
             />
 
@@ -909,9 +934,14 @@ export default function MovementsScreen() {
             <TextInput
               style={styles.input}
               value={editMonto}
-              onChangeText={t => setEditMonto(formatMoneyInput(t))}
+              onChangeText={t => setEditMonto(formatMoneyInput(t, userCurrency))}
+              onBlur={() => {
+                if (editMonto) {
+                  setEditMonto(formatMoneyInput(editMonto, userCurrency, { forceDecimals: true }));
+                }
+              }}
               keyboardType="numeric"
-              placeholder="$ 0"
+              placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
               placeholderTextColor={apple.colors.tertiaryLabel}
             />
 

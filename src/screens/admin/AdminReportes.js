@@ -23,6 +23,9 @@ import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import { getReporteConsolidado } from '../../services/adminService';
 import { formatCurrency } from '../../utils/currency';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingSection from './components/BillingSection';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -110,6 +113,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Reportes</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             Consolidado por periodo y vendedor
           </Text>
@@ -130,13 +134,22 @@ Generado el: ${new Date().toLocaleString('es-CO')}
               { key: 'consolidado', label: 'Consolidado' },
               { key: 'gasto', label: 'Gastos' },
               { key: 'movimiento', label: 'Movimientos' },
+              { key: 'facturacion', label: 'Facturación' },
             ]}
             selectedKey={tipo}
             onChange={(key) => setTipo(key)}
           />
         </View>
 
-      {/* Rango de Fechas */}
+      {tipo !== 'facturacion' && (
+        <BillingAlertBanner onPress={() => setTipo('facturacion')} />
+      )}
+
+      {tipo === 'facturacion' ? (
+        <BillingSection onRefreshGlobal={loadData} />
+      ) : (
+        <>
+          {/* Rango de Fechas */}
       <View style={styles.dateBar}>
         <Icon name="calendar" size={14} color={zendapp.colors.primary} />
         <Text style={styles.dateText}>
@@ -243,6 +256,8 @@ Generado el: ${new Date().toLocaleString('es-CO')}
             </View>
           }
         />
+      )}
+        </>
       )}
       <LogoutConfirmModal
         visible={showLogout}

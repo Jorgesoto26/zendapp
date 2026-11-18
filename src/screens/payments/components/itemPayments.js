@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, memo, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Animated, Platform, Linking, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Modal from 'react-native-modal';
@@ -7,6 +7,7 @@ import Toast from 'react-native-toast-message';
 import Geolocation from 'react-native-geolocation-service';
 import { getDbConnection, updateData, insertTables, getData } from '../../../database/db';
 import { IdInsertion, getDateOdooMilisec, getDate, Capitalize, FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, generateUUID } from '../../../utils/utilities';
+import { getCurrencySymbol, getCurrencyDecimals } from '../../../utils/currency';
 import { getCajaActual } from '../../../services/cajaService';
 import { apple } from '../../../theme/appleTheme';
 import { zendapp } from '../../../theme/zendappTheme';
@@ -15,6 +16,7 @@ import { eventBus, EVENTS } from '../../../utils/eventBus';
 import { SyncWithSupabase } from '../../../utils/sync';
 import { useAuth } from '../../../context/AuthContext';
 import PaymentReceiptModal from '../../../components/PaymentReceiptModal';
+import { getMoraStatus, calculateCuotasAtrasadas, calculateSaldoVencido } from '../../../utils/moraHelper';
 
 const getStatusColor = (tipo) => ({ pago: zendapp.colors.success, 'no pago': zendapp.colors.primary, parcial: zendapp.colors.warning, pendiente: '#D0D5DD' }[(tipo || '').toLowerCase().trim()] || '#D0D5DD');
 const getStatusBg = (tipo) => ({ pago: '#ECFDF5', 'no pago': '#FEF2F2', parcial: '#FFFBEB', pendiente: '#F8F9FA' }[(tipo || '').toLowerCase().trim()] || '#F8F9FA');
@@ -48,7 +50,7 @@ const ensureLocalCuotas = async (db, invoiceId, saldoTotal, valorCuota, cuotasPa
 
     const fRows = await getData(
       db,
-      `SELECT valorInicial, valorCuota, num_cuotas, saldo, cuotasPagas, fecha, periodicidad FROM facturas WHERE id = ?`,
+      `SELECT valorInicial, valorCuota, num_cuotas, saldo, cuotasPagas, fecha, periodicidad, pago_adelantado FROM facturas WHERE id = ?`,
       [String(invoiceId)]
     );
     if (!fRows || fRows.length === 0) return [];
@@ -61,10 +63,33 @@ const ensureLocalCuotas = async (db, invoiceId, saldoTotal, valorCuota, cuotasPa
     const cMonto = Math.floor(total / nCuotas);
     const cResto = total - (cMonto * (nCuotas - 1));
     const pagas = Number(f.cuotasPagas || cuotasPagasCount || 0);
+    const periodicidad = (f.periodicidad || 'diario').toLowerCase().trim();
+    const isPagoAdelantado = Number(f.pago_adelantado) === 1 || f.pago_adelantado === true;
+    let baseDate = new Date();
+    if (f.fecha) {
+      const cleanF = String(f.fecha).split('T')[0].split(' ')[0];
+      const p = cleanF.split('-').map(Number);
+      if (p.length === 3 && !isNaN(p[0])) {
+        baseDate = new Date(p[0], p[1] - 1, p[2]);
+      }
+    }
 
     for (let i = 1; i <= nCuotas; i++) {
       const val = (i === nCuotas) ? cResto : cMonto;
       const isYaPaga = i <= pagas;
+      const offset = isPagoAdelantado ? (i - 1) : i;
+      let dVenc = new Date(baseDate);
+      if (periodicidad === 'semanal') {
+        dVenc.setDate(dVenc.getDate() + (offset * 7));
+      } else if (periodicidad === 'quincenal') {
+        dVenc.setDate(dVenc.getDate() + (offset * 15));
+      } else if (periodicidad === 'mensual') {
+        dVenc.setMonth(dVenc.getMonth() + offset);
+      } else {
+        dVenc.setDate(dVenc.getDate() + offset);
+      }
+      const fechaVenc = dVenc.toISOString().slice(0, 10);
+
       await db.executeSql(
         `INSERT OR IGNORE INTO cuotas (id, invoice_id, numero, fecha_vencimiento, monto, estado, monto_pagado)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -72,7 +97,7 @@ const ensureLocalCuotas = async (db, invoiceId, saldoTotal, valorCuota, cuotasPa
           `cuota_${invoiceId}_${i}`,
           String(invoiceId),
           i,
-          new Date().toISOString().slice(0, 10),
+          fechaVenc,
           val,
           isYaPaga ? 'pagada' : 'pendiente',
           isYaPaga ? val : 0,
@@ -166,10 +191,15 @@ const ItemPayments = memo(({
   tipoTramitado: propTipoTramitado,
   valorPagado: propValorPagado,
   pendienteSync: propPendienteSync,
+  cuotasAtrasadas: propCuotasAtrasadas,
+  fecha,
+  periodicidad,
+  num_cuotas,
+  pago_adelantado,
   onShowReceipt,
 }) => {
   const navigation = useNavigation();
-  const { profile } = useAuth() || {};
+  const { profile, isReadOnly } = useAuth() || {};
   const itemCurrency = propCurrencyCode || profile?.currency_code || 'COP';
   const [modalParcial, setModalParcial] = useState(false);
   const [modalNoPago, setModalNoPago] = useState(false);
@@ -178,9 +208,19 @@ const ItemPayments = memo(({
   const [tipoTramitado, setTipoTramitado] = useState(propTipoTramitado || null);
   const [valorPagado, setValorPagado] = useState(propValorPagado || 0);
   const [pendienteSync, setPendienteSync] = useState(propPendienteSync !== undefined ? propPendienteSync : false);
+  const [cuotasAtrasadas, setCuotasAtrasadas] = useState(() => {
+    if (propCuotasAtrasadas !== undefined) return propCuotasAtrasadas;
+    return calculateCuotasAtrasadas({ saldo, cuotasPagas, saldoVencido, fecha, periodicidad, num_cuotas, pago_adelantado, estadoMovil, estadoPago });
+  });
   const [receiptData, setReceiptData] = useState(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (propCuotasAtrasadas !== undefined) {
+      setCuotasAtrasadas(propCuotasAtrasadas);
+    }
+  }, [propCuotasAtrasadas]);
 
   useEffect(() => {
     if (propTipoTramitado !== undefined) setTipoTramitado(propTipoTramitado);
@@ -218,6 +258,13 @@ const ItemPayments = memo(({
   const pressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30 }).start();
 
   const executePaymentAction = useCallback(async (tipo, valorPago) => {
+    if (isReadOnly) {
+      appAlert(
+        'Modo Solo Lectura',
+        'No es posible registrar cobros en modo solo lectura debido a que la suscripción mensual está vencida. Comunícate con el administrador para regularizar el pago.'
+      );
+      return;
+    }
     setLoading(true);
     const db = await getDbConnection();
     try {
@@ -348,6 +395,9 @@ const ItemPayments = memo(({
       setTipoTramitado(tipo === 'nopago' ? 'NO PAGO' : (ns <= 0 ? 'PAGO' : (tipo === 'parcial' ? 'PARCIAL' : 'PAGO')));
       setValorPagado(tipo === 'nopago' ? 0 : valorPago);
       setPendienteSync(true);
+      if (tipo !== 'nopago' && valorPago > 0) {
+        setCuotasAtrasadas(prev => Math.max(0, prev - 1));
+      }
 
       Toast.show({
         text1: ns <= 0
@@ -478,15 +528,41 @@ const ItemPayments = memo(({
     navigation.navigate('CreditDetail', { invoiceId: id, clientName: name, address, telefono, latitud, longitud, saldo });
   };
 
+  const moraInfo = getMoraStatus(cuotasAtrasadas, saldo);
+
+  const displaySaldoVencido = calculateSaldoVencido({ saldo, saldoVencido, valorCuota, amount }, cuotasAtrasadas, saldoVencido);
+
   return (
     <Animated.View style={{ transform: [{ scale }], marginHorizontal: 16, marginBottom: 10 }}>
-      <TouchableOpacity activeOpacity={0.9} onPress={handlePressCard} onPressIn={pressIn} onPressOut={pressOut} style={styles.card}>
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={handlePressCard}
+        onPressIn={pressIn}
+        onPressOut={pressOut}
+        style={[
+          styles.card,
+          {
+            borderColor: moraInfo.borderColor,
+            borderWidth: moraInfo.borderWidth,
+          },
+        ]}
+      >
         <View style={styles.content}>
           {/* Fila 1: Nombre + Teléfono al lado | GPS */}
           <View style={styles.topRow}>
             <View style={styles.nameContainer}>
               <View style={styles.nameRow}>
                 <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
+                <View style={[styles.moraPill, { backgroundColor: moraInfo.bg, borderColor: moraInfo.borderColor }]}>
+                  <Icon
+                    name={moraInfo.icon}
+                    size={9}
+                    color={moraInfo.color}
+                  />
+                  <Text style={[styles.moraPillText, { color: moraInfo.color }]}>
+                    {moraInfo.badgeText}
+                  </Text>
+                </View>
                 <TouchableOpacity
                   onPress={() => {
                     const num = (telefono || '').replace(/[^0-9+]/g, '');
@@ -518,12 +594,12 @@ const ItemPayments = memo(({
             </TouchableOpacity>
           </View>
 
-          {/* Fila 2: Cuota / Valor + Saldo */}
+          {/* Fila 2: Cuota / Valor + Saldo Vencido + Saldo Pendiente */}
           <View style={styles.infoRow}>
             <View style={styles.amountBox}>
               <Text style={styles.amountLabel}>{!isPending && tipoTramitado ? 'VALOR PAGO' : 'CUOTA'}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={[styles.amount, { color: amountColor }]}>{FormatMoneyDecimales(valorAMostrar)}</Text>
+                <Text style={[styles.amount, { color: amountColor }]}>{FormatMoneyDecimales(valorAMostrar, itemCurrency)}</Text>
                 {!isPending && tipoTramitado && (
                   <View style={styles.syncBadge}>
                     {(propPendienteSync !== undefined ? propPendienteSync : pendienteSync) ? (
@@ -538,22 +614,58 @@ const ItemPayments = memo(({
                 )}
               </View>
             </View>
+
+            <View style={styles.vencidoBox}>
+              <Text style={styles.vencidoLabel}>SALDO VENCIDO</Text>
+              <Text style={[styles.vencidoAmount, { color: Number(displaySaldoVencido) > 0 ? zendapp.colors.danger : zendapp.colors.success }]}>
+                {FormatMoneyDecimales(displaySaldoVencido, itemCurrency)}
+              </Text>
+            </View>
+
             <View style={styles.saldoBox}>
               <Text style={styles.saldoLabel}>SALDO PENDIENTE</Text>
-              <Text style={[styles.saldo, saldo === 0 && { color: zendapp.colors.success }]}>{FormatMoneyDecimales(saldo)}</Text>
+              <Text style={[styles.saldo, saldo === 0 && { color: zendapp.colors.success }]}>{FormatMoneyDecimales(saldo, itemCurrency)}</Text>
             </View>
           </View>
 
           {/* Fila 3: Botones o Info tramitado */}
           {isPending ? (
             <View style={styles.actions}>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineSuccess]} onPress={() => executePaymentAction('pago', Math.min(valorCuota, saldo))} disabled={loading}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionOutlineSuccess]}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert('Modo Solo Lectura', 'No es posible registrar cobros en modo solo lectura por pago de suscripción pendiente.');
+                    return;
+                  }
+                  executePaymentAction('pago', Math.min(valorCuota, saldo));
+                }}
+                disabled={loading}
+              >
                 {loading ? <ActivityIndicator size="small" color={zendapp.colors.success} /> : <><Icon name="check" size={13} color={zendapp.colors.success} /><Text style={styles.actionTextSuccess}> Pagar</Text></>}
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineDanger]} onPress={() => setModalNoPago(true)}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionOutlineDanger]}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert('Modo Solo Lectura', 'No es posible registrar visitas o no pagos en modo solo lectura por pago de suscripción pendiente.');
+                    return;
+                  }
+                  setModalNoPago(true);
+                }}
+              >
                 <Icon name="times" size={13} color={zendapp.colors.primary} /><Text style={styles.actionTextDanger}> No pago</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineWarning]} onPress={() => setModalParcial(true)}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionOutlineWarning]}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert('Modo Solo Lectura', 'No es posible registrar abonos en modo solo lectura por pago de suscripción pendiente.');
+                    return;
+                  }
+                  setModalParcial(true);
+                }}
+              >
                 <Icon name="adjust" size={13} color="#D97706" /><Text style={styles.actionTextWarning}> Abono / Total</Text>
               </TouchableOpacity>
             </View>
@@ -594,16 +706,28 @@ const ItemPayments = memo(({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>Abonar o Pagar Total</Text>
-          <Text style={styles.sheetSub}>{name} · Saldo {FormatMoneyDecimales(saldo)}</Text>
-          <TextInput placeholder="$ 0" keyboardType="numeric" style={styles.sheetInput} value={valorParcial} onChangeText={t => setValorParcial(formatMoneyInput(t))} placeholderTextColor={zendapp.colors.textMuted} />
+          <Text style={styles.sheetSub}>{name} · Saldo {FormatMoneyDecimales(saldo, itemCurrency)}</Text>
+          <TextInput
+            placeholder={`${getCurrencySymbol(itemCurrency)} ${getCurrencyDecimals(itemCurrency) > 0 ? '0.00' : '0'}`}
+            keyboardType="numeric"
+            style={styles.sheetInput}
+            value={valorParcial}
+            onChangeText={t => setValorParcial(formatMoneyInput(t, itemCurrency))}
+            onBlur={() => {
+              if (valorParcial) {
+                setValorParcial(formatMoneyInput(valorParcial, itemCurrency, { forceDecimals: true }));
+              }
+            }}
+            placeholderTextColor={zendapp.colors.textMuted}
+          />
           {saldo > 0 && (
             <TouchableOpacity
               style={styles.sheetTotalQuickBtn}
-              onPress={() => setValorParcial(formatMoneyInput(String(saldo)))}
+              onPress={() => setValorParcial(formatMoneyInput(String(saldo), itemCurrency, { forceDecimals: true }))}
               activeOpacity={0.7}
             >
               <Icon name="check-circle" size={13} color={zendapp.colors.carbon} />
-              <Text style={styles.sheetTotalQuickBtnText}>Pagar saldo total: {FormatMoneyDecimales(saldo)}</Text>
+              <Text style={styles.sheetTotalQuickBtnText}>Pagar saldo total: {FormatMoneyDecimales(saldo, itemCurrency)}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -645,6 +769,9 @@ const ItemPayments = memo(({
   a.id === b.id &&
   a.status === b.status &&
   a.saldo === b.saldo &&
+  a.saldoVencido === b.saldoVencido &&
+  a.cuotasAtrasadas === b.cuotasAtrasadas &&
+  a.cuotasPagas === b.cuotasPagas &&
   a.estadoMovil === b.estadoMovil &&
   a.pendienteSync === b.pendienteSync &&
   a.tipoTramitado === b.tipoTramitado &&
@@ -678,17 +805,34 @@ const styles = StyleSheet.create({
   nameContainer: { flex: 1, minWidth: 0 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   name: { fontSize: 16, fontWeight: '700', color: zendapp.colors.carbon, letterSpacing: -0.3, flexShrink: 1 },
+  moraPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  moraPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
   addr: { fontSize: 12, color: zendapp.colors.textSecondary, marginTop: 1 },
   phonePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(248, 249, 250, 0.75)', borderWidth: 1, borderColor: 'rgba(208, 213, 221, 0.8)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   phoneText: { fontSize: 11, fontWeight: '600', color: zendapp.colors.carbon, maxWidth: 110 },
   gpsPillTop: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(248, 249, 250, 0.75)', borderWidth: 1, borderColor: 'rgba(208, 213, 221, 0.8)', marginLeft: 8, flexShrink: 0 },
   gpsText: { fontSize: 11, fontWeight: '600' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(248, 249, 250, 0.75)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(234, 236, 240, 0.8)', paddingHorizontal: 12, paddingVertical: 8, marginTop: 8 },
-  amountBox: { flexDirection: 'column' },
+  amountBox: { flex: 1, flexDirection: 'column', alignItems: 'flex-start' },
   amountLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
-  amount: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
+  amount: { fontSize: 14, fontWeight: '800', letterSpacing: -0.3 },
   syncBadge: { flexDirection: 'row', alignItems: 'center' },
-  saldoBox: { flexDirection: 'column', alignItems: 'flex-end' },
+  vencidoBox: { flex: 1, flexDirection: 'column', alignItems: 'center' },
+  vencidoLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textSecondary, letterSpacing: 0.3 },
+  vencidoAmount: { fontSize: 13, fontWeight: '800', letterSpacing: -0.3 },
+  saldoBox: { flex: 1, flexDirection: 'column', alignItems: 'flex-end' },
   saldoLabel: { fontSize: 9, fontWeight: '700', color: zendapp.colors.textMuted, letterSpacing: 0.3 },
   saldo: { fontSize: 13, fontWeight: '800', color: zendapp.colors.carbon },
   actions: { flexDirection: 'row', gap: 6, marginTop: 10 },
