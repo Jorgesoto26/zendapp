@@ -1,6 +1,6 @@
 {
   "name": "Zendapp",
-  "version": "1.0.1",
+  "version": "1.0.6",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
