@@ -23,6 +23,7 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { useAuth } from '../../context/AuthContext';
 import { getAdminMorosos, castigarCartera } from '../../services/adminService';
 import { formatCurrency } from '../../utils/currency';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -118,6 +119,7 @@ export default function AdminMorosos() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Cartera Morosa</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             Top 50 clientes con mayor mora
           </Text>

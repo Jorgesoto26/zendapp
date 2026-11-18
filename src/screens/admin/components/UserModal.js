@@ -59,13 +59,13 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
   const [registeringCity, setRegisteringCity] = useState(false);
 
   // Límites
-  const [dineroMaxCaja, setDineroMaxCaja] = useState('0');
-  const [dineroMaxVenta, setDineroMaxVenta] = useState('0');
-  const [dineroMaxGasto, setDineroMaxGasto] = useState('0');
+  const [dineroMaxCaja, setDineroMaxCaja] = useState('');
+  const [dineroMaxVenta, setDineroMaxVenta] = useState('');
+  const [dineroMaxGasto, setDineroMaxGasto] = useState('');
   const [maxCuotas, setMaxCuotas] = useState('30');
   const [permiteBorrarVenta, setPermiteBorrarVenta] = useState(false);
   const [permiteModificarPagos, setPermiteModificarPagos] = useState(false);
-  const [saldoInicialCaja, setSaldoInicialCaja] = useState('0');
+  const [saldoInicialCaja, setSaldoInicialCaja] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Configuración regional calculada reactivamente
@@ -101,6 +101,8 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
     }
   };
 
+  const currentDefaults = useMemo(() => getDefaultLimits(activeCurrencyCode), [activeCurrencyCode]);
+
   useEffect(() => {
     if (editingUser) {
       setNombre(editingUser.nombre || '');
@@ -124,7 +126,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
       setMaxCuotas(editingUser.max_cuotas ? cleanMoneyValue(editingUser.max_cuotas, curr) : '30');
       setPermiteBorrarVenta(!!editingUser.permite_borrar_venta);
       setPermiteModificarPagos(!!editingUser.permite_modificar_pagos);
-      setSaldoInicialCaja(formatMoneyInput('0', true, curr, { forceDecimals: true }));
+      setSaldoInicialCaja('');
     } else {
       setNombre('');
       setApellido('');
@@ -137,14 +139,13 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
       setDivisionId('CO-CAL');
       setCityId('CO-CAL-MNZ');
 
-      const defaults = getDefaultLimits('COP');
-      setDineroMaxCaja(formatMoneyInput(defaults.caja, true, 'COP', { forceDecimals: true }));
-      setDineroMaxVenta(formatMoneyInput(defaults.venta, true, 'COP', { forceDecimals: true }));
-      setDineroMaxGasto(formatMoneyInput(defaults.gasto, true, 'COP', { forceDecimals: true }));
+      setDineroMaxCaja('');
+      setDineroMaxVenta('');
+      setDineroMaxGasto('');
       setMaxCuotas('30');
       setPermiteBorrarVenta(false);
       setPermiteModificarPagos(false);
-      setSaldoInicialCaja(formatMoneyInput(defaults.saldo, true, 'COP', { forceDecimals: true }));
+      setSaldoInicialCaja('');
     }
   }, [editingUser, visible]);
 
@@ -155,12 +156,10 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
     setDivisionId('');
     setCityId('');
 
-    const newCfg = getRegionalConfig(newCountryId, null);
-    const defaults = getDefaultLimits(newCfg.currency_code);
-    setDineroMaxCaja(formatMoneyInput(defaults.caja, true, newCfg.currency_code, { forceDecimals: true }));
-    setDineroMaxVenta(formatMoneyInput(defaults.venta, true, newCfg.currency_code, { forceDecimals: true }));
-    setDineroMaxGasto(formatMoneyInput(defaults.gasto, true, newCfg.currency_code, { forceDecimals: true }));
-    setSaldoInicialCaja(formatMoneyInput('0', true, newCfg.currency_code, { forceDecimals: true }));
+    setDineroMaxCaja('');
+    setDineroMaxVenta('');
+    setDineroMaxGasto('');
+    setSaldoInicialCaja('');
   };
 
   // Manejo de cambio de división (limpieza progresiva de ciudad)
@@ -357,9 +356,15 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
         currency_code: regionalConfig.currency_code,
         locale: regionalConfig.locale,
         timezone: regionalConfig.timezone,
-        dinero_max_caja: parseMoneyToNumeric(dineroMaxCaja, activeCurrencyCode),
-        dinero_max_venta: parseMoneyToNumeric(dineroMaxVenta, activeCurrencyCode),
-        dinero_max_gasto: parseMoneyToNumeric(dineroMaxGasto, activeCurrencyCode),
+        dinero_max_caja: dineroMaxCaja
+          ? parseMoneyToNumeric(dineroMaxCaja, activeCurrencyCode)
+          : parseMoneyToNumeric(currentDefaults.caja, activeCurrencyCode),
+        dinero_max_venta: dineroMaxVenta
+          ? parseMoneyToNumeric(dineroMaxVenta, activeCurrencyCode)
+          : parseMoneyToNumeric(currentDefaults.venta, activeCurrencyCode),
+        dinero_max_gasto: dineroMaxGasto
+          ? parseMoneyToNumeric(dineroMaxGasto, activeCurrencyCode)
+          : parseMoneyToNumeric(currentDefaults.gasto, activeCurrencyCode),
         max_cuotas: parseInt(cleanMoneyValue(maxCuotas, activeCurrencyCode) || '30', 10),
         permite_borrar_venta: permiteBorrarVenta,
         permite_modificar_pagos: permiteModificarPagos,
@@ -586,7 +591,11 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
                   style={styles.input}
                   value={saldoInicialCaja}
                   onChangeText={t => setSaldoInicialCaja(formatMoneyInput(t, true, activeCurrencyCode))}
-                  onBlur={() => setSaldoInicialCaja(formatMoneyInput(saldoInicialCaja, true, activeCurrencyCode, { forceDecimals: true }))}
+                  onBlur={() => {
+                    if (saldoInicialCaja) {
+                      setSaldoInicialCaja(formatMoneyInput(saldoInicialCaja, true, activeCurrencyCode, { forceDecimals: true }));
+                    }
+                  }}
                   keyboardType="numeric"
                   placeholder={`${regionalConfig.currency.symbol} ${regionalConfig.currency.decimalDigits > 0 ? '0.00' : '0'}`}
                   placeholderTextColor={apple.colors.tertiaryLabel}
@@ -603,9 +612,13 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
                   style={styles.input}
                   value={dineroMaxCaja}
                   onChangeText={t => setDineroMaxCaja(formatMoneyInput(t, true, activeCurrencyCode))}
-                  onBlur={() => setDineroMaxCaja(formatMoneyInput(dineroMaxCaja, true, activeCurrencyCode, { forceDecimals: true }))}
+                  onBlur={() => {
+                    if (dineroMaxCaja) {
+                      setDineroMaxCaja(formatMoneyInput(dineroMaxCaja, true, activeCurrencyCode, { forceDecimals: true }));
+                    }
+                  }}
                   keyboardType="numeric"
-                  placeholder={`${regionalConfig.currency.symbol} ${regionalConfig.currency.decimalDigits > 0 ? '0.00' : '0'}`}
+                  placeholder={`${regionalConfig.currency.symbol} ${formatMoneyInput(currentDefaults.caja, false, activeCurrencyCode, { forceDecimals: regionalConfig.currency.decimalDigits > 0 })}`}
                   placeholderTextColor={apple.colors.tertiaryLabel}
                 />
               </View>
@@ -615,9 +628,13 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
                   style={styles.input}
                   value={dineroMaxVenta}
                   onChangeText={t => setDineroMaxVenta(formatMoneyInput(t, true, activeCurrencyCode))}
-                  onBlur={() => setDineroMaxVenta(formatMoneyInput(dineroMaxVenta, true, activeCurrencyCode, { forceDecimals: true }))}
+                  onBlur={() => {
+                    if (dineroMaxVenta) {
+                      setDineroMaxVenta(formatMoneyInput(dineroMaxVenta, true, activeCurrencyCode, { forceDecimals: true }));
+                    }
+                  }}
                   keyboardType="numeric"
-                  placeholder={`${regionalConfig.currency.symbol} ${regionalConfig.currency.decimalDigits > 0 ? '0.00' : '0'}`}
+                  placeholder={`${regionalConfig.currency.symbol} ${formatMoneyInput(currentDefaults.venta, false, activeCurrencyCode, { forceDecimals: regionalConfig.currency.decimalDigits > 0 })}`}
                   placeholderTextColor={apple.colors.tertiaryLabel}
                 />
               </View>
@@ -630,9 +647,13 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
                   style={styles.input}
                   value={dineroMaxGasto}
                   onChangeText={t => setDineroMaxGasto(formatMoneyInput(t, true, activeCurrencyCode))}
-                  onBlur={() => setDineroMaxGasto(formatMoneyInput(dineroMaxGasto, true, activeCurrencyCode, { forceDecimals: true }))}
+                  onBlur={() => {
+                    if (dineroMaxGasto) {
+                      setDineroMaxGasto(formatMoneyInput(dineroMaxGasto, true, activeCurrencyCode, { forceDecimals: true }));
+                    }
+                  }}
                   keyboardType="numeric"
-                  placeholder={`${regionalConfig.currency.symbol} ${regionalConfig.currency.decimalDigits > 0 ? '0.00' : '0'}`}
+                  placeholder={`${regionalConfig.currency.symbol} ${formatMoneyInput(currentDefaults.gasto, false, activeCurrencyCode, { forceDecimals: regionalConfig.currency.decimalDigits > 0 })}`}
                   placeholderTextColor={apple.colors.tertiaryLabel}
                 />
               </View>

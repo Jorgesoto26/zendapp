@@ -6,7 +6,7 @@ import Modal from 'react-native-modal';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import Toast from 'react-native-toast-message';
 import ItemPayments from './components/itemPayments';
-import { getData, getDbConnection } from '../../database/db';
+import { getData, getDbConnection, healCuotasFechas } from '../../database/db';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { FormatMoneyDecimales } from '../../utils/utilities';
 import { apple } from '../../theme/appleTheme';
@@ -22,9 +22,11 @@ import { getSignedUrl } from '../../services/multimediaService';
 import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonList, SkeletonPaymentCard } from '../../components/Skeleton';
+import { calculateCuotasAtrasadas, calculateSaldoVencido } from '../../utils/moraHelper';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 
 const mapPaymentType = (id) => ({ 1: 'MENSUAL', 2: 'SEMANAL', 3: 'QUINCENAL' }[id] || '—');
-const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
+const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}, cuotasAtrasadasByFactura = {}, saldoVencidoByFactura = {}) => {
   const telFromRow = (item.telefono || item.celular || '').trim();
   const telFromClients = item.documento ? (clientsByDoc[item.documento] || '') : '';
   const isActualizado = (item.status || '').toLowerCase().trim() === 'actualizado';
@@ -52,19 +54,32 @@ const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}) => {
     pendienteSync = true;
   }
 
+  const cuotasFromDb = cuotasAtrasadasByFactura[String(item.id)];
+  const cuotasAtrasadas = calculateCuotasAtrasadas(item, cuotasFromDb);
+  const saldoVencidoFromDb = saldoVencidoByFactura[String(item.id)];
+  const saldoVencido = calculateSaldoVencido(item, cuotasAtrasadas, saldoVencidoFromDb);
+  const valorCuotaNum = Number(item.amount || item.valorCuota || 0);
+
   return {
     id: item.id,
     name: (item.name?.trim() || 'Sin nombre'),
     address: (item.address?.trim() || 'Sin dirección'),
-    amount: Number(item.amount) || 0,
+    amount: valorCuotaNum,
     status: (item.status || '').toUpperCase().trim(),
     estadoPago: (item.estadoPago || '').toLowerCase().trim(),
     estadoMovil: (item.status || '').toLowerCase().trim(),
     paymentType: mapPaymentType(item.paymentType),
     time: item.time || '—',
+    fecha: item.fecha || null,
     saldo: Number(item.saldo) || 0,
     cuotasPagas: Number(item.cuotasPagas) || 0,
-    saldoVencido: Number(item.saldoVencido) || 0,
+    saldoVencido,
+    cuotasVencidas: Number(item.cuotasVencidas) || 0,
+    cuotasAtrasadas,
+    num_cuotas: item.num_cuotas != null ? String(item.num_cuotas) : null,
+    periodicidad: item.periodicidad || 'diario',
+    pago_adelantado: Number(item.pago_adelantado) === 1,
+    currency_code: item.currency_code || 'COP',
     nombreUno: item.nombreUno?.trim() || '',
     apellidoUno: item.apellidoUno?.trim() || '',
     telefono: (telFromRow || telFromClients).trim(),
@@ -84,7 +99,36 @@ const loadClientsFromDB = async () => {
   const cajaId = caja?.id || null;
   const data = await getData(
     db,
-    `SELECT id, nombreUno || ' ' || COALESCE(apellidoUno, '') AS name, direccion AS address, valorCuota AS amount, estadoMovil AS status, estado AS estadoPago, paymentTermId AS paymentType, strftime('%H:%M', fecha) AS time, saldo, cuotasPagas, saldoVencido, nombreUno, apellidoUno, celular, documento, latitud, longitud, valorInicial FROM facturas WHERE estadoMovil IS NOT NULL AND ((estadoMovil = 'pendiente' AND saldo > 0) OR estadoMovil = 'actualizado' OR id IN (SELECT idFactura FROM pagos WHERE (idCaja = ? OR date(substr(horaDispositivo,1,10)) = date('now','localtime'))))`,
+    `SELECT
+      id,
+      nombreUno || ' ' || COALESCE(apellidoUno, '') AS name,
+      direccion AS address,
+      valorCuota AS amount,
+      estadoMovil AS status,
+      estado AS estadoPago,
+      paymentTermId AS paymentType,
+      strftime('%H:%M', fecha) AS time,
+      fecha,
+      saldo,
+      cuotasPagas,
+      saldoVencido,
+      cuotasVencidas,
+      num_cuotas,
+      periodicidad,
+      pago_adelantado,
+      nombreUno,
+      apellidoUno,
+      celular,
+      documento,
+      latitud,
+      longitud,
+      valorInicial,
+      currency_code
+     FROM facturas
+     WHERE estadoMovil IS NOT NULL
+       AND ((estadoMovil = 'pendiente' AND saldo > 0)
+            OR estadoMovil = 'actualizado'
+            OR id IN (SELECT idFactura FROM pagos WHERE (idCaja = ? OR date(substr(horaDispositivo,1,10)) = date('now','localtime'))))`,
     [cajaId || '']
   );
   let clientsByDoc = {};
@@ -111,7 +155,41 @@ const loadClientsFromDB = async () => {
     console.log('Error loading pagos in loadClientsFromDB:', errPagos);
   }
 
-  return data.map(i => normalizeClient(i, clientsByDoc, latestPagoByFactura));
+  // Auto-curar fechas de cuotas desfasadas si existían facturas previas con desfase
+  try {
+    await healCuotasFechas(db);
+  } catch (errHeal) {
+    console.log('Error healing cuotas in loadClientsFromDB:', errHeal);
+  }
+
+  // Cargar conteo de cuotas y saldo vencido con fecha_vencimiento < hoy no pagadas en 1 sola consulta agrupada
+  let cuotasAtrasadasByFactura = {};
+  let saldoVencidoByFactura = {};
+  try {
+    const cuotasRows = await getData(
+      db,
+      `SELECT
+         invoice_id,
+         COUNT(*) AS count,
+         SUM(monto - COALESCE(monto_pagado, 0)) AS saldo_vencido
+       FROM cuotas
+       WHERE estado != 'pagada'
+         AND date(fecha_vencimiento) < date('now', 'localtime')
+       GROUP BY invoice_id`
+    );
+    if (cuotasRows) {
+      for (const row of cuotasRows) {
+        if (row.invoice_id) {
+          cuotasAtrasadasByFactura[String(row.invoice_id)] = Number(row.count) || 0;
+          saldoVencidoByFactura[String(row.invoice_id)] = Math.max(0, Number(row.saldo_vencido) || 0);
+        }
+      }
+    }
+  } catch (errCuotas) {
+    console.log('Error loading cuotas in loadClientsFromDB:', errCuotas);
+  }
+
+  return data.map(i => normalizeClient(i, clientsByDoc, latestPagoByFactura, cuotasAtrasadasByFactura, saldoVencidoByFactura));
 };
 
 const calculateStats = async (clients) => {
@@ -342,6 +420,7 @@ export default function Payments() {
                 <Icon name="sign-out" size={13} color={zendapp.colors.primary} />
               </TouchableOpacity>
             </View>
+            <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
             <Text style={styles.headerSub}>{filteredClients.length} clientes · {showPending ? 'Por visitar' : 'Tramitados'}</Text>
           </View>
 
@@ -442,11 +521,18 @@ export default function Payments() {
                 amount={item.amount}
                 status={item.status}
                 time={item.time}
+                fecha={item.fecha}
                 paymentType={item.paymentType}
                 estadoPago={item.estadoPago}
                 saldo={item.saldo}
                 cuotasPagas={item.cuotasPagas}
                 saldoVencido={item.saldoVencido}
+                cuotasVencidas={item.cuotasVencidas}
+                cuotasAtrasadas={item.cuotasAtrasadas}
+                num_cuotas={item.num_cuotas}
+                periodicidad={item.periodicidad}
+                pago_adelantado={item.pago_adelantado}
+                currency_code={item.currency_code}
                 nombreUno={item.nombreUno}
                 apellidoUno={item.apellidoUno}
                 valorCuota={item.amount}

@@ -28,10 +28,12 @@ import {
 } from '../../services/cajaService';
 import { useAuth } from '../../context/AuthContext';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric } from '../../utils/utilities';
+import { getCurrencySymbol, getCurrencyDecimals } from '../../utils/currency';
 import { apple } from '../../theme/appleTheme';
 import { AppleButton } from '../../components/AppleButton';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonCaja } from '../../components/Skeleton';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { clearOnlyPendingSync } from '../../utils/clearLocal';
@@ -40,6 +42,7 @@ import { SyncWithSupabase } from '../../utils/sync';
 export default function CajaScreen() {
   const { profile, signOut } = useAuth();
   const navigation = useNavigation();
+  const userCurrency = profile?.currency_code || 'COP';
   const [caja, setCaja] = useState(null);
   const [movimientos, setMovimientos] = useState([]);
   const [historial, setHistorial] = useState([]);
@@ -361,7 +364,7 @@ export default function CajaScreen() {
       <AppBackground />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Caja</Text>
-          <Text style={styles.headerSub}>{profile?.nombre || 'Usuario'} · {profile?.rol || ''}</Text>
+          <UserHeaderBadge style={{ marginTop: 2 }} />
         </View>
         <SkeletonCaja />
       </SafeAreaView>
@@ -378,7 +381,7 @@ export default function CajaScreen() {
       <AppBackground />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Caja</Text>
-        <Text style={styles.headerSub}>{profile?.nombre || 'Usuario'} · {profile?.rol || ''}</Text>
+        <UserHeaderBadge style={{ marginTop: 2 }} />
       </View>
 
       <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
@@ -430,10 +433,15 @@ export default function CajaScreen() {
                       <TextInput
                         style={[styles.input, !isAdmin && { backgroundColor: apple.colors.fill, color: apple.colors.secondaryLabel }]}
                         value={saldoInicial}
-                        onChangeText={isAdmin ? (t => setSaldoInicial(formatMoneyInput(t))) : undefined}
+                        onChangeText={isAdmin ? (t => setSaldoInicial(formatMoneyInput(t, userCurrency))) : undefined}
+                        onBlur={() => {
+                          if (saldoInicial) {
+                            setSaldoInicial(formatMoneyInput(saldoInicial, userCurrency, { forceDecimals: true }));
+                          }
+                        }}
                         editable={isAdmin}
                         keyboardType="numeric"
-                        placeholder="$ 0"
+                        placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
                         placeholderTextColor={apple.colors.tertiaryLabel}
                       />
                       <AppleButton title="Abrir caja" onPress={handleAbrir} style={{ flex: 1 }} />

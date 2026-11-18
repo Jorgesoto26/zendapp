@@ -23,6 +23,7 @@ import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
 import { getReporteConsolidado } from '../../services/adminService';
 import { formatCurrency } from '../../utils/currency';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -110,6 +111,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Reportes</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             Consolidado por periodo y vendedor
           </Text>

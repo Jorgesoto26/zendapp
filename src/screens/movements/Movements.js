@@ -28,6 +28,7 @@ import {
   cancelInvoiceSale,
 } from '../../services/movementsService';
 import { FormatMoneyDecimales, formatMoneyInput, parseMoneyToNumeric, Capitalize } from '../../utils/utilities';
+import { getCurrencySymbol, getCurrencyDecimals } from '../../utils/currency';
 import { apple } from '../../theme/appleTheme';
 import { appAlert } from '../../components/AppAlert';
 import { useAuth } from '../../context/AuthContext';
@@ -41,10 +42,12 @@ import PaymentReceiptModal from '../../components/PaymentReceiptModal';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonItem } from '../../components/Skeleton';
 import { pickImage } from '../../services/multimediaService';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 
 export default function MovementsScreen() {
   const navigation = useNavigation();
   const { profile, userId } = useAuth();
+  const userCurrency = profile?.currency_code || 'COP';
 
   const [caja, setCaja] = useState(null);
   const [items, setItems] = useState([]);
@@ -616,6 +619,7 @@ export default function MovementsScreen() {
         <AppBackground />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Movimientos</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSub}>
             {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
           </Text>
@@ -646,6 +650,7 @@ export default function MovementsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Movimientos</Text>
+        <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
         <Text style={styles.headerSub}>
           {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
         </Text>
@@ -833,9 +838,14 @@ export default function MovementsScreen() {
             <TextInput
               style={styles.input}
               value={formMonto}
-              onChangeText={t => setFormMonto(formatMoneyInput(t))}
+              onChangeText={t => setFormMonto(formatMoneyInput(t, userCurrency))}
+              onBlur={() => {
+                if (formMonto) {
+                  setFormMonto(formatMoneyInput(formMonto, userCurrency, { forceDecimals: true }));
+                }
+              }}
               keyboardType="numeric"
-              placeholder="$ 0"
+              placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
               placeholderTextColor={apple.colors.tertiaryLabel}
             />
 
@@ -909,9 +919,14 @@ export default function MovementsScreen() {
             <TextInput
               style={styles.input}
               value={editMonto}
-              onChangeText={t => setEditMonto(formatMoneyInput(t))}
+              onChangeText={t => setEditMonto(formatMoneyInput(t, userCurrency))}
+              onBlur={() => {
+                if (editMonto) {
+                  setEditMonto(formatMoneyInput(editMonto, userCurrency, { forceDecimals: true }));
+                }
+              }}
               keyboardType="numeric"
-              placeholder="$ 0"
+              placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
               placeholderTextColor={apple.colors.tertiaryLabel}
             />
 

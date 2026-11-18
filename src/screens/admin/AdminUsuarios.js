@@ -23,6 +23,7 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonList, SkeletonUserCard } from '../../components/Skeleton';
 import { useAuth } from '../../context/AuthContext';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 import {
   getSubordinates,
   createAdminUser,
@@ -183,6 +184,7 @@ export default function AdminUsuarios() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Usuarios</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             {activosCount} activos · {inactivosCount} inactivos

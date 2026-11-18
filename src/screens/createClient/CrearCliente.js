@@ -47,6 +47,7 @@ import {
   uploadEvidence,
 } from '../../services/multimediaService';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 
 /**
  * Agrega meses a una fecha respetando la cantidad de días de cada mes (ej. 31 de enero -> 28/29 feb)
@@ -551,12 +552,13 @@ const CrearCliente = () => {
       for (let i = 1; i <= numCuotas; i++) {
         const valCuota = (i === numCuotas) ? cResto : cMonto;
         let dVenc = new Date();
+        const offset = pagoAdelantado ? (i - 1) : i;
         if (periodicidad === 'semanal') {
-          dVenc.setDate(dVenc.getDate() + (i * 7));
+          dVenc.setDate(dVenc.getDate() + (offset * 7));
         } else if (periodicidad === 'mensual') {
-          dVenc = addMonths(new Date(), i);
+          dVenc = addMonths(new Date(), offset);
         } else {
-          dVenc.setDate(dVenc.getDate() + i);
+          dVenc.setDate(dVenc.getDate() + offset);
         }
         const fechaVenc = dVenc.toISOString().slice(0, 10);
         const isPagadaAdelantada = (i === 1 && pagoAdelantado);
@@ -769,6 +771,7 @@ const CrearCliente = () => {
           <Animated.View style={{ opacity: fade }}>
             {/* Header / Boton Renovacion */}
             <View style={styles.topBar}>
+              <UserHeaderBadge variant="pill" />
               <TouchableOpacity
                 style={styles.renewBtn}
                 onPress={() => setShowRenewModal(true)}
@@ -1227,7 +1230,7 @@ const CrearCliente = () => {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: 'transparent' },
   scroll: { padding: 16, paddingBottom: 40 },
-  topBar: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 10 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   renewBtn: {
     flexDirection: 'row',
     alignItems: 'center',

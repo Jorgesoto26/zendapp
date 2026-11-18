@@ -28,6 +28,7 @@ import {
   getAdminOpenCajas,
   getSubordinates,
 } from '../../services/adminService';
+import UserHeaderBadge from '../../components/UserHeaderBadge';
 import { getDeviceTimezone } from '../../services/cajaService';
 import { FormatMoneyDecimales } from '../../utils/utilities';
 import { CajaCard } from './components/CajaCard';
@@ -337,6 +338,7 @@ export default function AdminCajas() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Gestión de Cajas</Text>
+          <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
             Supervisión diaria · {adminOpenCount > 0 ? 'Caja activa' : 'Sin caja activa'}
