@@ -48,6 +48,7 @@ import {
 } from '../../services/multimediaService';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 /**
  * Agrega meses a una fecha respetando la cantidad de días de cada mes (ej. 31 de enero -> 28/29 feb)
@@ -102,7 +103,7 @@ const FormField = React.memo(({
 const CrearCliente = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { userId, profile } = useAuth();
+  const { userId, profile, isReadOnly } = useAuth();
   const userCurrency = profile?.currency_code || 'COP';
   const fade = useRef(new Animated.Value(0)).current;
 
@@ -393,6 +394,14 @@ const CrearCliente = () => {
   };
 
   const handleSubmit = async () => {
+    if (isReadOnly) {
+      appAlert(
+        'Modo Solo Lectura',
+        'No es posible registrar nuevos créditos mientras la suscripción mensual esté vencida. Comunícate con el administrador para regularizar el pago.'
+      );
+      return;
+    }
+
     if (!userId) {
       appAlert('Error', 'Sesión no válida. Por favor inicia sesión nuevamente.');
       return;
@@ -774,12 +783,23 @@ const CrearCliente = () => {
               <UserHeaderBadge variant="pill" />
               <TouchableOpacity
                 style={styles.renewBtn}
-                onPress={() => setShowRenewModal(true)}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert(
+                      'Modo Solo Lectura',
+                      'No es posible renovar créditos en modo solo lectura por pago de suscripción pendiente.'
+                    );
+                    return;
+                  }
+                  setShowRenewModal(true);
+                }}
               >
                 <Icon name="history" size={13} color="#EE272D" />
                 <Text style={styles.renewBtnText}>Renovar crédito saldado</Text>
               </TouchableOpacity>
             </View>
+
+            <BillingAlertBanner style={{ marginHorizontal: 0, marginBottom: 12 }} />
 
             {/* Banner si esta renovando */}
             {previousInvoiceId && (

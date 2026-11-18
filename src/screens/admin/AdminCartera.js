@@ -26,6 +26,7 @@ import { getCarteraSummary } from '../../services/adminService';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
 import { CarteraUserCard } from './components/CarteraUserCard';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 import { formatCurrency } from '../../utils/currency';
 
 const formatMoney = (val, currencyCode = 'COP') => {
@@ -146,6 +147,8 @@ export default function AdminCartera() {
           <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
         </TouchableOpacity>
       </View>
+
+      <BillingAlertBanner />
 
       {/* Breadcrumb de Navegación Jerárquica */}
       <HierarchyBreadcrumb

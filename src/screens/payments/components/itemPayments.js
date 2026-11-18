@@ -199,7 +199,7 @@ const ItemPayments = memo(({
   onShowReceipt,
 }) => {
   const navigation = useNavigation();
-  const { profile } = useAuth() || {};
+  const { profile, isReadOnly } = useAuth() || {};
   const itemCurrency = propCurrencyCode || profile?.currency_code || 'COP';
   const [modalParcial, setModalParcial] = useState(false);
   const [modalNoPago, setModalNoPago] = useState(false);
@@ -258,6 +258,13 @@ const ItemPayments = memo(({
   const pressOut = () => Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 30 }).start();
 
   const executePaymentAction = useCallback(async (tipo, valorPago) => {
+    if (isReadOnly) {
+      appAlert(
+        'Modo Solo Lectura',
+        'No es posible registrar cobros en modo solo lectura debido a que la suscripción mensual está vencida. Comunícate con el administrador para regularizar el pago.'
+      );
+      return;
+    }
     setLoading(true);
     const db = await getDbConnection();
     try {
@@ -624,13 +631,41 @@ const ItemPayments = memo(({
           {/* Fila 3: Botones o Info tramitado */}
           {isPending ? (
             <View style={styles.actions}>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineSuccess]} onPress={() => executePaymentAction('pago', Math.min(valorCuota, saldo))} disabled={loading}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionOutlineSuccess]}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert('Modo Solo Lectura', 'No es posible registrar cobros en modo solo lectura por pago de suscripción pendiente.');
+                    return;
+                  }
+                  executePaymentAction('pago', Math.min(valorCuota, saldo));
+                }}
+                disabled={loading}
+              >
                 {loading ? <ActivityIndicator size="small" color={zendapp.colors.success} /> : <><Icon name="check" size={13} color={zendapp.colors.success} /><Text style={styles.actionTextSuccess}> Pagar</Text></>}
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineDanger]} onPress={() => setModalNoPago(true)}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionOutlineDanger]}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert('Modo Solo Lectura', 'No es posible registrar visitas o no pagos en modo solo lectura por pago de suscripción pendiente.');
+                    return;
+                  }
+                  setModalNoPago(true);
+                }}
+              >
                 <Icon name="times" size={13} color={zendapp.colors.primary} /><Text style={styles.actionTextDanger}> No pago</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, styles.actionOutlineWarning]} onPress={() => setModalParcial(true)}>
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionOutlineWarning]}
+                onPress={() => {
+                  if (isReadOnly) {
+                    appAlert('Modo Solo Lectura', 'No es posible registrar abonos en modo solo lectura por pago de suscripción pendiente.');
+                    return;
+                  }
+                  setModalParcial(true);
+                }}
+              >
                 <Icon name="adjust" size={13} color="#D97706" /><Text style={styles.actionTextWarning}> Abono / Total</Text>
               </TouchableOpacity>
             </View>

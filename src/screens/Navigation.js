@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
 import LoginScreen from './LoginScreen';
+import SuspendedAccountScreen from './billing/SuspendedAccountScreen';
 import Payments from './payments/Payments';
 import CrearCliente from './createClient/CrearCliente';
 import CajaScreen from './caja/Caja';
@@ -111,7 +112,7 @@ function MainTabs() {
 }
 
 function RootNavigator() {
-  const { session, loading } = useAuth();
+  const { session, loading, isSuspended } = useAuth();
 
   if (loading) {
     return (
@@ -124,12 +125,16 @@ function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {session ? (
-        <>
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="CreditDetail" component={CreditDetail} options={{ headerShown: false }} />
-          <Stack.Screen name="AdminCarteraDetalle" component={AdminCarteraDetalle} options={{ headerShown: false }} />
-          <Stack.Screen name="AdminCajaDetalle" component={AdminCajaDetalle} options={{ headerShown: false }} />
-        </>
+        isSuspended ? (
+          <Stack.Screen name="Suspended" component={SuspendedAccountScreen} />
+        ) : (
+          <>
+            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="CreditDetail" component={CreditDetail} options={{ headerShown: false }} />
+            <Stack.Screen name="AdminCarteraDetalle" component={AdminCarteraDetalle} options={{ headerShown: false }} />
+            <Stack.Screen name="AdminCajaDetalle" component={AdminCajaDetalle} options={{ headerShown: false }} />
+          </>
+        )
       ) : (
         <Stack.Screen name="Login" component={LoginScreen} />
       )}

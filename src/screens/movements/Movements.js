@@ -43,10 +43,11 @@ import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl'
 import { SkeletonItem } from '../../components/Skeleton';
 import { pickImage } from '../../services/multimediaService';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 export default function MovementsScreen() {
   const navigation = useNavigation();
-  const { profile, userId } = useAuth();
+  const { profile, userId, isReadOnly } = useAuth();
   const userCurrency = profile?.currency_code || 'COP';
 
   const [caja, setCaja] = useState(null);
@@ -261,6 +262,9 @@ export default function MovementsScreen() {
 
   // Abrir modal de edición con validación de sincronización (Requisito 3.1)
   const handleOpenEdit = (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible editar movimientos en modo solo lectura por pago de suscripción pendiente.');
+    }
     const isPendingSync =
       item.estadoMovil === 'actualizado' ||
       item.estadoMovil === 'enviando' ||
@@ -351,6 +355,9 @@ export default function MovementsScreen() {
 
   // Reversión / Anulación de Venta según permisos (Requisito 4)
   const handleDeleteVenta = async (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible anular ventas en modo solo lectura por pago de suscripción pendiente.');
+    }
     if (!permiteBorrarVenta) {
       return appAlert('Permiso denegado', 'No tienes autorización para eliminar o anular ventas.');
     }
@@ -426,6 +433,9 @@ export default function MovementsScreen() {
 
   // Reversión de Pago según permisos
   const handleRevertPago = async (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible revertir pagos en modo solo lectura por pago de suscripción pendiente.');
+    }
     if (!permiteModificarPagos) {
       return appAlert('Permiso denegado', 'No tienes autorización para modificar o revertir pagos.');
     }
@@ -656,6 +666,8 @@ export default function MovementsScreen() {
         </Text>
       </View>
 
+      <BillingAlertBanner />
+
       {/* Controles y Filtros */}
       <View style={styles.controls}>
         <View style={styles.searchRow}>
@@ -709,11 +721,14 @@ export default function MovementsScreen() {
       {/* FAB para registrar nuevo movimiento manual */}
       <TouchableOpacity
         style={[styles.fab, !caja && { backgroundColor: apple.colors.tertiaryLabel }]}
-        onPress={() =>
+        onPress={() => {
+          if (isReadOnly) {
+            return appAlert('Modo Solo Lectura', 'No es posible registrar nuevos movimientos en modo solo lectura por pago de suscripción pendiente.');
+          }
           caja?.estado === 'abierta'
             ? setModalVisible(true)
-            : appAlert('Caja requerida', 'Debes tener una caja abierta para registrar ingresos, retiros o gastos.')
-        }
+            : appAlert('Caja requerida', 'Debes tener una caja abierta para registrar ingresos, retiros o gastos.');
+        }}
       >
         <Icon name="plus" size={18} color="#fff" />
       </TouchableOpacity>

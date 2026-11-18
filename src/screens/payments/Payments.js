@@ -24,6 +24,7 @@ import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl'
 import { SkeletonList, SkeletonPaymentCard } from '../../components/Skeleton';
 import { calculateCuotasAtrasadas, calculateSaldoVencido } from '../../utils/moraHelper';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 const mapPaymentType = (id) => ({ 1: 'MENSUAL', 2: 'SEMANAL', 3: 'QUINCENAL' }[id] || '—');
 const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}, cuotasAtrasadasByFactura = {}, saldoVencidoByFactura = {}) => {
@@ -488,6 +489,8 @@ export default function Payments() {
           onChange={(key) => handleTabChange(key === 'pendientes')}
         />
       </View>
+
+      <BillingAlertBanner />
 
       {loading && clients.length === 0 ? (
         <View style={{ flex: 1, paddingTop: 6 }}>

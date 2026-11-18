@@ -24,6 +24,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getAdminMorosos, castigarCartera } from '../../services/adminService';
 import { formatCurrency } from '../../utils/currency';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -38,7 +39,7 @@ const formatDate = (isoStr) => {
 
 export default function AdminMorosos() {
   const navigation = useNavigation();
-  const { signOut } = useAuth();
+  const { signOut, isReadOnly } = useAuth();
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
@@ -84,6 +85,9 @@ export default function AdminMorosos() {
   };
 
   const handleCastigar = (item) => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible castigar cartera en modo solo lectura por pago pendiente de suscripción.');
+    }
     Alert.alert(
       'Castigar Cartera',
       `¿Deseas castigar el crédito de ${item.nombre_cliente}? Se suspenderán visitas y se bloquearán futuros créditos.`,
@@ -137,6 +141,8 @@ export default function AdminMorosos() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <BillingAlertBanner />
 
       {/* Banner Total Vencido */}
       <View style={styles.banner}>

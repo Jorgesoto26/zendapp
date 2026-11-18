@@ -34,13 +34,14 @@ import { AppleButton } from '../../components/AppleButton';
 import AnimatedSegmentedControl from '../../components/AnimatedSegmentedControl';
 import { SkeletonCaja } from '../../components/Skeleton';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
+import BillingAlertBanner from '../../components/BillingAlertBanner';
 import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { clearOnlyPendingSync } from '../../utils/clearLocal';
 import { SyncWithSupabase } from '../../utils/sync';
 
 export default function CajaScreen() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, isReadOnly } = useAuth();
   const navigation = useNavigation();
   const userCurrency = profile?.currency_code || 'COP';
   const [caja, setCaja] = useState(null);
@@ -202,6 +203,9 @@ export default function CajaScreen() {
   const canOpenCaja = isAdmin || modoApertura === 'vendedor_dia';
 
   const handleAbrir = async () => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible abrir caja en modo solo lectura por pago de suscripción pendiente.');
+    }
     if (!canOpenCaja) {
       return appAlert('Acceso restringido', 'Tu organización opera bajo Modalidad A: Solo el administrador puede realizar la apertura de cajas.');
     }
@@ -228,6 +232,9 @@ export default function CajaScreen() {
   };
 
   const handleConfirmNoPagosMasivos = async () => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible registrar operaciones en modo solo lectura por pago de suscripción pendiente.');
+    }
     if (selectedPendingIds.length === 0) {
       return appAlert('Selección requerida', 'Debes seleccionar al menos un cliente para registrar no pago.');
     }
@@ -264,6 +271,9 @@ export default function CajaScreen() {
   };
 
   const handleCerrar = async () => {
+    if (isReadOnly) {
+      return appAlert('Modo Solo Lectura', 'No es posible cerrar caja en modo solo lectura por pago de suscripción pendiente.');
+    }
     try {
       const pendingCount = await getPendingSyncCount();
       if (pendingCount > 0) {
@@ -383,6 +393,8 @@ export default function CajaScreen() {
         <Text style={styles.headerTitle}>Caja</Text>
         <UserHeaderBadge style={{ marginTop: 2 }} />
       </View>
+
+      <BillingAlertBanner />
 
       <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
         <AnimatedSegmentedControl
