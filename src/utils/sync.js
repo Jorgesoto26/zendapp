@@ -383,43 +383,69 @@ const SendPay = async () => {
   await db.executeSql(`UPDATE pagos SET estadoMovil = 'actualizado' WHERE estadoMovil = 'enviando'`);
 
   // Auto-recuperación de pagos locales que quedaron falsamente marcados como 'sincronizado'
-  // por la colisión histórica de UUID o fallos previos y no existen en Supabase
+  // pero que NO existen en Supabase (por ejemplo, interceptados erróneamente por monto coincidente)
   try {
-    const orphanPagos = await getData(
+    const suspectPagos = await getData(
       db,
-      `SELECT id, idFactura, valor, tipo FROM pagos 
+      `SELECT id, idFactura, valor, tipo, client_uuid, sync_id FROM pagos 
        WHERE (CAST(id AS INTEGER) < 0 OR id LIKE '-%') 
-         AND (sync_id IS NULL OR sync_id = '' OR sync_id NOT LIKE '%-%-%-%-%')`
+         AND estadoMovil = 'sincronizado'`
     );
-    if (orphanPagos && orphanPagos.length > 0) {
-      for (const op of orphanPagos) {
-        const val = parseFloat(op.valor) || 0;
-        let query = supabase.from('payments').select('id').eq('invoice_id', op.idFactura);
-        if (op.tipo === 'nopago' || val === 0) {
-          query = query.eq('amount', 0);
-        } else {
-          query = query.eq('amount', val);
+    if (suspectPagos && suspectPagos.length > 0) {
+      for (const sp of suspectPagos) {
+        let isRealInSupabase = false;
+        let realSupabaseId = null;
+
+        // 1. Validar por client_uuid único
+        if (sp.client_uuid) {
+          const { data: matchUuid } = await supabase
+            .from('payments')
+            .select('id')
+            .eq('client_uuid', sp.client_uuid)
+            .maybeSingle();
+          if (matchUuid?.id) {
+            isRealInSupabase = true;
+            realSupabaseId = matchUuid.id;
+          }
         }
-        const { data: remoteMatches } = await query;
-        if (!remoteMatches || remoteMatches.length === 0) {
-          // No existe en Supabase: fue un falso positivo. Re-armar con UUID v4 nuevo.
-          const freshUuid = generateUUID();
+
+        // 2. Si tenía sync_id (UUID remoto), validar que corresponda estrictamente a este client_uuid
+        if (!isRealInSupabase && sp.sync_id && sp.sync_id.includes('-')) {
+          const { data: matchId } = await supabase
+            .from('payments')
+            .select('id, client_uuid')
+            .eq('id', sp.sync_id)
+            .maybeSingle();
+          if (matchId?.id && sp.client_uuid && matchId.client_uuid === sp.client_uuid) {
+            isRealInSupabase = true;
+            realSupabaseId = matchId.id;
+          }
+        }
+
+        if (!isRealInSupabase) {
+          // Falso positivo: el pago nunca llegó a Supabase.
+          // Lo rearmamos como 'actualizado' para que se envíe inmediatamente.
+          const freshUuid = sp.client_uuid || (typeof generateUUID === 'function' ? generateUUID() : null);
           await db.executeSql(
             `UPDATE pagos SET estadoMovil = 'actualizado', client_uuid = ?, sync_id = NULL WHERE id = ?`,
-            [freshUuid, op.id]
+            [freshUuid, sp.id]
           );
-          console.log(`Pago huérfano local ${op.id} ($${val}) re-armado automáticamente para sincronización.`);
-        } else {
-          // Ya existe en Supabase: fijar su sync_id real
           await db.executeSql(
-            `UPDATE pagos SET sync_id = ?, estadoMovil = 'sincronizado' WHERE id = ?`,
-            [remoteMatches[0].id, op.id]
+            `UPDATE movimientos SET estadoMovil = 'actualizado' WHERE id = ?`,
+            [sp.id]
           );
+          await db.executeSql(
+            `UPDATE facturas SET estadoMovil = 'actualizado' WHERE id = ?`,
+            [sp.idFactura]
+          );
+          console.log(`[Sync] Pago local ${sp.id} ($${sp.valor}) recuperado y rearmado para envío a Supabase.`);
+        } else if (sp.sync_id !== realSupabaseId) {
+          await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ?`, [realSupabaseId, sp.id]);
         }
       }
     }
   } catch (errOrphan) {
-    console.log('Error verificando pagos huérfanos:', errOrphan);
+    console.log('Error verificando pagos locales huérfanos:', errOrphan);
   }
 
   const pagos = await getData(db, `SELECT * FROM pagos WHERE estadoMovil = 'actualizado' ORDER BY horaDispositivo ASC`);
@@ -429,7 +455,7 @@ const SendPay = async () => {
     await db.executeSql(`UPDATE pagos SET estadoMovil = 'enviando' WHERE id = ?`, [p.id]);
     const pUuid = p.client_uuid || (typeof generateUUID === 'function' ? generateUUID() : null);
     if (!p.client_uuid && pUuid) {
-      try { await db.executeSql(`UPDATE pagos SET client_uuid = ? WHERE id = ?`, [pUuid, p.id]); } catch {}
+      try { await db.executeSql(`UPDATE pagos SET client_uuid = ? WHERE id = ?`, [pUuid, p.id]); } catch { }
     }
     const payload = {
       id: p.id,
@@ -536,7 +562,7 @@ const sendCollectedItems = async (sessionParam = null) => {
             try {
               const f = await getData(db, `SELECT partnerId FROM facturas WHERE id = ?`, [item.detalle.idFactura]);
               clientId = f?.[0]?.partnerId || null;
-            } catch {}
+            } catch { }
           }
           try {
             const { data: caja } = await supabase.from('cajas').select('id').eq('usuario_id', session.user.id).eq('estado', 'abierta').order('fecha_apertura', { ascending: false }).limit(1).maybeSingle();
@@ -547,7 +573,7 @@ const sendCollectedItems = async (sessionParam = null) => {
               const { getCajaActual } = require('../services/cajaService');
               const c = await getCajaActual();
               cajaId = c?.id || null;
-            } catch {}
+            } catch { }
           }
 
           if (!clientId) throw new Error('No se pudo obtener client_id de la factura');
@@ -584,6 +610,8 @@ const sendCollectedItems = async (sessionParam = null) => {
             p_client_uuid: localPaymentUuid,
           });
 
+          console.log(" Payment synced: ", data, error);
+
           if (error) throw error;
           results.push({ idv: item.id, idn: data, ok: true, syncKey: item._syncKey, type: 'payment', factura: item.detalle.idFactura });
         } else if (mapping.type === 'movimiento') {
@@ -594,7 +622,7 @@ const sendCollectedItems = async (sessionParam = null) => {
               if (!cCheck || cCheck.estado !== 'abierta') {
                 targetCajaId = null;
               }
-            } catch {}
+            } catch { }
           }
           if (!targetCajaId) {
             const { data: caja } = await supabase.from('cajas').select('id').eq('usuario_id', session.user.id).eq('estado', 'abierta').order('fecha_apertura', { ascending: false }).limit(1).maybeSingle();
@@ -648,7 +676,7 @@ const sendCollectedItems = async (sessionParam = null) => {
               if (auditRows && auditRows.length > 0) {
                 pendingAudit = auditRows[0];
               }
-            } catch {}
+            } catch { }
 
             const auditId = pendingAudit?.audit_uuid || null;
             const auditMotivo = pendingAudit?.motivo || 'Edición de movimiento';
@@ -671,7 +699,7 @@ const sendCollectedItems = async (sessionParam = null) => {
                   `UPDATE movimientos_audit SET estadoMovil = 'sincronizado' WHERE id = ?`,
                   [pendingAudit.id]
                 );
-              } catch {}
+              } catch { }
             }
 
             results.push({ idv: item.id, idn: item.id, ok: true });
@@ -704,13 +732,13 @@ const sendCollectedItems = async (sessionParam = null) => {
             try {
               const { data: inv } = await supabase.from('invoice').select('saldo').eq('id', er.factura).single();
               if (inv) await db.executeSql(`UPDATE facturas SET saldo = ? WHERE id = ?`, [inv.saldo, er.factura]);
-            } catch {}
-          } catch {}
+            } catch { }
+          } catch { }
         } else {
           try {
             await db.executeSql(`UPDATE pagos SET estadoMovil = 'actualizado' WHERE id = ? AND estadoMovil = 'enviando'`, [er.idv]);
             await db.executeSql(`UPDATE movimientos SET estadoMovil = 'actualizado' WHERE id = ? AND estadoMovil = 'enviando'`, [er.idv]);
-          } catch {}
+          } catch { }
         }
       }
       globalSyncCollection = errItems.map(e => ({ id: e.idv, detalle: { idFactura: e.factura, valor: e.monto }, _error: e.error }));
@@ -767,9 +795,9 @@ const processResponseAndUpdateTables = async (response) => {
           `UPDATE movimientos SET estadoMovil = 'sincronizado' WHERE id = ? OR id = '' || ? OR (idFactura = ? AND tipo IN ('pago', 'nopago'))`,
           [item.idv, item.idv, facturaId || '']
         );
-      } catch {}
+      } catch { }
 
-      try { 
+      try {
         if (item.idn) {
           await db.executeSql(`UPDATE pagos SET sync_id = ? WHERE id = ? OR id = '' || ?`, [String(item.idn), item.idv, item.idv]);
         }
