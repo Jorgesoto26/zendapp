@@ -39,6 +39,25 @@
     "forgot_password": "Forgot your password?",
     "authenticating": "Verifying credentials..."
   },
+  "login": {
+    "header_tagline": "Portfolio & Cash Management",
+    "welcome": "Welcome",
+    "credentials_sub": "Enter your credentials to access the system",
+    "email_label": "Email address",
+    "email_placeholder": "youremail@example.com",
+    "password_label": "Password",
+    "password_placeholder": "Enter your password",
+    "sign_in_btn": "Sign In",
+    "no_account_text": "Don't have an account yet?",
+    "create_account_link": "Create account",
+    "security_notice": "Secure, end-to-end encrypted connection",
+    "register_title": "Create new account",
+    "register_sub": "Enter your details to register your account on Zendapp",
+    "min_password_placeholder": "Minimum 6 characters",
+    "register_btn": "Sign Up",
+    "register_success_title": "Registration successful!",
+    "register_success_desc": "Log in with your new credentials."
+  },
   "languages": {
     "title": "Application Language",
     "es": "Español",

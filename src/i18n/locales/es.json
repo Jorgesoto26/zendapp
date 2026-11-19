@@ -39,6 +39,25 @@
     "forgot_password": "¿Olvidaste tu contraseña?",
     "authenticating": "Verificando credenciales..."
   },
+  "login": {
+    "header_tagline": "Gestión de Cartera & Caja",
+    "welcome": "Bienvenido",
+    "credentials_sub": "Ingresa tus credenciales para acceder al sistema",
+    "email_label": "Correo electrónico",
+    "email_placeholder": "tucorreo@ejemplo.com",
+    "password_label": "Contraseña",
+    "password_placeholder": "Ingresa tu contraseña",
+    "sign_in_btn": "Iniciar Sesión",
+    "no_account_text": "¿No tienes una cuenta aún?",
+    "create_account_link": "Crear cuenta",
+    "security_notice": "Conexión segura y cifrada de extremo a extremo",
+    "register_title": "Crear cuenta nueva",
+    "register_sub": "Ingresa tus datos para registrar tu cuenta en Zendapp",
+    "min_password_placeholder": "Mínimo 6 caracteres",
+    "register_btn": "Registrarse",
+    "register_success_title": "¡Registro exitoso!",
+    "register_success_desc": "Inicia sesión con tus credenciales."
+  },
   "languages": {
     "title": "Idioma de la aplicación",
     "es": "Español",

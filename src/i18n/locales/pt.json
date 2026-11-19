@@ -39,6 +39,25 @@
     "forgot_password": "Esqueceu sua senha?",
     "authenticating": "Verificando credenciais..."
   },
+  "login": {
+    "header_tagline": "Gestão de Carteira & Caixa",
+    "welcome": "Bem-vindo",
+    "credentials_sub": "Digite suas credenciais para acessar o sistema",
+    "email_label": "E-mail",
+    "email_placeholder": "seue-mail@exemplo.com",
+    "password_label": "Senha",
+    "password_placeholder": "Digite sua senha",
+    "sign_in_btn": "Entrar",
+    "no_account_text": "Ainda não tem uma conta?",
+    "create_account_link": "Criar conta",
+    "security_notice": "Conexão segura e criptografada de ponta a ponta",
+    "register_title": "Criar nova conta",
+    "register_sub": "Insira seus dados para registrar sua conta no Zendapp",
+    "min_password_placeholder": "Mínimo 6 caracteres",
+    "register_btn": "Cadastrar",
+    "register_success_title": "Cadastro realizado com sucesso!",
+    "register_success_desc": "Faça login com suas credenciais."
+  },
   "languages": {
     "title": "Idioma do Aplicativo",
     "es": "Español",
