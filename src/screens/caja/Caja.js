@@ -39,8 +39,10 @@ import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import { clearOnlyPendingSync } from '../../utils/clearLocal';
 import { SyncWithSupabase } from '../../utils/sync';
+import { useTranslation } from '../../i18n';
 
 export default function CajaScreen() {
+  const { t } = useTranslation();
   const { profile, signOut, isReadOnly } = useAuth();
   const navigation = useNavigation();
   const userCurrency = profile?.currency_code || 'COP';
@@ -223,9 +225,9 @@ export default function CajaScreen() {
       setLoading(true);
       await abrirCaja(val);
       await load(true);
-      appAlert('Éxito', 'Caja abierta exitosamente.');
+      appAlert(t('common.success'), t('caja.open_success'));
     } catch (e) {
-      appAlert('Error', e.message);
+      appAlert(t('common.error'), e.message);
     } finally {
       setLoading(false);
     }
@@ -240,12 +242,12 @@ export default function CajaScreen() {
     }
 
     Alert.alert(
-      'Confirmar no pagos masivos',
-      `¿Deseas registrar ${selectedPendingIds.length} cliente(s) como 'No pago'?\n\n• Monto registrado: $0 por cliente.\n• No altera el saldo de caja ni crea ingresos ficticios.\n• La ruta quedará completada para poder cerrar caja.`,
+      t('caja.confirm_no_pagos_title'),
+      t('caja.confirm_no_pagos_msg', { count: selectedPendingIds.length }),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Confirmar No Pagos',
+          text: t('caja.confirm_no_pagos_btn'),
           style: 'destructive',
           onPress: async () => {
             setProcessingNoPagos(true);
@@ -256,11 +258,11 @@ export default function CajaScreen() {
               setModalNoPagos(false);
               await load(true);
               appAlert(
-                'Operación exitosa',
-                `Se registraron ${res.count} clientes como 'No pago'. Ya puedes cerrar la caja del día.`
+                t('common.success'),
+                `Se registraron ${res.count} clientes como 'No pago'.`
               );
             } catch (err) {
-              appAlert('Error', err.message || 'No se pudieron registrar los no pagos');
+              appAlert(t('common.error'), err.message || 'Error');
             } finally {
               setProcessingNoPagos(false);
             }
@@ -292,12 +294,12 @@ export default function CajaScreen() {
       const pendCount = Number(pend?.[0]?.c || 0);
       if (pendCount > 0) {
         Alert.alert(
-          'Ruta con clientes pendientes',
-          `Aún tienes ${pendCount} cliente(s) por visitar hoy.\n\nPara cerrar la caja debes completar la ruta o registrar los no pagos masivos.`,
+          t('caja.route_pending_title'),
+          t('caja.route_pending_msg', { count: pendCount }),
           [
-            { text: 'Volver', style: 'cancel' },
+            { text: t('common.cancel'), style: 'cancel' },
             {
-              text: 'Gestionar no pagos',
+              text: t('caja.manage_no_pagos'),
               onPress: () => {
                 loadPendingClients();
                 setModalNoPagos(true);
@@ -307,36 +309,29 @@ export default function CajaScreen() {
         );
         return;
       }
-      if (false && pendCount > 0) {
-        appAlert(
-          'Ruta pendiente',
-          `Aún tienes ${pendCount} cliente(s) por visitar hoy. Termina tu recorrido o registra los cobros antes de cerrar la caja.`
-        );
-        return;
-      }
     } catch (e) {
       console.log('Error verificando clientes pendientes en Caja:', e);
     }
 
-    appAlert('Cerrar caja del día', '¿Estás seguro de cerrar tu caja? Se calculará tu saldo final definitivo, se enviará el balance del día al sistema y finalizará tu jornada.', [
-      { text: 'Cancelar', style: 'cancel' },
+    appAlert(t('caja.confirm_close_title'), t('caja.confirm_close_msg'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Cerrar caja',
+        text: t('caja.close_drawer_btn'),
         style: 'destructive',
         onPress: async () => {
           try {
             setLoading(true);
             await cerrarCaja(caja.id, { validateRoute: true });
-            appAlert('¡Jornada finalizada!', 'Tu caja ha sido cerrada exitosamente.', [
+            appAlert(t('caja.shift_ended'), t('caja.shift_ended_msg'), [
               {
-                text: 'Aceptar',
+                text: t('common.ok'),
                 onPress: async () => {
                   await signOut();
                 },
               },
             ]);
           } catch (e) {
-            appAlert('No se pudo cerrar', e.message);
+            appAlert(t('common.error'), e.message);
           } finally {
             setLoading(false);
           }
@@ -373,7 +368,7 @@ export default function CajaScreen() {
       <SafeAreaView style={styles.root}>
       <AppBackground />
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Caja</Text>
+          <Text style={styles.headerTitle}>{t('caja.title')}</Text>
           <UserHeaderBadge style={{ marginTop: 2 }} />
         </View>
         <SkeletonCaja />
@@ -390,7 +385,7 @@ export default function CajaScreen() {
     <SafeAreaView style={styles.root}>
       <AppBackground />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Caja</Text>
+        <Text style={styles.headerTitle}>{t('caja.title')}</Text>
         <UserHeaderBadge style={{ marginTop: 2 }} />
       </View>
 
@@ -399,8 +394,8 @@ export default function CajaScreen() {
       <View style={{ marginHorizontal: 16, marginTop: 12, marginBottom: 8 }}>
         <AnimatedSegmentedControl
           options={[
-            { key: 'actual', label: 'Actual' },
-            { key: 'historial', label: 'Historial' },
+            { key: 'actual', label: t('caja.tab_current') },
+            { key: 'historial', label: t('caja.tab_history') },
           ]}
           selectedKey={tab}
           onChange={(t) => setTab(t)}
@@ -421,7 +416,7 @@ export default function CajaScreen() {
         }}
       >
         <Text style={{ color: '#FF3B30', fontWeight: '700', fontSize: 12 }}>
-          <Icon name="shield" size={12} color="#FF3B30" />  Verificar / Depurar memoria local
+          <Icon name="shield" size={12} color="#FF3B30" />  {t('caja.verify_local_memory')}
         </Text>
       </TouchableOpacity>
 
@@ -433,13 +428,13 @@ export default function CajaScreen() {
                 <View style={[styles.iconCircle, { backgroundColor: apple.colors.fill, width: 64, height: 64, borderRadius: 32 }]}>
                   <Icon name="lock" size={26} color={apple.colors.tertiaryLabel} />
                 </View>
-                <Text style={[styles.emptyTitle, { fontSize: 18, marginTop: 10 }]}>Caja cerrada</Text>
+                <Text style={[styles.emptyTitle, { fontSize: 18, marginTop: 10 }]}>{t('caja.closed')}</Text>
                 {canOpenCaja ? (
                   <>
                     <Text style={[styles.emptySub, { marginBottom: 16 }]}>
                       {!isAdmin
                         ? 'Saldo inicial fijado seg�n el saldo final de la caja del d�a anterior'
-                        : 'Ingresa el saldo inicial para iniciar jornada'}
+                        : t('caja.enter_initial_balance')}
                     </Text>
                     <View style={styles.inputRow}>
                       <TextInput
@@ -456,7 +451,7 @@ export default function CajaScreen() {
                         placeholder={`${getCurrencySymbol(userCurrency)} ${getCurrencyDecimals(userCurrency) > 0 ? '0.00' : '0'}`}
                         placeholderTextColor={apple.colors.tertiaryLabel}
                       />
-                      <AppleButton title="Abrir caja" onPress={handleAbrir} style={{ flex: 1 }} />
+                      <AppleButton title={t('caja.open_drawer_btn')} onPress={handleAbrir} style={{ flex: 1 }} />
                     </View>
                   </>
                 ) : (
@@ -472,16 +467,16 @@ export default function CajaScreen() {
             <View style={{ padding: 16, paddingBottom: 8 }}>
               <View style={[styles.card, { padding: 16 }]}>
                 <View style={styles.cajaTop}>
-                  <View style={styles.badgeLive}><View style={styles.dot} /><Text style={styles.liveText}>ABIERTA</Text></View>
+                  <View style={styles.badgeLive}><View style={styles.dot} /><Text style={styles.liveText}>{t('caja.open_upper')}</Text></View>
                   <Text style={styles.cajaDate}>{caja.fecha_apertura || caja.fecha ? new Date(caja.fecha_apertura || caja.fecha).toLocaleString() : ''}</Text>
                 </View>
                 <View style={styles.saldoRow}>
                   <View style={styles.saldoBox}>
-                    <Text style={styles.saldoLabel}>Inicial</Text>
+                    <Text style={styles.saldoLabel}>{t('caja.initial_label')}</Text>
                     <Text style={styles.saldoVal}>{FormatMoneyDecimales(caja.saldo_inicial)}</Text>
                   </View>
                   <View style={styles.saldoBox}>
-                    <Text style={styles.saldoLabel}>Final (calc)</Text>
+                    <Text style={styles.saldoLabel}>{t('caja.final_calc_label')}</Text>
                     <Text style={[styles.saldoVal, { color: apple.colors.blue }]}>{FormatMoneyDecimales(caja.saldo_final || 0)}</Text>
                   </View>
                 </View>
@@ -496,22 +491,18 @@ export default function CajaScreen() {
                     activeOpacity={0.8}
                   >
                     <Icon name="users" size={13} color="#D97706" />
-                    <Text style={styles.noPagosActionText}>
-                      No pagos masivos ({pendingClients.length} pendientes)
-                    </Text>
+                    <Text style={styles.noPagosActionText}>{t('caja.no_pagos_bulk', { count: pendingClients.length })}</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.closeBtn} onPress={handleCerrar}>
                   <Icon name="power-off" size={14} color="#fff" />
-                  <Text style={styles.closeText}>  Cerrar caja</Text>
+                  <Text style={styles.closeText}>  {t('caja.close_drawer_btn')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>
-                Últimos movimientos · {displayedMovs.length} de {totalMovsCount}
-              </Text>
+              <Text style={styles.listTitle}>{t('caja.last_movements', { displayed: displayedMovs.length, total: totalMovsCount })}</Text>
               <TouchableOpacity onPress={() => load(true)}>
                 <Icon name="refresh" size={14} color={apple.colors.blue} />
               </TouchableOpacity>

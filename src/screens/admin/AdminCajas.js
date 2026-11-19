@@ -37,6 +37,7 @@ import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import { SkeletonList, SkeletonCarteraCard } from '../../components/Skeleton';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 const getTodayIso = () => {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -91,6 +92,7 @@ const MONTH_NAMES = [
 ];
 
 export default function AdminCajas() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const { userId, signOut, isReadOnly } = useAuth();
   const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mis Cajas' }]);
@@ -344,24 +346,17 @@ export default function AdminCajas() {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Gestión de Cajas</Text>
+          <Text style={styles.headerTitle}>{t('cajas.title')}</Text>
           <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
-            Supervisión diaria · {adminOpenCount > 0 ? 'Caja activa' : 'Sin caja activa'}
+            {t('cajas.daily_supervision')} · {adminOpenCount > 0 ? t('cajas.active_drawer') : t('cajas.no_active_drawer')}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity
-            style={styles.headerLogoutBtn}
-            onPress={() => setShowLogout(true)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={handlePressAbrirMasivo} disabled={opening}>
             <Icon name="archive" size={14} color="#FFFFFF" />
-            <Text style={styles.headerBtnText}>{opening ? 'Abriendo...' : 'Abrir Masivo'}</Text>
+            <Text style={styles.headerBtnText}>{opening ? t('cajas.bulk_opening') : t('cajas.bulk_open')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -420,7 +415,7 @@ export default function AdminCajas() {
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.openCajasBannerTitle, adminOpenCount >= 3 && { color: zendapp.colors.danger }]}>
-              Tu caja activa actual (toca para ver):
+              {t('cajas.your_active_caja_banner')}
             </Text>
           </View>
           <View style={styles.openCajasPillsRow}>
@@ -459,7 +454,7 @@ export default function AdminCajas() {
             onPress={() => setSelectedDate(getTodayIso())}
           >
             <Text style={[styles.filterChipText, isHoy && styles.filterChipTextActive]}>
-              Hoy
+              {t('cajas.today')}
             </Text>
           </TouchableOpacity>
 
@@ -468,7 +463,7 @@ export default function AdminCajas() {
             onPress={() => setSelectedDate(getYesterdayIso())}
           >
             <Text style={[styles.filterChipText, isAyer && styles.filterChipTextActive]}>
-              Ayer
+              {t('cajas.yesterday')}
             </Text>
           </TouchableOpacity>
 
@@ -483,7 +478,7 @@ export default function AdminCajas() {
               style={{ marginRight: 5 }}
             />
             <Text style={[styles.filterChipText, isCustom && styles.filterChipTextActive]}>
-              {isCustom ? formatReadableDate(selectedDate) : 'Fecha específica'}
+              {isCustom ? formatReadableDate(selectedDate) : t('cajas.specific_date')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -492,7 +487,7 @@ export default function AdminCajas() {
           <View style={styles.activeFilterBadge}>
             <Icon name="calendar-check-o" size={11} color={zendapp.colors.primary} style={{ marginRight: 5 }} />
             <Text style={styles.activeFilterText}>
-              Consultando fecha: <Text style={{ fontWeight: '700', color: zendapp.colors.primary }}>{formatReadableDate(selectedDate)}</Text>
+              {t('cajas.consulting_date')} <Text style={{ fontWeight: '700', color: zendapp.colors.primary }}>{formatReadableDate(selectedDate)}</Text>
             </Text>
             <TouchableOpacity onPress={() => setSelectedDate(getTodayIso())} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Icon name="times-circle" size={14} color={zendapp.colors.textMuted} style={{ marginLeft: 8 }} />

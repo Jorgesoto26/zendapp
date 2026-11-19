@@ -15,6 +15,7 @@ import { appAlert } from '../../../components/AppAlert';
 import { eventBus, EVENTS } from '../../../utils/eventBus';
 import { SyncWithSupabase } from '../../../utils/sync';
 import { useAuth } from '../../../context/AuthContext';
+import { useTranslation } from '../../../i18n';
 import PaymentReceiptModal from '../../../components/PaymentReceiptModal';
 import { getMoraStatus, calculateCuotasAtrasadas, calculateSaldoVencido } from '../../../utils/moraHelper';
 
@@ -200,6 +201,7 @@ const ItemPayments = memo(({
 }) => {
   const navigation = useNavigation();
   const { profile, isReadOnly } = useAuth() || {};
+  const { t } = useTranslation();
   const itemCurrency = propCurrencyCode || profile?.currency_code || 'COP';
   const [modalParcial, setModalParcial] = useState(false);
   const [modalNoPago, setModalNoPago] = useState(false);
@@ -597,7 +599,7 @@ const ItemPayments = memo(({
           {/* Fila 2: Cuota / Valor + Saldo Vencido + Saldo Pendiente */}
           <View style={styles.infoRow}>
             <View style={styles.amountBox}>
-              <Text style={styles.amountLabel}>{!isPending && tipoTramitado ? 'VALOR PAGO' : 'CUOTA'}</Text>
+              <Text style={styles.amountLabel}>{!isPending && tipoTramitado ? t('payments.payment_value') : t('payments.quota')}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <Text style={[styles.amount, { color: amountColor }]}>{FormatMoneyDecimales(valorAMostrar, itemCurrency)}</Text>
                 {!isPending && tipoTramitado && (
@@ -616,14 +618,14 @@ const ItemPayments = memo(({
             </View>
 
             <View style={styles.vencidoBox}>
-              <Text style={styles.vencidoLabel}>SALDO VENCIDO</Text>
+              <Text style={styles.vencidoLabel}>{t('payments.overdue_balance')}</Text>
               <Text style={[styles.vencidoAmount, { color: Number(displaySaldoVencido) > 0 ? zendapp.colors.danger : zendapp.colors.success }]}>
                 {FormatMoneyDecimales(displaySaldoVencido, itemCurrency)}
               </Text>
             </View>
 
             <View style={styles.saldoBox}>
-              <Text style={styles.saldoLabel}>SALDO PENDIENTE</Text>
+              <Text style={styles.saldoLabel}>{t('payments.pending_balance')}</Text>
               <Text style={[styles.saldo, saldo === 0 && { color: zendapp.colors.success }]}>{FormatMoneyDecimales(saldo, itemCurrency)}</Text>
             </View>
           </View>
@@ -635,55 +637,55 @@ const ItemPayments = memo(({
                 style={[styles.actionBtn, styles.actionOutlineSuccess]}
                 onPress={() => {
                   if (isReadOnly) {
-                    appAlert('Modo Solo Lectura', 'No es posible registrar cobros en modo solo lectura por pago de suscripción pendiente.');
+                    appAlert('Modo Solo Lectura', t('payments.read_only_alert'));
                     return;
                   }
                   executePaymentAction('pago', Math.min(valorCuota, saldo));
                 }}
                 disabled={loading}
               >
-                {loading ? <ActivityIndicator size="small" color={zendapp.colors.success} /> : <><Icon name="check" size={13} color={zendapp.colors.success} /><Text style={styles.actionTextSuccess}> Pagar</Text></>}
+                {loading ? <ActivityIndicator size="small" color={zendapp.colors.success} /> : <><Icon name="check" size={13} color={zendapp.colors.success} /><Text style={styles.actionTextSuccess}> {t('payments.pay')}</Text></>}
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionOutlineDanger]}
                 onPress={() => {
                   if (isReadOnly) {
-                    appAlert('Modo Solo Lectura', 'No es posible registrar visitas o no pagos en modo solo lectura por pago de suscripción pendiente.');
+                    appAlert('Modo Solo Lectura', t('payments.read_only_alert'));
                     return;
                   }
                   setModalNoPago(true);
                 }}
               >
-                <Icon name="times" size={13} color={zendapp.colors.primary} /><Text style={styles.actionTextDanger}> No pago</Text>
+                <Icon name="times" size={13} color={zendapp.colors.primary} /><Text style={styles.actionTextDanger}> {t('payments.no_pay')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionOutlineWarning]}
                 onPress={() => {
                   if (isReadOnly) {
-                    appAlert('Modo Solo Lectura', 'No es posible registrar abonos en modo solo lectura por pago de suscripción pendiente.');
+                    appAlert('Modo Solo Lectura', t('payments.read_only_alert'));
                     return;
                   }
                   setModalParcial(true);
                 }}
               >
-                <Icon name="adjust" size={13} color="#D97706" /><Text style={styles.actionTextWarning}> Abono / Total</Text>
+                <Icon name="adjust" size={13} color="#D97706" /><Text style={styles.actionTextWarning}> {t('payments.partial')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View>
               <View style={styles.tramitadoInfo}>
                 <View style={styles.tramitadoCol}>
-                  <Text style={styles.tramitadoLabel}>VALOR CUOTA</Text>
+                  <Text style={styles.tramitadoLabel}>{t('payments.quota')}</Text>
                   <Text style={styles.tramitadoVal}>{FormatMoneyDecimales(valorCuota)}</Text>
                 </View>
                 <View style={styles.tramitadoSep} />
                 <View style={styles.tramitadoCol}>
-                  <Text style={styles.tramitadoLabel}>VALOR CRÉDITO</Text>
+                  <Text style={styles.tramitadoLabel}>{t('payments.credit_value')}</Text>
                   <Text style={styles.tramitadoVal}>{FormatMoneyDecimales(valorCredito || amount)}</Text>
                 </View>
                 <View style={styles.tramitadoSep} />
                 <View style={styles.tramitadoCol}>
-                  <Text style={styles.tramitadoLabel}>SALDO VENCIDO</Text>
+                  <Text style={styles.tramitadoLabel}>{t('payments.overdue_balance')}</Text>
                   <Text style={[styles.tramitadoVal, { color: Number(saldoVencido) > 0 ? zendapp.colors.danger : zendapp.colors.success }]}>{FormatMoneyDecimales(saldoVencido)}</Text>
                 </View>
               </View>
@@ -694,7 +696,7 @@ const ItemPayments = memo(({
                   activeOpacity={0.8}
                 >
                   <Icon name="file-text-o" size={13} color={zendapp.colors.primary} />
-                  <Text style={styles.receiptShareBtnText}>Ver y compartir comprobante de pago</Text>
+                  <Text style={styles.receiptShareBtnText}>{t('payments.view_share_receipt')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -705,8 +707,8 @@ const ItemPayments = memo(({
       <Modal isVisible={modalParcial} onBackdropPress={() => setModalParcial(false)} animationIn="slideInUp" animationOut="slideOutDown" backdropOpacity={0.4}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>Abonar o Pagar Total</Text>
-          <Text style={styles.sheetSub}>{name} · Saldo {FormatMoneyDecimales(saldo, itemCurrency)}</Text>
+          <Text style={styles.sheetTitle}>{t('payments.partial_title')}</Text>
+          <Text style={styles.sheetSub}>{name} · {t('common.pending')} {FormatMoneyDecimales(saldo, itemCurrency)}</Text>
           <TextInput
             placeholder={`${getCurrencySymbol(itemCurrency)} ${getCurrencyDecimals(itemCurrency) > 0 ? '0.00' : '0'}`}
             keyboardType="numeric"
@@ -727,20 +729,20 @@ const ItemPayments = memo(({
               activeOpacity={0.7}
             >
               <Icon name="check-circle" size={13} color={zendapp.colors.carbon} />
-              <Text style={styles.sheetTotalQuickBtnText}>Pagar saldo total: {FormatMoneyDecimales(saldo, itemCurrency)}</Text>
+              <Text style={styles.sheetTotalQuickBtnText}>{t('payments.pay_total_balance', { amount: FormatMoneyDecimales(saldo, itemCurrency) })}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
             style={styles.sheetPrimary}
             onPress={() => {
               const v = parseMoneyToNumeric(valorParcial);
-              if (isNaN(v) || v <= 0) return Toast.show({ text1: 'Monto inválido', text2: 'Ingresa un valor mayor a 0' });
-              if (v > saldo) return Toast.show({ text1: 'Monto inválido', text2: 'No puede superar el saldo pendiente' });
+              if (isNaN(v) || v <= 0) return Toast.show({ text1: t('payments.invalid_amount'), text2: t('payments.enter_amount_greater_zero') });
+              if (v > saldo) return Toast.show({ text1: t('payments.invalid_amount'), text2: t('payments.cannot_exceed_pending') });
               executePaymentAction('parcial', v);
             }}
             disabled={loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.sheetPrimaryText}>Confirmar pago</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.sheetPrimaryText}>{t('payments.confirm_payment')}</Text>}
           </TouchableOpacity>
         </View>
       </Modal>
@@ -748,11 +750,11 @@ const ItemPayments = memo(({
       <Modal isVisible={modalNoPago} onBackdropPress={() => setModalNoPago(false)} backdropOpacity={0.4}>
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.sheetTitle}>¿Confirmar no pago?</Text>
-          <Text style={styles.sheetSub}>Se registrará visita sin recaudo.</Text>
+          <Text style={styles.sheetTitle}>{t('payments.confirm_no_pay_title')}</Text>
+          <Text style={styles.sheetSub}>{t('payments.confirm_no_pay_sub')}</Text>
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#F2F4F7' }]} onPress={() => setModalNoPago(false)}><Text style={{ fontWeight: '600', color: zendapp.colors.carbon }}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: zendapp.colors.primary }]} onPress={() => executePaymentAction('nopago', 0)}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontWeight: '700', color: '#fff' }}>Confirmar</Text>}</TouchableOpacity>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#F2F4F7' }]} onPress={() => setModalNoPago(false)}><Text style={{ fontWeight: '600', color: zendapp.colors.carbon }}>{t('common.cancel')}</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: zendapp.colors.primary }]} onPress={() => executePaymentAction('nopago', 0)}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontWeight: '700', color: '#fff' }}>{t('common.confirm')}</Text>}</TouchableOpacity>
           </View>
         </View>
       </Modal>

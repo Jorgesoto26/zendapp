@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, ensureAuthenticatedSession } from '../src/lib/supabase';
 import {
   getBillingStatus,
+  getBillingConfig,
   confirmBillingPayment,
   generarFacturaManual,
 } from '../src/services/billingService';
@@ -10,6 +11,22 @@ import {
 jest.mock('../src/lib/supabase', () => ({
   supabase: {
     rpc: jest.fn(),
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+          single: jest.fn().mockResolvedValue({ data: null, error: null }),
+          order: jest.fn(() => ({
+            limit: jest.fn(() => ({
+              maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+            })),
+          })),
+        })),
+      })),
+    })),
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+    },
   },
   ensureAuthenticatedSession: jest.fn(),
 }));
@@ -85,6 +102,24 @@ describe('billingService - Facturación por Organización', () => {
       expect(res.is_suspended).toBe(false);
       expect(res.config.precio_por_ruta).toBe(40000);
       expect(res.config.dia_facturacion).toBe(28);
+    });
+
+    test('getBillingConfig retorna la configuración bancaria descargada', async () => {
+      const mockData = {
+        config: {
+          banco: 'Banco Davivienda',
+          numero_cuenta: '001-223344-55',
+          precio_por_ruta: 50000,
+          titular_cuenta: 'Zenda Pagos SAS',
+          dia_facturacion: 15,
+        },
+      };
+      supabase.rpc.mockResolvedValueOnce({ data: mockData, error: null });
+
+      const cfg = await getBillingConfig();
+      expect(cfg.banco).toBe('Banco Davivienda');
+      expect(cfg.precio_por_ruta).toBe(50000);
+      expect(cfg.dia_facturacion).toBe(15);
     });
   });
 

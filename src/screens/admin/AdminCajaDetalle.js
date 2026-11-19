@@ -30,6 +30,7 @@ import { eventBus, EVENTS } from '../../utils/eventBus';
 import { supabase } from '../../lib/supabase';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 import { formatCurrency, getCurrencySymbol, getCurrencyDecimals } from '../../utils/currency';
+import { useTranslation } from '../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -42,6 +43,7 @@ const formatDate = (isoStr) => {
 };
 
 export default function AdminCajaDetalle() {
+  const { t } = useTranslation();
   const route = useRoute();
   const navigation = useNavigation();
   const { caja } = route.params || {};
@@ -81,21 +83,21 @@ export default function AdminCajaDetalle() {
   const types = useMemo(() => {
     if (isAdmin) {
       return [
-        { key: 'todos', label: 'Todos' },
-        { key: 'ingreso', label: 'Ingresos' },
-        { key: 'retiro', label: 'Retiros' },
-        { key: 'gasto', label: 'Gastos' },
+        { key: 'todos', label: t('cajas.all') },
+        { key: 'ingreso', label: t('cajas.income_label') },
+        { key: 'retiro', label: t('cajas.withdrawals') },
+        { key: 'gasto', label: t('cajas.expenses') },
       ];
     }
     return [
-      { key: 'todos', label: 'Todos' },
-      { key: 'pago', label: 'Pagos' },
-      { key: 'venta', label: 'Ventas' },
-      { key: 'gasto', label: 'Gastos' },
-      { key: 'ingreso', label: 'Ingresos' },
-      { key: 'retiro', label: 'Retiros' },
+      { key: 'todos', label: t('cajas.all') },
+      { key: 'pago', label: t('cajas.payments') },
+      { key: 'venta', label: t('cajas.sales') },
+      { key: 'gasto', label: t('cajas.expenses') },
+      { key: 'ingreso', label: t('cajas.income_label') },
+      { key: 'retiro', label: t('cajas.withdrawals') },
     ];
-  }, [isAdmin]);
+  }, [isAdmin, t]);
 
   // Conteo en vivo por cada tipo para enriquecer los chips
   const countsByType = useMemo(() => {
@@ -300,12 +302,12 @@ export default function AdminCajaDetalle() {
 
   const promptConfirmClose = (cajaId) => {
     appAlert(
-      'Cerrar caja',
-      `¿Deseas cerrar la caja de ${caja.nombre_usuario || 'este usuario'}? Se validará en el servidor y se calculará el saldo final definitivo.`,
+      t('cajas.close_confirm_title'),
+      t('cajas.close_confirm_msg', { name: caja.nombre_usuario || '' }),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Cerrar caja',
+          text: t('cajas.btn_close'),
           style: 'destructive',
           onPress: () => executeClose(cajaId),
         },
@@ -329,9 +331,9 @@ export default function AdminCajaDetalle() {
         eventBus.emit(EVENTS.MOVEMENT_CHANGED);
       } catch {}
       route.params?.onRefreshParent?.();
-      appAlert('¡Caja cerrada!', 'La caja se cerró exitosamente en el sistema.');
+      appAlert(t('cajas.closed_success'), t('cajas.closed_success_msg'));
     } catch (err) {
-      appAlert('No se pudo cerrar', err.message);
+      appAlert(t('common.error'), err.message);
     } finally {
       setClosing(false);
     }
@@ -342,12 +344,12 @@ export default function AdminCajaDetalle() {
     if (!cajaId) return;
 
     appAlert(
-      'Reabrir caja',
-      `¿Deseas reabrir la caja de ${cajaState?.nombre_usuario || 'este vendedor'}?\n\nLa caja volverá al estado 'abierta', permitiendo registrar cobros y movimientos pendientes.`,
+      t('cajas.reopen_confirm_title'),
+      t('cajas.reopen_confirm_msg', { name: cajaState?.nombre_usuario || '' }),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Reabrir Caja',
+          text: t('cajas.reopen_btn'),
           onPress: async () => {
             setReopening(true);
             try {
@@ -362,10 +364,10 @@ export default function AdminCajaDetalle() {
                 eventBus.emit(EVENTS.MOVEMENT_CHANGED);
               } catch {}
               route.params?.onRefreshParent?.();
-              appAlert('¡Caja reabierta!', 'La caja se encuentra abierta nuevamente en el sistema.');
+              appAlert(t('cajas.reopen_success'), t('cajas.reopen_success_msg'));
               loadData();
             } catch (err) {
-              appAlert('No se pudo reabrir', err.message);
+              appAlert(t('common.error'), err.message);
             } finally {
               setReopening(false);
             }
@@ -409,14 +411,14 @@ export default function AdminCajaDetalle() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Icon name="chevron-left" size={15} color={zendapp.colors.primary} />
-          <Text style={styles.backText}>Cajas</Text>
+          <Text style={styles.backText}>{t('cajas.title')}</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {cajaState?.nombre_usuario}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {isOpen ? '🟢 Caja Abierta' : '🔴 Caja Cerrada'} · {cajaState?.rol_usuario?.toUpperCase()}
+            {isOpen ? t('cajas.open_pill') : t('cajas.closed_pill')} · {cajaState?.rol_usuario?.toUpperCase()}
           </Text>
         </View>
 
@@ -429,13 +431,13 @@ export default function AdminCajaDetalle() {
             >
               <Icon name="power-off" size={12} color="#FFFFFF" />
               <Text style={styles.btnCloseCajaText}>
-                {closing ? '...' : checkingSubs ? 'Verificando...' : 'Cerrar'}
+                {closing ? '...' : checkingSubs ? '...' : t('cajas.btn_close')}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.btnNewMov} onPress={() => setModalVisible(true)}>
               <Icon name="plus" size={12} color="#FFFFFF" />
-              <Text style={styles.btnNewMovText}>Movimiento</Text>
+              <Text style={styles.btnNewMovText}>{t('cajas.btn_movimiento')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -444,19 +446,19 @@ export default function AdminCajaDetalle() {
       {/* Resumen Superior Adaptado al Rol (Requisito 6) */}
       <View style={styles.summaryBar}>
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>Saldo Inicial</Text>
+          <Text style={styles.summaryLabel}>{t('cajas.initial_balance')}</Text>
           <Text style={styles.summaryVal}>{formatMoney(cajaState?.saldo_inicial)}</Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
+          <Text style={styles.summaryLabel}>{isOpen ? t('cajas.current_balance') : t('cajas.final_balance')}</Text>
           <Text style={[styles.summaryVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(cajaState?.saldo_final)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>{isAdmin ? 'Ingresos' : 'Recaudado'}</Text>
+          <Text style={styles.summaryLabel}>{isAdmin ? t('cajas.income_label') : t('cajas.collected')}</Text>
           <Text style={[styles.summaryVal, { color: zendapp.colors.success }]}>
             {formatMoney(isAdmin ? cajaState?.valor_ingresos : cajaState?.valor_recaudado)}
           </Text>
@@ -471,9 +473,9 @@ export default function AdminCajaDetalle() {
               <Icon name="lock" size={14} color="#D97706" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.reopenBannerTitle}>Caja Cerrada / Finalizada</Text>
+              <Text style={styles.reopenBannerTitle}>{t('cajas.reopen_banner_title')}</Text>
               <Text style={styles.reopenBannerSub}>
-                Como administrador puedes reabrir esta caja si el vendedor necesita registrar pagos o cobros pendientes del día.
+                {t('cajas.reopen_banner_sub')}
               </Text>
             </View>
           </View>
@@ -487,7 +489,7 @@ export default function AdminCajaDetalle() {
             ) : (
               <>
                 <Icon name="unlock" size={13} color="#FFFFFF" />
-                <Text style={styles.reopenBannerBtnText}>Reabrir esta Caja</Text>
+                <Text style={styles.reopenBannerBtnText}>{t('cajas.reopen_btn')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -499,7 +501,11 @@ export default function AdminCajaDetalle() {
         <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar movimiento..."
+          placeholder={t('cajas.search_movement')}
+          placeholderTextColor={zendapp.colors.textMuted}
+          value={search}
+          onChangeText={setSearch}
+        />
           placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -571,7 +577,7 @@ export default function AdminCajaDetalle() {
 
                   <View style={{ flex: 1, marginHorizontal: 10 }}>
                     <Text style={styles.movDescVenta} numberOfLines={1}>
-                      {item.cleanTitle || 'Venta de Crédito'}
+                      {item.cleanTitle || t('cajas.credit_sale')}
                     </Text>
 
                     {/* Fila de Parámetros: Interés, Plazo, Cuotas Pagadas */}
@@ -593,7 +599,7 @@ export default function AdminCajaDetalle() {
                       <View style={[styles.ventaBadge, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
                         <Icon name="check-circle-o" size={9} color={zendapp.colors.success} style={{ marginRight: 3 }} />
                         <Text style={[styles.ventaBadgeText, { color: zendapp.colors.success }]}>
-                          {inv?.cuotasPagadas ?? 0}/{inv?.num_cuotas || 0} pagadas
+                          {t('cajas.paid_installments', { paid: inv?.cuotasPagadas ?? 0, total: inv?.num_cuotas || 0 })}
                         </Text>
                       </View>
                     </View>
@@ -670,7 +676,7 @@ export default function AdminCajaDetalle() {
                       }}
                     >
                       <Icon name="camera" size={11} color={zendapp.colors.primary} />
-                      <Text style={styles.btnMiniPhotoText}>Foto</Text>
+                      <Text style={styles.btnMiniPhotoText}>{t('cajas.photo')}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -683,8 +689,8 @@ export default function AdminCajaDetalle() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="list" size={40} color={zendapp.colors.border} />
-              <Text style={styles.emptyTitle}>Sin movimientos</Text>
-              <Text style={styles.emptySubtitle}>No se encontraron registros para este filtro</Text>
+              <Text style={styles.emptyTitle}>{t('cajas.no_movements')}</Text>
+              <Text style={styles.emptySubtitle}>{t('cajas.no_movements_desc')}</Text>
             </View>
           }
         />
@@ -695,7 +701,7 @@ export default function AdminCajaDetalle() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nuevo Movimiento</Text>
+              <Text style={styles.modalTitle}>{t('cajas.new_movement')}</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Icon name="times" size={18} color={zendapp.colors.textMuted} />
               </TouchableOpacity>
@@ -706,24 +712,24 @@ export default function AdminCajaDetalle() {
                 style={[styles.movTypeBtn, movTipo === 'ingreso' && styles.movTypeBtnActive]}
                 onPress={() => setMovTipo('ingreso')}
               >
-                <Text style={[styles.movTypeText, movTipo === 'ingreso' && styles.movTypeTextActive]}>Ingreso</Text>
+                <Text style={[styles.movTypeText, movTipo === 'ingreso' && styles.movTypeTextActive]}>{t('cajas.income_label')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.movTypeBtn, movTipo === 'retiro' && styles.movTypeBtnActive]}
                 onPress={() => setMovTipo('retiro')}
               >
-                <Text style={[styles.movTypeText, movTipo === 'retiro' && styles.movTypeTextActive]}>Retiro</Text>
+                <Text style={[styles.movTypeText, movTipo === 'retiro' && styles.movTypeTextActive]}>{t('cajas.withdrawals')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.movTypeBtn, movTipo === 'gasto' && styles.movTypeBtnActive]}
                 onPress={() => setMovTipo('gasto')}
               >
-                <Text style={[styles.movTypeText, movTipo === 'gasto' && styles.movTypeTextActive]}>Gasto</Text>
+                <Text style={[styles.movTypeText, movTipo === 'gasto' && styles.movTypeTextActive]}>{t('cajas.expenses')}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Descripción *</Text>
+              <Text style={styles.inputLabel}>{t('cajas.description')}</Text>
               <TextInput
                 style={styles.input}
                 value={movDesc}
@@ -734,7 +740,7 @@ export default function AdminCajaDetalle() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Monto *</Text>
+              <Text style={styles.inputLabel}>{t('cajas.amount_field')}</Text>
               <TextInput
                 style={styles.input}
                 value={movMonto}
@@ -752,10 +758,10 @@ export default function AdminCajaDetalle() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                <Text style={styles.modalBtnCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalBtnConfirm} onPress={handleCreateMovement} disabled={savingMov}>
-                <Text style={styles.modalBtnConfirmText}>{savingMov ? 'Guardando...' : 'Guardar'}</Text>
+                <Text style={styles.modalBtnConfirmText}>{savingMov ? t('cajas.saving') : t('cajas.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -771,8 +777,8 @@ export default function AdminCajaDetalle() {
                 <Icon name="exclamation-triangle" size={22} color="#D97706" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.subModalTitle}>Vendedores con caja abierta</Text>
-                <Text style={styles.subModalBadge}>{openSubordinates.length} caja(s) pendientes</Text>
+                <Text style={styles.subModalTitle}>{t('cajas.subordinates_open_title')}</Text>
+                <Text style={styles.subModalBadge}>{t('cajas.subordinates_pending_badge', { count: openSubordinates.length })}</Text>
               </View>
               <TouchableOpacity onPress={() => setSubModalVisible(false)}>
                 <Icon name="times" size={18} color={zendapp.colors.textMuted} />
@@ -780,10 +786,10 @@ export default function AdminCajaDetalle() {
             </View>
 
             <Text style={styles.subModalExplain}>
-              Tienes vendedores subordinados que aún tienen su caja del día abierta. Para garantizar que los recaudos y gastos de la ruta se consoliden correctamente en el balance contable, tus vendedores deben cerrar primero sus cajas antes de finalizar la caja de administración.
+              {t('cajas.subordinates_open_desc')}
             </Text>
 
-            <Text style={styles.subListHeader}>Cajas de subordinados aún abiertas:</Text>
+            <Text style={styles.subListHeader}>{t('cajas.subordinates_open_list')}</Text>
             <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
               {openSubordinates.map((sub, idx) => (
                 <View key={idx} style={styles.subCard}>
@@ -803,7 +809,7 @@ export default function AdminCajaDetalle() {
                       navigation.push('AdminCajaDetalle', { caja: sub });
                     }}
                   >
-                    <Text style={styles.subInspectBtnText}>Ver caja</Text>
+                    <Text style={styles.subInspectBtnText}>{t('cajas.view_caja')}</Text>
                     <Icon name="chevron-right" size={10} color={zendapp.colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -812,7 +818,7 @@ export default function AdminCajaDetalle() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setSubModalVisible(false)}>
-                <Text style={styles.modalBtnCancelText}>Volver</Text>
+                <Text style={styles.modalBtnCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtnConfirm, { backgroundColor: zendapp.colors.primary }]}
@@ -820,7 +826,7 @@ export default function AdminCajaDetalle() {
                 disabled={closing}
               >
                 <Text style={styles.modalBtnConfirmText}>
-                  {closing ? 'Cerrando...' : 'Intentar cierre'}
+                  {closing ? '...' : t('cajas.attempt_close')}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -22,6 +22,7 @@ import {
   AdminReportes,
 } from './admin';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../i18n';
 import { zendapp } from '../theme/zendappTheme';
 
 const Stack = createNativeStackNavigator();
@@ -61,8 +62,34 @@ const routeComponents = {
 
 function MainTabs() {
   const { rol } = useAuth();
+  const { t } = useTranslation();
   const perfil = rol || 'vendedor';
   const options = menuConfig[perfil] || menuConfig.vendedor;
+
+  const getTabTitle = (item) => {
+    switch (item.key) {
+      case 'payments':
+        return t('menu.payments');
+      case 'create_sale':
+        return t('menu.create_sale');
+      case 'movements':
+        return t('menu.movements');
+      case 'caja':
+        return t('menu.caja');
+      case 'usuarios':
+        return t('menu.users');
+      case 'cartera':
+        return t('menu.cartera');
+      case 'cajas':
+        return t('menu.caja');
+      case 'morosos':
+        return t('menu.morosos');
+      case 'reportes':
+        return t('menu.reports');
+      default:
+        return item.title;
+    }
+  };
 
   return (
     <Tab.Navigator
@@ -103,7 +130,7 @@ function MainTabs() {
                 <Icon name={item.icon} size={21} color={color} />
               </View>
             ),
-            tabBarLabel: item.title,
+            tabBarLabel: getTabTitle(item),
           }}
         />
       ))}

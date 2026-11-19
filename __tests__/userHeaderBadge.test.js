@@ -1,12 +1,21 @@
 // __tests__/userHeaderBadge.test.js
 jest.mock('react-native-vector-icons/FontAwesome', () => 'Icon');
 jest.mock('react-native-modal', () => 'Modal');
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+}));
+jest.mock('react-native-toast-message', () => ({
+  show: jest.fn(),
+  hide: jest.fn(),
+}));
 jest.mock('../src/components/AppAlert', () => ({
   appAlert: jest.fn(),
 }));
 jest.mock('../src/context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
+jest.mock('../src/components/UserProfileModal', () => () => null);
 
 import { getUserDisplayName, getUserRoleLabel } from '../src/components/UserHeaderBadge';
 

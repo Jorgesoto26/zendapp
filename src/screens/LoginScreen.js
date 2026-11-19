@@ -21,6 +21,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { getData, getDbConnection } from '../database/db';
 import { AuthService } from '../services/services';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation, SUPPORTED_LANGUAGES } from '../i18n';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { zendapp } from '../theme/zendappTheme';
 import { AppleButton } from '../components/AppleButton';
@@ -28,10 +29,12 @@ import { appAlert } from '../components/AppAlert';
 
 export default function LoginScreen() {
   const { setAuthSession } = useAuth();
+  const { t, language, changeLanguage, currentLanguage } = useTranslation();
   const dbRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
+  const [langModalVisible, setLangModalVisible] = useState(false);
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -175,6 +178,19 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Selector de Idioma en Login */}
+          <View style={{ alignItems: 'flex-end', marginBottom: 4, width: '100%' }}>
+            <TouchableOpacity
+              style={styles.langPill}
+              onPress={() => setLangModalVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 13, marginRight: 5 }}>{currentLanguage.flag}</Text>
+              <Text style={styles.langPillText}>{currentLanguage.code.toUpperCase()}</Text>
+              <Icon name="angle-down" size={11} color="#667085" style={{ marginLeft: 5 }} />
+            </TouchableOpacity>
+          </View>
+
           <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
             {/* Header de Marca con Logo Oficial */}
             <View style={styles.brandHeader}>
@@ -191,23 +207,16 @@ export default function LoginScreen() {
                 />
               </Animated.View>
               <Text style={styles.brandTitle}>ZENDAPP</Text>
-              {/* <View style={styles.brandTaglineWrap}>
-                <View style={styles.brandAccentDot} />
-                <Text style={styles.brandTagline}>Gestión de Cartera & Caja</Text>
-              </View> */}
             </View>
 
             {/* Tarjeta Principal de Inicio de Sesión */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Bienvenido</Text>
-                {/* <Text style={styles.cardSubtitle}>
-                  Ingresa con tu cuenta para iniciar tu jornada
-                </Text> */}
+                <Text style={styles.cardTitle}>{t('auth.welcome')}</Text>
               </View>
 
               {/* Input Correo */}
-              <Text style={styles.inputLabel}>Correo electrónico</Text>
+              <Text style={styles.inputLabel}>{t('auth.email')}</Text>
               <View
                 style={[
                   styles.inputContainer,
@@ -235,7 +244,7 @@ export default function LoginScreen() {
               </View>
 
               {/* Input Contraseña */}
-              <Text style={styles.inputLabel}>Contraseña</Text>
+              <Text style={styles.inputLabel}>{t('auth.password')}</Text>
               <View
                 style={[
                   styles.inputContainer,
@@ -282,7 +291,7 @@ export default function LoginScreen() {
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
                   <View style={styles.btnContentRow}>
-                    <Text style={styles.primaryBtnText}>Iniciar Sesión</Text>
+                    <Text style={styles.primaryBtnText}>{t('auth.login_btn')}</Text>
                     <Icon name="arrow-right" size={14} color="#FFFFFF" style={{ marginLeft: 8 }} />
                   </View>
                 )}
@@ -415,6 +424,48 @@ export default function LoginScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Modal Selector de Idioma en Login */}
+      <Modal
+        visible={langModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLangModalVisible(false)}
+      >
+        <Pressable
+          style={styles.langModalOverlay}
+          onPress={() => setLangModalVisible(false)}
+        >
+          <View style={styles.langModalCard}>
+            <Text style={styles.langModalTitle}>{t('languages.title')}</Text>
+            {SUPPORTED_LANGUAGES.map((item) => (
+              <TouchableOpacity
+                key={item.code}
+                style={[
+                  styles.langOptionRow,
+                  language === item.code && styles.langOptionRowActive,
+                ]}
+                onPress={() => {
+                  changeLanguage(item.code);
+                  setLangModalVisible(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 22, marginRight: 12 }}>{item.flag}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.langOptionLabel, language === item.code && styles.langOptionLabelActive]}>
+                    {item.label}
+                  </Text>
+                  <Text style={styles.langOptionDesc}>{item.description}</Text>
+                </View>
+                {language === item.code ? (
+                  <Icon name="check-circle" size={18} color={zendapp.colors.primary} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -693,5 +744,75 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  langPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  langPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#344054',
+  },
+  langModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(16, 24, 40, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  langModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  langModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#101828',
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  langOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#EAECF0',
+    marginBottom: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  langOptionRowActive: {
+    borderColor: zendapp.colors.primary,
+    backgroundColor: '#FEF2F2',
+  },
+  langOptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#344054',
+  },
+  langOptionLabelActive: {
+    fontWeight: '800',
+    color: zendapp.colors.primary,
+  },
+  langOptionDesc: {
+    fontSize: 11,
+    color: '#667085',
+    marginTop: 1,
   },
 });

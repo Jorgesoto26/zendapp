@@ -35,8 +35,10 @@ import { UserModal } from './components/UserModal';
 import OrganizationModal from './components/OrganizationModal';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 export default function AdminUsuarios() {
+  const { t } = useTranslation();
   const { userId, signOut, isReadOnly } = useAuth();
   const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mi Equipo' }]);
   const [users, setUsers] = useState([]);
@@ -199,21 +201,14 @@ export default function AdminUsuarios() {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Usuarios</Text>
+          <Text style={styles.headerTitle}>{t('users.title')}</Text>
           <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
-            {activosCount} activos · {inactivosCount} inactivos
+            {activosCount} {t('users.active_filter').toLowerCase()} · {inactivosCount} {t('users.inactive_filter').toLowerCase()}
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerLogoutBtn}
-            onPress={handleLogout}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerOrgBtn}
             onPress={() => setOrgModalVisible(true)}
@@ -239,12 +234,12 @@ export default function AdminUsuarios() {
           options={[
             {
               key: 'activos',
-              label: 'Activos',
+              label: t('users.active_filter'),
               badge: activosCount,
             },
             {
               key: 'inactivos',
-              label: 'Inactivos',
+              label: t('users.inactive_filter'),
               badge: inactivosCount,
             },
           ]}
@@ -258,7 +253,7 @@ export default function AdminUsuarios() {
         <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar por nombre o correo..."
+          placeholder={t('users.search_placeholder')}
           placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -295,11 +290,11 @@ export default function AdminUsuarios() {
             <View style={styles.emptyContainer}>
               <Icon name="users" size={44} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>
-                {statusFilter === 'activos' ? 'No hay usuarios activos' : 'No hay usuarios inactivos'}
+                {statusFilter === 'activos' ? t('users.no_active_users') : t('users.no_inactive_users')}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {search
-                  ? 'No se encontraron coincidencias para la búsqueda'
+                  ? t('users.empty_search')
                   : statusFilter === 'activos'
                     ? 'Crea un nuevo usuario usando el botón +'
                     : 'Los usuarios inhabilitados aparecerán en esta sección'}

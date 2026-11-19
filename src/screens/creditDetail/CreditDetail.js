@@ -24,6 +24,7 @@ import { appAlert } from '../../components/AppAlert';
 import { eventBus, EVENTS } from '../../utils/eventBus';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 import PaymentReceiptModal from '../../components/PaymentReceiptModal';
+import { useTranslation } from '../../i18n';
 
 function StatusBadge({ estado }) {
   const map = {
@@ -43,6 +44,7 @@ function StatusBadge({ estado }) {
 }
 
 export default function CreditDetail({ route, navigation }) {
+  const { t } = useTranslation();
   const { invoiceId, clientName, address, telefono, latitud, longitud, saldo: saldoInicial } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [invoice, setInvoice] = useState(null);
@@ -402,9 +404,9 @@ export default function CreditDetail({ route, navigation }) {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Icon name="chevron-left" size={16} color="#EE272D" />
-          <Text style={styles.backText}>Cartera</Text>
+          <Text style={styles.backText}>{t('cartera.title')}</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Detalle de Crédito</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{t('cartera.credit_detail')}</Text>
         <View style={{ width: 60 }} />
       </View>
 
@@ -426,15 +428,15 @@ export default function CreditDetail({ route, navigation }) {
                     <Icon name="check-circle" size={18} color="#059669" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.renewalCardTitle}>Crédito Completado</Text>
+                    <Text style={styles.renewalCardTitle}>{t('cartera.credit_completed')}</Text>
                     <Text style={styles.renewalCardSub}>
-                      El cliente terminó de pagar este crédito. Puedes otorgarle una renovación conservando su historial.
+                      {t('cartera.credit_completed_sub')}
                     </Text>
                   </View>
                 </View>
                 <TouchableOpacity style={styles.renewalBtn} onPress={handleRenewPress} activeOpacity={0.8}>
                   <Icon name="refresh" size={14} color="#fff" />
-                  <Text style={styles.renewalBtnText}>Renovar crédito a este cliente</Text>
+                  <Text style={styles.renewalBtnText}>{t('cartera.renew_credit_btn')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -467,13 +469,13 @@ export default function CreditDetail({ route, navigation }) {
 
               <View style={styles.summaryRow}>
                 <View style={styles.summaryBox}>
-                  <Text style={styles.summaryLabel}>PRÉSTAMO</Text>
+                  <Text style={styles.summaryLabel}>{t('cartera.loan')}</Text>
                   <Text style={styles.summaryVal}>
                     {invoice ? FormatMoneyDecimales(invoice.amount, invoiceCurrency) : '—'}
                   </Text>
                 </View>
                 <View style={styles.summaryBox}>
-                  <Text style={styles.summaryLabel}>SALDO</Text>
+                  <Text style={styles.summaryLabel}>{t('cartera.balance')}</Text>
                   <Text
                     style={[
                       styles.summaryVal,
@@ -484,7 +486,7 @@ export default function CreditDetail({ route, navigation }) {
                   </Text>
                 </View>
                 <View style={styles.summaryBox}>
-                  <Text style={styles.summaryLabel}>ESTADO</Text>
+                  <Text style={styles.summaryLabel}>{t('cartera.status')}</Text>
                   <Text
                     style={[
                       styles.summaryVal,
@@ -502,15 +504,15 @@ export default function CreditDetail({ route, navigation }) {
               {/* Parámetros financieros: Periodicidad, Cuotas, Interés */}
               <View style={styles.financialParamRow}>
                 <View style={styles.paramPill}>
-                  <Text style={styles.paramLabel}>PERIODICIDAD</Text>
+                  <Text style={styles.paramLabel}>{t('cartera.periodicity_upper')}</Text>
                   <Text style={styles.paramVal}>{invoice?.periodicidad || 'Diario'}</Text>
                 </View>
                 <View style={styles.paramPill}>
-                  <Text style={styles.paramLabel}>CUOTAS</Text>
+                  <Text style={styles.paramLabel}>{t('cartera.quotas_upper')}</Text>
                   <Text style={styles.paramVal}>{invoice?.num_cuotas || cuotas.length || '—'}</Text>
                 </View>
                 <View style={styles.paramPill}>
-                  <Text style={styles.paramLabel}>INTERÉS</Text>
+                  <Text style={styles.paramLabel}>{t('cartera.interest_upper')}</Text>
                   <Text style={styles.paramVal}>{invoice?.tasa_interes ? `${invoice.tasa_interes}%` : '—'}</Text>
                 </View>
               </View>
@@ -518,7 +520,7 @@ export default function CreditDetail({ route, navigation }) {
               {invoice?.pago_adelantado && (
                 <View style={styles.advancePaymentNotice}>
                   <Icon name="check-circle" size={12} color="#059669" />
-                  <Text style={styles.advancePaymentText}>1ª cuota cubierta con pago adelantado</Text>
+                  <Text style={styles.advancePaymentText}>{t('cartera.advance_payment_covered')}</Text>
                 </View>
               )}
 
@@ -531,7 +533,7 @@ export default function CreditDetail({ route, navigation }) {
                 >
                   <View style={styles.docEvidenceLeft}>
                     <Icon name="id-card-o" size={14} color="#EE272D" />
-                    <Text style={styles.docEvidenceText}>Ver fotografía del documento</Text>
+                    <Text style={styles.docEvidenceText}>{t('cartera.view_doc_photo')}</Text>
                   </View>
                   <Icon name="external-link" size={12} color="#667085" />
                 </TouchableOpacity>
@@ -542,14 +544,14 @@ export default function CreditDetail({ route, navigation }) {
                 <TouchableOpacity onPress={openMap} style={styles.mapPreview}>
                   <Icon name="map-marker" size={14} color="#EE272D" />
                   <Text style={styles.mapText}>
-                    Ver ubicación GPS ({Number(coords.lat).toFixed(4)}, {Number(coords.lng).toFixed(4)})
+                    {t('cartera.view_gps')} ({Number(coords.lat).toFixed(4)}, {Number(coords.lng).toFixed(4)})
                   </Text>
                   <Icon name="external-link" size={12} color="#EE272D" />
                 </TouchableOpacity>
               ) : (
                 <View style={styles.mapEmptyPreview}>
                   <Icon name="map-marker" size={13} color="#98A2B3" />
-                  <Text style={styles.mapEmptyText}>Sin coordenadas GPS registradas</Text>
+                  <Text style={styles.mapEmptyText}>{t('cartera.no_gps')}</Text>
                 </View>
               )}
 
@@ -562,7 +564,7 @@ export default function CreditDetail({ route, navigation }) {
 
             {/* Tabla cuotas */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>TABLA DE CUOTAS</Text>
+              <Text style={styles.sectionTitle}>{t('cartera.quotas_table')}</Text>
               <View style={styles.countPill}>
                 <Text style={styles.sectionCountText}>{cuotas.length}</Text>
               </View>
@@ -570,12 +572,12 @@ export default function CreditDetail({ route, navigation }) {
             <View style={styles.tableCardContainer}>
               <View style={styles.tableHead}>
                 <Text style={[styles.th, { flex: 0.6 }]}>#</Text>
-                <Text style={[styles.th, { flex: 1.4 }]}>VENCIMIENTO</Text>
-                <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>MONTO</Text>
-                <Text style={[styles.th, { flex: 1.2, textAlign: 'center' }]}>ESTADO</Text>
+                <Text style={[styles.th, { flex: 1.4 }]}>{t('cartera.due_date')}</Text>
+                <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>{t('cartera.amount')}</Text>
+                <Text style={[styles.th, { flex: 1.2, textAlign: 'center' }]}>{t('cartera.status')}</Text>
               </View>
               {cuotas.length === 0 ? (
-                <Text style={styles.emptyTable}>Sin cuotas registradas</Text>
+                <Text style={styles.emptyTable}>{t('cartera.no_quotas')}</Text>
               ) : (
                 <FlatList
                   data={cuotas}

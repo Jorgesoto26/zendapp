@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { useAuth } from '../context/AuthContext';
 import { zendapp } from '../theme/zendappTheme';
+import UserProfileModal from './UserProfileModal';
 
 /**
  * Componente uniforme para mostrar el usuario autenticado (nombre y rol) en toda la aplicación.
@@ -31,30 +32,36 @@ export const getUserRoleLabel = (rol) => {
 
 export default function UserHeaderBadge({ variant = 'inline', style, textStyle, showIcon = true }) {
   const { profile } = useAuth() || {};
+  const [modalVisible, setModalVisible] = useState(false);
   const displayName = getUserDisplayName(profile);
   const roleLabel = getUserRoleLabel(profile?.rol);
 
-  if (variant === 'pill') {
-    return (
-      <View style={[styles.pillContainer, style]}>
-        {showIcon && (
-          <View style={styles.pillIconWrap}>
-            <Icon name="user" size={10} color="#FFFFFF" />
-          </View>
-        )}
-        <Text style={[styles.pillName, textStyle]} numberOfLines={1} ellipsizeMode="tail">
-          {displayName}
-        </Text>
-        <View style={styles.pillDivider} />
-        <Text style={styles.pillRole}>
-          {roleLabel}
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.inlineContainer, style]}>
+  const badgeContent = variant === 'pill' ? (
+    <TouchableOpacity
+      activeOpacity={0.75}
+      onPress={() => setModalVisible(true)}
+      style={[styles.pillContainer, style]}
+    >
+      {showIcon && (
+        <View style={styles.pillIconWrap}>
+          <Icon name="user" size={10} color="#FFFFFF" />
+        </View>
+      )}
+      <Text style={[styles.pillName, textStyle]} numberOfLines={1} ellipsizeMode="tail">
+        {displayName}
+      </Text>
+      <View style={styles.pillDivider} />
+      <Text style={styles.pillRole}>
+        {roleLabel}
+      </Text>
+      <Icon name="angle-down" size={12} color={zendapp.colors.primary} style={{ marginLeft: 2 }} />
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity
+      activeOpacity={0.75}
+      onPress={() => setModalVisible(true)}
+      style={[styles.inlineContainer, style]}
+    >
       {showIcon && (
         <Icon name="user-circle" size={12} color={zendapp.colors.primary} style={styles.inlineIcon} />
       )}
@@ -62,7 +69,18 @@ export default function UserHeaderBadge({ variant = 'inline', style, textStyle, 
         <Text style={styles.inlineName}>{displayName}</Text>
         <Text style={styles.inlineRole}> · {roleLabel}</Text>
       </Text>
-    </View>
+      <Icon name="angle-down" size={11} color="#98A2B3" style={{ marginLeft: 4 }} />
+    </TouchableOpacity>
+  );
+
+  return (
+    <>
+      {badgeContent}
+      <UserProfileModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+      />
+    </>
   );
 }
 
