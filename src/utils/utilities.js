@@ -3,15 +3,17 @@
  */
 import 'intl';
 import 'intl/locale-data/jsonp/en';
-import DeviceInfo from 'react-native-device-info';
 import { getDbConnection, getData } from '../database/db'
 export const versionGesper = 'Comercial';
 
 export function getAppVersion() {
   try {
-    return DeviceInfo.getVersion() || '1.0.4';
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const DeviceInfo = require('react-native-device-info');
+    const getVersion = DeviceInfo?.getVersion || DeviceInfo?.default?.getVersion;
+    return (getVersion ? getVersion() : null) || '1.0.6';
   } catch (_e) {
-    return '1.0.4';
+    return '1.0.6';
   }
 }
 import NetInfo from "@react-native-community/netinfo";

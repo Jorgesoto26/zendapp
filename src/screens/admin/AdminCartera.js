@@ -28,12 +28,14 @@ import { CarteraUserCard } from './components/CarteraUserCard';
 import { HierarchyBreadcrumb } from './components/HierarchyBreadcrumb';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
 import { formatCurrency } from '../../utils/currency';
+import { useTranslation } from '../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
 };
 
 export default function AdminCartera() {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const { userId, signOut } = useAuth();
   const [hierarchyStack, setHierarchyStack] = useState([{ id: userId, name: 'Mi Cartera' }]);
@@ -132,20 +134,13 @@ export default function AdminCartera() {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Cartera</Text>
+          <Text style={styles.headerTitle}>{t('cartera.title')}</Text>
           <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
             {hierarchyStack.length > 1 ? `Equipo: ${currentParent?.name || ''} · ` : ''}
-            Saldos consolidados al corte
+            {t('cartera.subtitle')}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.headerLogoutBtn}
-          onPress={() => setShowLogout(true)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
-        </TouchableOpacity>
       </View>
 
       <BillingAlertBanner />
@@ -161,18 +156,18 @@ export default function AdminCartera() {
       <View style={styles.globalCard}>
         <View style={styles.globalRow}>
           <View>
-            <Text style={styles.globalLabel}>Saldo Total Cartera</Text>
+            <Text style={styles.globalLabel}>{t('cartera.total_portfolio')}</Text>
             <Text style={styles.globalTotal}>{formatMoney(totalSaldo)}</Text>
           </View>
           <View style={styles.globalBadge}>
-            <Text style={styles.globalBadgeText}>{totalCreditos} créditos</Text>
+            <Text style={styles.globalBadgeText}>{totalCreditos} {t('cartera.credits')}</Text>
           </View>
         </View>
 
         <View style={styles.globalDivider} />
 
         <View style={styles.globalSubRow}>
-          <Text style={styles.globalSubLabel}>Total Vencido en Mora:</Text>
+          <Text style={styles.globalSubLabel}>{t('cartera.total_overdue_arrears')}</Text>
           <Text style={[styles.globalSubVal, { color: '#F87171' }]}>
             {formatMoney(totalVencido)}
           </Text>
@@ -184,7 +179,7 @@ export default function AdminCartera() {
         <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar por nombre de usuario..."
+          placeholder={t('cartera.search_placeholder')}
           placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -220,12 +215,12 @@ export default function AdminCartera() {
             <View style={styles.emptyContainer}>
               <Icon name="briefcase" size={44} color={zendapp.colors.border} />
               <Text style={styles.emptyTitle}>
-                {search ? 'Sin coincidencias' : 'Sin créditos registrados'}
+                {search ? t('cartera.no_matches') : t('cartera.no_credits')}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {search
-                  ? `No se encontraron usuarios que coincidan con "${search}"`
-                  : 'No hay cartera registrada en este nivel jerárquico'}
+                  ? t('users.empty_search')
+                  : t('cartera.without_users')}
               </Text>
             </View>
           }

@@ -5,12 +5,14 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { apple } from '../../../theme/appleTheme';
 import { zendapp } from '../../../theme/zendappTheme';
 import { formatCurrency } from '../../../utils/currency';
+import { useTranslation } from '../../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
 };
 
 export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
+  const { t } = useTranslation();
   const isAdmin = user.rol === 'admin';
   const isActive = user.activo !== false;
 
@@ -38,7 +40,7 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
                 <View style={styles.teamBadge}>
                   <Icon name="users" size={10} color="#5856D6" style={{ marginRight: 3 }} />
                   <Text style={styles.teamBadgeText}>
-                    {user.cantidad_subordinados || 0} a cargo
+                    {user.cantidad_subordinados || 0} {t('users.in_charge')}
                   </Text>
                 </View>
               ) : null}
@@ -77,17 +79,17 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
             </View>
             <View style={{ marginLeft: 9, flex: 1 }}>
               <Text style={styles.hierarchyTitle}>
-                Ver equipo a cargo
+                {t('users.view_team')}
               </Text>
               <Text style={styles.hierarchySubtitle}>
                 {user.cantidad_subordinados > 0
-                  ? `${user.cantidad_subordinados} subordinado${user.cantidad_subordinados > 1 ? 's' : ''} directo${user.cantidad_subordinados > 1 ? 's' : ''}`
-                  : 'Sin subordinados asignados'}
+                  ? t('users.subordinates_direct', { count: user.cantidad_subordinados })
+                  : t('users.without_subordinates')}
               </Text>
             </View>
           </View>
           <View style={styles.hierarchyArrow}>
-            <Text style={styles.hierarchyActionText}>Explorar</Text>
+            <Text style={styles.hierarchyActionText}>{t('common.explore')}</Text>
             <Icon name="chevron-right" size={11} color="#5856D6" style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
@@ -97,19 +99,19 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
       <View style={styles.divider} />
       <View style={styles.grid}>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Max Caja</Text>
+          <Text style={styles.gridLabel}>{t('users.max_caja')}</Text>
           <Text style={styles.gridValue}>{formatMoney(user.dinero_max_caja, user.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Max Venta</Text>
+          <Text style={styles.gridLabel}>{t('users.max_venta')}</Text>
           <Text style={styles.gridValue}>{formatMoney(user.dinero_max_venta, user.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Max Gasto</Text>
+          <Text style={styles.gridLabel}>{t('users.max_gasto')}</Text>
           <Text style={styles.gridValue}>{formatMoney(user.dinero_max_gasto, user.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Max Cuotas</Text>
+          <Text style={styles.gridLabel}>{t('users.max_cuotas')}</Text>
           <Text style={styles.gridValue}>{user.max_cuotas || 30}</Text>
         </View>
       </View>
@@ -123,7 +125,7 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
             color={user.permite_borrar_venta ? apple.colors.success : apple.colors.tertiaryLabel}
           />
           <Text style={[styles.flagText, user.permite_borrar_venta && styles.flagTextActive]}>
-            Borrar venta
+            {t('users.delete_sale')}
           </Text>
         </View>
         <View style={styles.flagItem}>
@@ -133,7 +135,7 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
             color={user.permite_modificar_pagos ? apple.colors.success : apple.colors.tertiaryLabel}
           />
           <Text style={[styles.flagText, user.permite_modificar_pagos && styles.flagTextActive]}>
-            Modificar pagos
+            {t('users.modify_payments')}
           </Text>
         </View>
       </View>
@@ -142,7 +144,7 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.btnEdit} onPress={() => onEdit(user)} activeOpacity={0.7}>
           <Icon name="pencil" size={13} color={zendapp.colors.carbon} />
-          <Text style={styles.btnEditText}>Editar</Text>
+          <Text style={styles.btnEditText}>{t('common.edit')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -155,7 +157,7 @@ export const UserCard = ({ user, onEdit, onToggle, onNavigateHierarchy }) => {
             color={isActive ? apple.colors.danger : apple.colors.success}
           />
           <Text style={[styles.btnToggleText, { color: isActive ? apple.colors.danger : apple.colors.success }]}>
-            {isActive ? 'Inhabilitar' : 'Habilitar'}
+            {isActive ? t('users.disable') : t('users.enable')}
           </Text>
         </TouchableOpacity>
       </View>

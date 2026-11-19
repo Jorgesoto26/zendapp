@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { zendapp } from '../../../theme/zendappTheme';
 import { formatCurrency } from '../../../utils/currency';
+import { useTranslation } from '../../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -29,6 +30,7 @@ const formatFechaApertura = (dateStr) => {
 };
 
 export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy }) => {
+  const { t } = useTranslation();
   const isOpen = caja.estado === 'abierta';
   const isAdmin = caja.rol_usuario === 'admin' || caja.rol_usuario === 'superadmin';
   const hasTeam = !isMyCaja && Boolean(isAdmin || caja.tiene_subordinados);
@@ -51,7 +53,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
             <View style={{ marginLeft: 8, flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={styles.userName} numberOfLines={1}>
-                  {caja.nombre_usuario} {isMyCaja ? '(Mi Caja)' : ''}
+                  {caja.nombre_usuario} {isMyCaja ? `(${t('cajas.my_caja')})` : ''}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
@@ -60,7 +62,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
                   <View style={styles.teamBadge}>
                     <Icon name="users" size={10} color={zendapp.colors.carbon} style={{ marginRight: 3 }} />
                     <Text style={styles.teamBadgeText}>
-                      {caja.cantidad_subordinados || 0} a cargo
+                      {caja.cantidad_subordinados || 0} {t('users.in_charge')}
                     </Text>
                   </View>
                 ) : null}
@@ -73,7 +75,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         <View style={[styles.statusBadge, isOpen ? styles.statusBadgeOpen : styles.statusBadgeClosed]}>
           <View style={[styles.statusDot, { backgroundColor: isOpen ? zendapp.colors.success : zendapp.colors.danger }]} />
           <Text style={[styles.statusText, { color: isOpen ? zendapp.colors.success : zendapp.colors.danger }]}>
-            {isOpen ? 'ABIERTA' : 'CERRADA'}
+            {isOpen ? t('cajas.open_upper') : t('cajas.closed_upper')}
           </Text>
         </View>
       </View>
@@ -90,16 +92,16 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
               <Icon name="sitemap" size={12} color={zendapp.colors.primary} />
             </View>
             <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={styles.hierarchyTitle}>Ver cajas del equipo</Text>
+              <Text style={styles.hierarchyTitle}>{t('cajas.view_team_cajas')}</Text>
               <Text style={styles.hierarchySubtitle}>
                 {caja.cantidad_subordinados > 0
-                  ? `${caja.cantidad_subordinados} usuario${caja.cantidad_subordinados > 1 ? 's' : ''} a cargo`
-                  : 'Equipo subordinado'}
+                  ? `${caja.cantidad_subordinados} ${t('cartera.users_in_charge')}`
+                  : t('cartera.without_users')}
               </Text>
             </View>
           </View>
           <View style={styles.hierarchyArrow}>
-            <Text style={styles.hierarchyActionText}>Explorar</Text>
+            <Text style={styles.hierarchyActionText}>{t('common.explore')}</Text>
             <Icon name="chevron-right" size={10} color={zendapp.colors.primary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
@@ -109,7 +111,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
       <View style={styles.fechaRow}>
         <Icon name="calendar-check-o" size={11} color={zendapp.colors.textSecondary} style={{ marginRight: 5 }} />
         <Text style={styles.fechaText}>
-          Apertura: <Text style={styles.fechaBold}>{formatFechaApertura(caja.fecha_apertura)}</Text>
+          {t('cajas.opening_date')} <Text style={styles.fechaBold}>{formatFechaApertura(caja.fecha_apertura)}</Text>
         </Text>
       </View>
 
@@ -117,7 +119,7 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
       {!isAdmin && (
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Progreso de cobro</Text>
+            <Text style={styles.progressLabel}>{t('cajas.collection_progress')}</Text>
             <Text style={styles.progressVal}>{progreso}%</Text>
           </View>
           <View style={styles.progressBarBg}>
@@ -131,11 +133,11 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
       {/* Grid de saldos */}
       <View style={styles.grid}>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Saldo Inicial</Text>
+          <Text style={styles.gridLabel}>{t('cajas.initial_balance')}</Text>
           <Text style={styles.gridVal}>{formatMoney(caja.saldo_inicial, caja.currency_code)}</Text>
         </View>
         <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>{isOpen ? 'Saldo Actual' : 'Saldo Final'}</Text>
+          <Text style={styles.gridLabel}>{isOpen ? t('cajas.current_balance') : t('cajas.final_balance')}</Text>
           <Text style={[styles.gridVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(caja.saldo_final, caja.currency_code)}
           </Text>
@@ -147,13 +149,13 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         /* Tarjeta Administrador: Solo conceptos financieros pertinentes */
         <View style={[styles.grid, { marginTop: 6 }]}>
           <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>Ingresos</Text>
+            <Text style={styles.gridLabel}>{t('cajas.income')}</Text>
             <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
               {formatMoney(caja.valor_ingresos, caja.currency_code)}
             </Text>
           </View>
           <View style={styles.gridItem}>
-            <Text style={styles.gridLabel}>Retiros / Gastos</Text>
+            <Text style={styles.gridLabel}>{t('cajas.withdrawals_expenses')}</Text>
             <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
               {formatMoney(retirosGastos, caja.currency_code)}
             </Text>
@@ -164,11 +166,11 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
         <>
           <View style={[styles.grid, { marginTop: 6 }]}>
             <View style={styles.gridItem}>
-              <Text style={styles.gridLabel}>Debido Cobrar</Text>
+              <Text style={styles.gridLabel}>{t('payments.quota')}</Text>
               <Text style={styles.gridVal}>{formatMoney(caja.valor_debido_cobrar, caja.currency_code)}</Text>
             </View>
             <View style={styles.gridItem}>
-              <Text style={styles.gridLabel}>Recaudado</Text>
+              <Text style={styles.gridLabel}>{t('payments.collection')}</Text>
               <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
                 {formatMoney(caja.valor_recaudado, caja.currency_code)}
               </Text>
@@ -177,11 +179,11 @@ export const CajaCard = ({ caja, isMyCaja = false, onPress, onNavigateHierarchy 
 
           <View style={[styles.grid, { marginTop: 6 }]}>
             <View style={styles.gridItem}>
-              <Text style={styles.gridLabel}>Ventas</Text>
+              <Text style={styles.gridLabel}>{t('movements.sale')}</Text>
               <Text style={styles.gridVal}>{formatMoney(caja.valor_ventas, caja.currency_code)}</Text>
             </View>
             <View style={styles.gridItem}>
-              <Text style={styles.gridLabel}>Gastos</Text>
+              <Text style={styles.gridLabel}>{t('movements.expense')}</Text>
               <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
                 {formatMoney(caja.valor_gastos, caja.currency_code)}
               </Text>

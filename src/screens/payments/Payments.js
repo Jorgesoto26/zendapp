@@ -25,6 +25,7 @@ import { SkeletonList, SkeletonPaymentCard } from '../../components/Skeleton';
 import { calculateCuotasAtrasadas, calculateSaldoVencido } from '../../utils/moraHelper';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 const mapPaymentType = (id) => ({ 1: 'MENSUAL', 2: 'SEMANAL', 3: 'QUINCENAL' }[id] || '—');
 const normalizeClient = (item, clientsByDoc = {}, latestPagoByFactura = {}, cuotasAtrasadasByFactura = {}, saldoVencidoByFactura = {}) => {
@@ -221,6 +222,7 @@ const calculateStats = async (clients) => {
 export default function Payments() {
   const navigation = useNavigation();
   const { signOut, profile } = useAuth();
+  const { t } = useTranslation();
   const userCurrency = profile?.currency_code || 'COP';
   const [showPending, setShowPending] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -398,7 +400,7 @@ export default function Payments() {
                   resizeMode="contain"
                 />
               ) : null}
-              <Text style={styles.largeTitle}>Cartera</Text>
+              <Text style={styles.largeTitle}>{t('payments.title')}</Text>
               <TouchableOpacity
                 onPress={handleSyncAndRefresh}
                 style={styles.syncBtn}
@@ -412,23 +414,15 @@ export default function Payments() {
                   <Icon name="refresh" size={13} color={zendapp.colors.carbon} />
                 )}
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setShowLogout(true)}
-                style={styles.logoutHeaderBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Icon name="sign-out" size={13} color={zendapp.colors.primary} />
-              </TouchableOpacity>
             </View>
             <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
-            <Text style={styles.headerSub}>{filteredClients.length} clientes · {showPending ? 'Por visitar' : 'Tramitados'}</Text>
+            <Text style={styles.headerSub}>{filteredClients.length} {t('payments.clients_label')} · {showPending ? t('payments.to_visit') : t('payments.processed')}</Text>
           </View>
 
           {/* Mini Stats a la derecha del título: Visitas con barra + Recaudo */}
           <View style={styles.headerStats}>
             <View style={styles.statMiniItem}>
-              <Text style={styles.statMiniLabel}>VISITAS</Text>
+              <Text style={styles.statMiniLabel}>{t('payments.visits')}</Text>
               <Text style={styles.statMiniVal}>{stats.processed}<Text style={styles.statMiniMuted}>/{stats.pending}</Text></Text>
               <View style={styles.visitasBarBg}>
                 <View style={[styles.visitasBarFill, { width: `${stats.progress}%` }]} />
@@ -437,7 +431,7 @@ export default function Payments() {
             <View style={styles.statMiniSep} />
             <View style={styles.statMiniItem}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={styles.statMiniLabel}>RECAUDO</Text>
+                <Text style={styles.statMiniLabel}>{t('payments.collection')}</Text>
                 <View style={styles.percentBadge}>
                   <Text style={styles.percentText}>{stats.progress}%</Text>
                 </View>
@@ -455,7 +449,7 @@ export default function Payments() {
           <Icon name="search" size={13} color={zendapp.colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Buscar cliente..."
+            placeholder={t('payments.search_client')}
             placeholderTextColor={zendapp.colors.textMuted}
             value={searchText}
             onChangeText={setSearchText}
@@ -474,13 +468,13 @@ export default function Payments() {
           options={[
             {
               key: 'pendientes',
-              label: 'Por visitar',
+              label: t('payments.to_visit'),
               icon: 'clock-o',
               badge: clients.filter(c => c.estadoMovil === 'pendiente' && c.saldo > 0).length,
             },
             {
               key: 'tramitados',
-              label: 'Tramitados',
+              label: t('payments.processed'),
               icon: 'check-circle',
               badge: clients.filter(c => c.estadoMovil === 'actualizado').length,
             },

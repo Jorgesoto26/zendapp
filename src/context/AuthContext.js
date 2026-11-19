@@ -299,6 +299,17 @@ export function AuthProvider({ children }) {
     return true;
   }, []);
 
+  const refreshBillingStatus = useCallback(async () => {
+    try {
+      const bStatus = await getBillingStatus();
+      if (bStatus) setBillingStatus(bStatus);
+      return bStatus;
+    } catch (e) {
+      console.log('Error refreshing billing status:', e);
+      return null;
+    }
+  }, []);
+
   const value = {
     session,
     profile,
@@ -310,9 +321,10 @@ export function AuthProvider({ children }) {
     signOut,
     setAuthSession,
     billingStatus,
+    billingConfig: billingStatus?.config || null,
     isReadOnly: billingStatus?.is_read_only === true,
     isSuspended: billingStatus?.is_suspended === true,
-    refreshBillingStatus: refreshProfile,
+    refreshBillingStatus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

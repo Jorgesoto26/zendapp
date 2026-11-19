@@ -29,6 +29,13 @@ const mockUseAuth = jest.fn();
 jest.mock('../src/context/AuthContext', () => ({
   useAuth: () => mockUseAuth(),
 }));
+jest.mock('../src/i18n', () => ({
+  useTranslation: () => ({
+    t: (key, opts) => key,
+    language: 'es',
+    changeLanguage: jest.fn(),
+  }),
+}));
 
 import BillingAlertBanner from '../src/components/BillingAlertBanner';
 

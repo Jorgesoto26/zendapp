@@ -44,10 +44,12 @@ import { SkeletonItem } from '../../components/Skeleton';
 import { pickImage } from '../../services/multimediaService';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 export default function MovementsScreen() {
   const navigation = useNavigation();
   const { profile, userId, isReadOnly } = useAuth();
+  const { t } = useTranslation();
   const userCurrency = profile?.currency_code || 'COP';
 
   const [caja, setCaja] = useState(null);
@@ -628,10 +630,10 @@ export default function MovementsScreen() {
       <SafeAreaView style={styles.root}>
         <AppBackground />
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Movimientos</Text>
+          <Text style={styles.headerTitle}>{t('movements.title')}</Text>
           <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSub}>
-            {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
+            {caja ? `${t('movements.active_caja')} ${String(caja.id || '').slice(0, 8)}...` : t('movements.no_open_caja')}
           </Text>
         </View>
         <View style={{ padding: 16 }}>
@@ -659,10 +661,10 @@ export default function MovementsScreen() {
       <AppBackground />
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Movimientos</Text>
+        <Text style={styles.headerTitle}>{t('movements.title')}</Text>
         <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
         <Text style={styles.headerSub}>
-          {caja ? `Caja activa: ${String(caja.id || '').slice(0, 8)}...` : 'Sin caja abierta'}
+          {caja ? `${t('movements.active_caja')} ${String(caja.id || '').slice(0, 8)}...` : t('movements.no_open_caja')}
         </Text>
       </View>
 
@@ -675,7 +677,7 @@ export default function MovementsScreen() {
             <Icon name="search" size={13} color={apple.colors.tertiaryLabel} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Buscar movimiento o cliente..."
+              placeholder={t('movements.search_placeholder')}
               placeholderTextColor={apple.colors.tertiaryLabel}
               value={search}
               onChangeText={setSearch}
@@ -765,9 +767,9 @@ export default function MovementsScreen() {
             <Text style={styles.label}>Tipo de movimiento</Text>
             <AnimatedSegmentedControl
               options={[
-                { key: 'ingreso', label: 'Ingreso' },
-                { key: 'retiro', label: 'Retiro' },
-                { key: 'gasto', label: 'Gasto' },
+                { key: 'ingreso', label: t('movements.income') },
+                { key: 'retiro', label: t('movements.withdrawal') },
+                { key: 'gasto', label: t('movements.expense') },
               ]}
               selectedKey={formTipo}
               onChange={(t) => setFormTipo(t)}

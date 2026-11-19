@@ -25,6 +25,7 @@ import { getAdminMorosos, castigarCartera } from '../../services/adminService';
 import { formatCurrency } from '../../utils/currency';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -40,6 +41,7 @@ const formatDate = (isoStr) => {
 export default function AdminMorosos() {
   const navigation = useNavigation();
   const { signOut, isReadOnly } = useAuth();
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [search, setSearch] = useState('');
@@ -132,13 +134,6 @@ export default function AdminMorosos() {
           <View style={styles.badgeTop}>
             <Text style={styles.badgeTopText}>{items.length} en mora</Text>
           </View>
-          <TouchableOpacity
-            style={styles.headerLogoutBtn}
-            onPress={() => setShowLogout(true)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -160,7 +155,7 @@ export default function AdminMorosos() {
         <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar por cliente o vendedor..."
+          placeholder={t('morosos.search_placeholder')}
           placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -189,12 +184,12 @@ export default function AdminMorosos() {
                     {item.nombre_cliente} {item.apellido_cliente || ''}
                   </Text>
                   <Text style={styles.vendedorText}>
-                    Vendedor: <Text style={{ fontWeight: '600', color: zendapp.colors.carbon }}>{item.nombre_vendedor}</Text>
+                    {t('morosos.vendor')} <Text style={{ fontWeight: '600', color: zendapp.colors.carbon }}>{item.nombre_vendedor}</Text>
                   </Text>
                 </View>
                 <View style={styles.moraWrap}>
                   <Text style={styles.moraVal}>{formatMoney(item.saldo_vencido)}</Text>
-                  <Text style={styles.moraLabel}>Mora Vencida</Text>
+                  <Text style={styles.moraLabel}>{t('morosos.overdue_arrears')}</Text>
                 </View>
               </View>
 
@@ -202,17 +197,17 @@ export default function AdminMorosos() {
 
               <View style={styles.grid}>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Saldo Total</Text>
+                  <Text style={styles.gridLabel}>{t('morosos.total_balance')}</Text>
                   <Text style={styles.gridVal}>{formatMoney(item.saldo)}</Text>
                 </View>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Cuotas Vencidas</Text>
+                  <Text style={styles.gridLabel}>{t('morosos.overdue_quotas')}</Text>
                   <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
-                    {item.cuotas_vencidas} de {item.cuotas_totales}
+                    {item.cuotas_vencidas} / {item.cuotas_totales}
                   </Text>
                 </View>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Último Pago</Text>
+                  <Text style={styles.gridLabel}>{t('morosos.last_payment')}</Text>
                   <Text style={styles.gridVal}>{formatDate(item.fecha_ultimo_pago)}</Text>
                 </View>
               </View>
@@ -224,14 +219,14 @@ export default function AdminMorosos() {
                   onPress={() => handleCastigar(item)}
                 >
                   <Icon name="ban" size={12} color={zendapp.colors.primary} />
-                  <Text style={styles.btnCastigarText}>Castigar Cartera</Text>
+                  <Text style={styles.btnCastigarText}>{t('morosos.write_off')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.btnVer}
                   onPress={() => handleOpenCredit(item)}
                 >
-                  <Text style={styles.btnVerText}>Ver Crédito</Text>
+                  <Text style={styles.btnVerText}>{t('morosos.view_credit')}</Text>
                   <Icon name="arrow-right" size={12} color={zendapp.colors.primary} style={{ marginLeft: 6 }} />
                 </TouchableOpacity>
               </View>
@@ -243,8 +238,8 @@ export default function AdminMorosos() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="check-circle" size={48} color={zendapp.colors.success} />
-              <Text style={styles.emptyTitle}>Excelente: sin cartera morosa</Text>
-              <Text style={styles.emptySubtitle}>No se registran créditos con cuotas vencidas</Text>
+              <Text style={styles.emptyTitle}>{t('morosos.excellent_no_arrears')}</Text>
+              <Text style={styles.emptySubtitle}>{t('morosos.no_overdue_credits')}</Text>
             </View>
           }
         />

@@ -4,12 +4,14 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { zendapp } from '../../../theme/zendappTheme';
 import { formatCurrency } from '../../../utils/currency';
+import { useTranslation } from '../../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
 };
 
 export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
+  const { t } = useTranslation();
   const isAdmin = item.rol === 'admin';
   const isActive = item.activo !== false;
   const hasTeam = Boolean(isAdmin || item.tiene_subordinados);
@@ -49,12 +51,12 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
                 <View style={styles.teamBadge}>
                   <Icon name="users" size={10} color={zendapp.colors.carbon} style={{ marginRight: 3 }} />
                   <Text style={styles.teamBadgeText}>
-                    {item.cantidad_subordinados || 0} a cargo
+                    {item.cantidad_subordinados || 0} {t('cartera.users_in_charge')}
                   </Text>
                 </View>
               ) : null}
               <Text style={styles.creditsCount}>
-                {item.total_creditos || 0} créditos
+                {item.total_creditos || 0} {t('cartera.credits')}
               </Text>
             </View>
           </View>
@@ -78,16 +80,16 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
               <Icon name="sitemap" size={12} color={zendapp.colors.primary} />
             </View>
             <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={styles.hierarchyTitle}>Ver cartera del equipo</Text>
+              <Text style={styles.hierarchyTitle}>{t('cartera.view_team_portfolio')}</Text>
               <Text style={styles.hierarchySubtitle}>
                 {item.cantidad_subordinados > 0
-                  ? `${item.cantidad_subordinados} usuario${item.cantidad_subordinados > 1 ? 's' : ''} a cargo`
-                  : 'Sin usuarios asignados'}
+                  ? `${item.cantidad_subordinados} ${t('cartera.users_in_charge')}`
+                  : t('cartera.without_users')}
               </Text>
             </View>
           </View>
           <View style={styles.hierarchyArrow}>
-            <Text style={styles.hierarchyActionText}>Explorar</Text>
+            <Text style={styles.hierarchyActionText}>{t('common.explore')}</Text>
             <Icon name="chevron-right" size={10} color={zendapp.colors.primary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
@@ -98,11 +100,11 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
       {/* Métricas de Cartera */}
       <View style={styles.metricRow}>
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>Clientes con Saldo</Text>
+          <Text style={styles.metricLabel}>{t('cartera.clients_with_balance')}</Text>
           <Text style={styles.metricVal}>{item.clientes_con_saldo || 0}</Text>
         </View>
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>Cuota Periódica</Text>
+          <Text style={styles.metricLabel}>{t('cartera.periodic_quota')}</Text>
           <Text style={[styles.metricVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(item.valor_cuota_periodica)}
           </Text>
@@ -111,19 +113,19 @@ export const CarteraUserCard = ({ item, onPress, onNavigateHierarchy }) => {
 
       <View style={[styles.metricRow, { marginTop: 8 }]}>
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>Saldo Vencido</Text>
+          <Text style={styles.metricLabel}>{t('cartera.overdue_balance')}</Text>
           <Text style={[styles.metricVal, { color: zendapp.colors.danger }]}>
             {formatMoney(item.saldo_vencido)}
           </Text>
         </View>
         <View style={styles.metricItem}>
-          <Text style={styles.metricLabel}>Total Cartera</Text>
+          <Text style={styles.metricLabel}>{t('cartera.total_portfolio')}</Text>
           <Text style={styles.metricVal}>{formatMoney(item.valor_total_cartera)}</Text>
         </View>
       </View>
 
       <View style={styles.totalBanner}>
-        <Text style={styles.totalBannerLabel}>Saldo Total por Cobrar:</Text>
+        <Text style={styles.totalBannerLabel}>{t('cartera.total_pending_balance')}</Text>
         <Text style={styles.totalBannerVal}>{formatMoney(item.saldo_total)}</Text>
       </View>
     </TouchableOpacity>

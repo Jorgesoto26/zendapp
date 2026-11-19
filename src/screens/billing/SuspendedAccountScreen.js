@@ -22,8 +22,10 @@ import { zendapp } from '../../theme/zendappTheme';
 import { appAlert } from '../../components/AppAlert';
 import BillingEvidencePicker from '../../components/BillingEvidencePicker';
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
+import { useTranslation } from '../../i18n';
 
 export default function SuspendedAccountScreen() {
+  const { t } = useTranslation();
   const { billingStatus, signOut, refreshBillingStatus, rol } = useAuth() || {};
   const [evidence, setEvidence] = useState(null);
   const [confirming, setConfirming] = useState(false);
@@ -31,8 +33,15 @@ export default function SuspendedAccountScreen() {
 
   const config = billingStatus?.config || {};
   const factura = billingStatus?.factura_actual;
-  const total = factura ? Number(factura.total || 0) : 0;
-  const numRutas = factura ? Number(factura.num_vendedores || 0) : 0;
+  const diaFacturacion = config.dia_facturacion || 28;
+  const numRutas = factura
+    ? Number(factura.num_vendedores || 0)
+    : Number(billingStatus?.num_rutas_activas || 0);
+  const total = factura
+    ? Number(factura.total || 0)
+    : (billingStatus?.total_estimado != null
+      ? Number(billingStatus.total_estimado)
+      : numRutas * Number(config.precio_por_ruta || 0));
   const isConfirmado = factura?.estado === 'confirmado_cliente';
   const isAdmin = rol === 'admin' || rol === 'superadmin';
 
@@ -41,21 +50,21 @@ export default function SuspendedAccountScreen() {
     Clipboard.setString(acc);
     Toast.show({
       type: 'success',
-      text1: 'Número de cuenta copiado',
-      text2: 'Listo para pegar en tu app bancaria',
+      text1: t('billing.account_copied'),
+      text2: '',
       position: 'bottom',
     });
   };
 
   const handleConfirmPayment = async () => {
     if (!factura?.id) {
-      appAlert('Error', 'No hay una factura pendiente identificada.');
+      appAlert(t('common.error'), 'No pending invoice found.');
       return;
     }
     if (!evidence) {
       appAlert(
-        'Comprobante requerido',
-        'Por favor toma una fotografía o selecciona la imagen del comprobante de transferencia para reactivar tu cuenta.'
+        t('billing.voucher_required'),
+        t('billing.voucher_required_msg')
       );
       return;
     }
@@ -82,13 +91,13 @@ export default function SuspendedAccountScreen() {
 
       await confirmBillingPayment(factura.id, 'Evidencia adjunta', comprobanteUrl);
       appAlert(
-        'Pago Reportado',
-        'Tu comprobante ha sido enviado a Zenda Manager. Tu cuenta será reactivada una vez validada la transferencia.'
+        t('billing.voucher_sent'),
+        t('billing.voucher_sent_msg')
       );
       setEvidence(null);
       if (refreshBillingStatus) await refreshBillingStatus();
     } catch (e) {
-      appAlert('Error', e.message || 'No se pudo reportar el pago.');
+      appAlert(t('common.error'), e.message || 'Error');
     } finally {
       setConfirming(false);
     }
@@ -102,38 +111,44 @@ export default function SuspendedAccountScreen() {
           <View style={styles.iconCircle}>
             <Icon name="lock" size={32} color="#DC2626" />
           </View>
-          <Text style={styles.title}>Cuenta Suspendida</Text>
+          <Text style={styles.title}>{t('billing.suspended_title')}</Text>
           <Text style={styles.subtitle}>
-            El acceso a las funciones de Zendapp ha sido restringido por superar 18 días de mora en la suscripción mensual.
+            {t('billing.suspended_sub')}
           </Text>
         </View>
 
         {/* Resumen de Deuda */}
         <View style={styles.debtCard}>
           <View style={styles.debtHeader}>
-            <Text style={styles.debtLabel}>TOTAL PENDIENTE DE PAGO</Text>
+            <Text style={styles.debtLabel}>{t('billing.total_to_pay')}</Text>
             <Text style={styles.debtTotal}>{FormatMoneyDecimales(total, 'COP')}</Text>
           </View>
           <View style={styles.debtDetailRow}>
-            <Text style={styles.debtDetailLabel}>Rutas facturadas:</Text>
-            <Text style={styles.debtDetailVal}>{numRutas} vendedores activos</Text>
+            <Text style={styles.debtDetailLabel}>{t('billing.active_routes')}</Text>
+            <Text style={styles.debtDetailVal}>
+              {numRutas === 1
+                ? t('billing.vendors_count_one', { count: numRutas })
+                : t('billing.vendors_count_many', { count: numRutas })}
+            </Text>
           </View>
           <View style={styles.debtDetailRow}>
-            <Text style={styles.debtDetailLabel}>Fecha límite vencida:</Text>
-            <Text style={styles.debtDetailVal}>28 de cada mes</Text>
+            <Text style={styles.debtDetailLabel}>{t('billing.cut_date')}</Text>
+            <Text style={styles.debtDetailVal}>
+              {t('billing.cut_day_notice', { day: diaFacturacion })}
+            </Text>
           </View>
         </View>
 
         {/* Datos Bancarios */}
         <View style={styles.bankCard}>
-          <Text style={styles.bankTitle}>Datos para Transferencia Inmediata</Text>
-          <Text style={styles.bankSub}>Realiza el pago a la siguiente cuenta oficial:</Text>
+          <Text style={styles.bankTitle}>{t('billing.account_details')}</Text>
+          <Text style={styles.bankSub}>{t('billing.bank_account_co')}:</Text>
 
           <View style={styles.accountBox}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.bankName}>{config.banco || 'Bancolombia'} · {config.tipo_cuenta || 'Ahorros'}</Text>
-              <Text style={styles.accountNum}>{config.numero_cuenta || '123-456789-00'}</Text>
-              <Text style={styles.titularText}>{config.titular_cuenta || 'REACTIVA S.A.S'} ({config.nit_titular || 'NIT'})</Text>
+              <Text style={styles.bankName}>{config.banco || '—'} · {config.tipo_cuenta || '—'}</Text>
+              <Text style={styles.accountNum}>{config.numero_cuenta || '—'}</Text>
+              <Text style={styles.titularText}>{config.titular_cuenta || '—'} {config.nit_titular ? `(${config.nit_titular})` : ''}</Text>
             </View>
             <TouchableOpacity
               style={styles.copyBtn}
@@ -141,7 +156,7 @@ export default function SuspendedAccountScreen() {
               activeOpacity={0.7}
             >
               <Icon name="copy" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
-              <Text style={styles.copyBtnText}>Copiar</Text>
+              <Text style={styles.copyBtnText}>{t('billing.copy')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -150,9 +165,9 @@ export default function SuspendedAccountScreen() {
         {isConfirmado ? (
           <View style={styles.pendingCard}>
             <Icon name="hourglass-half" size={24} color="#D97706" style={{ marginBottom: 6 }} />
-            <Text style={styles.pendingTitle}>Pago en proceso de validación</Text>
+            <Text style={styles.pendingTitle}>{t('billing.in_review_title')}</Text>
             <Text style={styles.pendingSub}>
-              Ya enviaste tu reporte de pago. El equipo de Zenda Manager validará la transferencia para restaurar el acceso.
+              {t('billing.in_review_sub')}
             </Text>
             {factura?.comprobante_url ? (
               <TouchableOpacity
@@ -161,15 +176,15 @@ export default function SuspendedAccountScreen() {
                 activeOpacity={0.8}
               >
                 <Icon name="file-image-o" size={13} color="#B45309" style={{ marginRight: 6 }} />
-                <Text style={styles.viewEvidenceBtnText}>Ver comprobante enviado</Text>
+                <Text style={styles.viewEvidenceBtnText}>{t('billing.view_sent_evidence')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
         ) : isAdmin ? (
           <View style={styles.actionCard}>
-            <Text style={styles.actionTitle}>¿Ya realizaste la transferencia?</Text>
+            <Text style={styles.actionTitle}>{t('billing.confirm_title')}</Text>
             <Text style={styles.actionSub}>
-              Toma una fotografía o selecciona la captura del comprobante bancario para reactivar tu cuenta.
+              {t('billing.confirm_sub')}
             </Text>
 
             <BillingEvidencePicker
@@ -190,7 +205,7 @@ export default function SuspendedAccountScreen() {
               ) : (
                 <>
                   <Icon name="check" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.confirmBtnText}>Notificar pago para reactivación</Text>
+                  <Text style={styles.confirmBtnText}>{t('billing.confirm_btn')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -208,7 +223,7 @@ export default function SuspendedAccountScreen() {
         {/* Botón de Cerrar Sesión */}
         <TouchableOpacity style={styles.logoutBtn} onPress={signOut} activeOpacity={0.7}>
           <Icon name="sign-out" size={14} color="#667085" style={{ marginRight: 6 }} />
-          <Text style={styles.logoutBtnText}>Cerrar Sesión</Text>
+          <Text style={styles.logoutBtnText}>{t('common.logout')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -219,7 +234,7 @@ export default function SuspendedAccountScreen() {
         <EvidencePreviewModal
           visible={showEvidenceViewer}
           onClose={() => setShowEvidenceViewer(false)}
-          title="Comprobante Enviado"
+          title={t('billing.voucher_sent')}
           filePath={factura.comprobante_url}
           readOnly={true}
         />

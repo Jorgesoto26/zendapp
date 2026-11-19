@@ -32,8 +32,10 @@ import {
 } from '../../../services/geoService';
 import { getDbConnection } from '../../../database/db';
 import { appAlert } from '../../../components/AppAlert';
+import { useTranslation } from '../../../i18n';
 
 export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
+  const { t } = useTranslation();
   const isEditing = !!editingUser;
 
   const [nombre, setNombre] = useState('');
@@ -399,7 +401,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}
+              {isEditing ? t('users.edit_user') : t('users.new_user')}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Icon name="times" size={18} color={apple.colors.secondaryLabel} />
@@ -673,7 +675,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
             {/* 6. Permisos Especiales */}
             <Text style={styles.sectionTitle}>5. Permisos Especiales</Text>
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>Permite borrar venta</Text>
+              <Text style={styles.switchLabel}>{t('users.allow_delete_sale')}</Text>
               <Switch
                 value={permiteBorrarVenta}
                 onValueChange={setPermiteBorrarVenta}
@@ -683,7 +685,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
             </View>
 
             <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>Permite modificar pagos</Text>
+              <Text style={styles.switchLabel}>{t('users.allow_modify_payments')}</Text>
               <Switch
                 value={permiteModificarPagos}
                 onValueChange={setPermiteModificarPagos}
@@ -696,7 +698,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
           {/* Footer Actions */}
           <View style={styles.footer}>
             <TouchableOpacity style={styles.btnCancel} onPress={onClose}>
-              <Text style={styles.btnCancelText}>Cancelar</Text>
+              <Text style={styles.btnCancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -705,7 +707,7 @@ export const UserModal = ({ visible, onClose, onSave, editingUser = null }) => {
               disabled={loading}
             >
               <Text style={styles.btnSubmitText}>
-                {loading ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Usuario'}
+                {loading ? t('common.saving') : isEditing ? t('users.save_changes') : t('users.create_user')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -26,6 +26,7 @@ import { formatCurrency } from '../../utils/currency';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
 import BillingSection from './components/BillingSection';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
@@ -43,6 +44,7 @@ const getFirstDayOfMonthIso = () => {
 
 export default function AdminReportes() {
   const { signOut } = useAuth();
+  const { t } = useTranslation();
   const [fechaIni, setFechaIni] = useState(getFirstDayOfMonthIso());
   const [fechaFin, setFechaFin] = useState(getTodayIso());
   const [tipo, setTipo] = useState('consolidado'); // 'consolidado', 'gasto', 'movimiento'
@@ -112,29 +114,22 @@ Generado el: ${new Date().toLocaleString('es-CO')}
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Reportes</Text>
+          <Text style={styles.headerTitle}>{t('reports.title')}</Text>
           <UserHeaderBadge style={{ marginTop: 2, marginBottom: 1 }} />
           <Text style={styles.headerSubtitle}>
-            Consolidado por periodo y vendedor
+            {t('reports.subtitle')}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.headerLogoutBtn}
-          onPress={() => setShowLogout(true)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Icon name="sign-out" size={16} color={zendapp.colors.primary} />
-        </TouchableOpacity>
       </View>
 
       {/* Selector de Tipo */}
         <View style={{ marginHorizontal: 16, marginVertical: 6 }}>
           <AnimatedSegmentedControl
             options={[
-              { key: 'consolidado', label: 'Consolidado' },
-              { key: 'gasto', label: 'Gastos' },
-              { key: 'movimiento', label: 'Movimientos' },
-              { key: 'facturacion', label: 'Facturación' },
+              { key: 'consolidado', label: t('reports.tab_consolidated') },
+              { key: 'gasto', label: t('reports.tab_expenses') },
+              { key: 'movimiento', label: t('reports.tab_movements') },
+              { key: 'facturacion', label: t('reports.tab_billing') },
             ]}
             selectedKey={tipo}
             onChange={(key) => setTipo(key)}
@@ -153,28 +148,28 @@ Generado el: ${new Date().toLocaleString('es-CO')}
       <View style={styles.dateBar}>
         <Icon name="calendar" size={14} color={zendapp.colors.primary} />
         <Text style={styles.dateText}>
-          {fechaIni} al {fechaFin}
+          {fechaIni} {t('common.to')} {fechaFin}
         </Text>
       </View>
 
       {/* Resumen Global */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>Recaudado</Text>
+          <Text style={styles.summaryLabel}>{t('payments.collection')}</Text>
           <Text style={[styles.summaryVal, { color: zendapp.colors.success }]}>
             {formatMoney(totalRecaudado)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>Ventas</Text>
+          <Text style={styles.summaryLabel}>{t('movements.sale')}</Text>
           <Text style={[styles.summaryVal, { color: zendapp.colors.carbon }]}>
             {formatMoney(totalVentas)}
           </Text>
         </View>
         <View style={styles.summaryDivider} />
         <View style={styles.summaryCol}>
-          <Text style={styles.summaryLabel}>Gastos</Text>
+          <Text style={styles.summaryLabel}>{t('movements.expense')}</Text>
           <Text style={[styles.summaryVal, { color: zendapp.colors.danger }]}>
             {formatMoney(totalGastos)}
           </Text>
@@ -204,7 +199,7 @@ Generado el: ${new Date().toLocaleString('es-CO')}
                   onPress={() => handleExport(item)}
                 >
                   <Icon name="file-pdf-o" size={12} color={zendapp.colors.primary} />
-                  <Text style={styles.btnExportText}>Exportar</Text>
+                  <Text style={styles.btnExportText}>{t('reports.export')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -212,17 +207,17 @@ Generado el: ${new Date().toLocaleString('es-CO')}
 
               <View style={styles.grid}>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Recaudado</Text>
+                  <Text style={styles.gridLabel}>{t('payments.collection')}</Text>
                   <Text style={[styles.gridVal, { color: zendapp.colors.success }]}>
                     {formatMoney(item.total_recaudado)}
                   </Text>
                 </View>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Ventas</Text>
+                  <Text style={styles.gridLabel}>{t('movements.sale')}</Text>
                   <Text style={styles.gridVal}>{formatMoney(item.total_ventas)}</Text>
                 </View>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Gastos</Text>
+                  <Text style={styles.gridLabel}>{t('movements.expense')}</Text>
                   <Text style={[styles.gridVal, { color: zendapp.colors.danger }]}>
                     {formatMoney(item.total_gastos)}
                   </Text>
@@ -231,15 +226,15 @@ Generado el: ${new Date().toLocaleString('es-CO')}
 
               <View style={[styles.grid, { marginTop: 6 }]}>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Ingresos</Text>
+                  <Text style={styles.gridLabel}>{t('movements.income')}</Text>
                   <Text style={styles.gridVal}>{formatMoney(item.total_ingresos)}</Text>
                 </View>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>Retiros</Text>
+                  <Text style={styles.gridLabel}>{t('movements.withdrawal')}</Text>
                   <Text style={styles.gridVal}>{formatMoney(item.total_retiros)}</Text>
                 </View>
                 <View style={styles.gridItem}>
-                  <Text style={styles.gridLabel}>No Pagos</Text>
+                  <Text style={styles.gridLabel}>{t('reports.no_payments')}</Text>
                   <Text style={styles.gridVal}>{item.total_nopagos}</Text>
                 </View>
               </View>
@@ -251,8 +246,8 @@ Generado el: ${new Date().toLocaleString('es-CO')}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="bar-chart" size={44} color={zendapp.colors.border} />
-              <Text style={styles.emptyTitle}>Sin datos</Text>
-              <Text style={styles.emptySubtitle}>No hay información para el rango de fechas seleccionado</Text>
+              <Text style={styles.emptyTitle}>{t('reports.no_data')}</Text>
+              <Text style={styles.emptySubtitle}>{t('reports.no_data_sub')}</Text>
             </View>
           }
         />

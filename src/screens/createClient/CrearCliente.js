@@ -49,6 +49,7 @@ import {
 import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 import UserHeaderBadge from '../../components/UserHeaderBadge';
 import BillingAlertBanner from '../../components/BillingAlertBanner';
+import { useTranslation } from '../../i18n';
 
 /**
  * Agrega meses a una fecha respetando la cantidad de días de cada mes (ej. 31 de enero -> 28/29 feb)
@@ -101,6 +102,7 @@ const FormField = React.memo(({
 ));
 
 const CrearCliente = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const route = useRoute();
   const { userId, profile, isReadOnly } = useAuth();
@@ -709,7 +711,7 @@ const CrearCliente = () => {
 
       // 11. Sincronizar en segundo plano si hay red
       try {
-        SyncWithSupabase(false, () => {});
+        SyncWithSupabase(false, () => { });
       } catch (err) {
         console.log('Error disparando sync:', err);
       }
@@ -717,8 +719,8 @@ const CrearCliente = () => {
       const mensajeConfirmacion = pagoAdelantado
         ? `El crédito para ${clienteDesc} quedó registrado con la 1ª cuota abonada para el próximo día de recaudo (${proximoRecaudoStr}). Saldo a cobrar: ${FormatMoneyDecimales(saldoInicialFactura, userCurrency)}.`
         : previousInvoiceId
-        ? `La renovación de crédito para ${clienteDesc} quedó registrada exitosamente.`
-        : `El crédito para ${clienteDesc} quedó registrado exitosamente.`;
+          ? `La renovación de crédito para ${clienteDesc} quedó registrada exitosamente.`
+          : `El crédito para ${clienteDesc} quedó registrado exitosamente.`;
 
       appAlert('¡Venta registrada exitosamente!', mensajeConfirmacion);
 
@@ -760,10 +762,10 @@ const CrearCliente = () => {
 
   // Cuota label según periodicidad
   const cuotasLabel = useMemo(() => {
-    if (periodicidad === 'semanal') return 'Cantidad de cuotas (Semanas) *';
-    if (periodicidad === 'mensual') return 'Cantidad de cuotas (Meses) *';
-    return 'Cantidad de cuotas (Días) *';
-  }, [periodicidad]);
+    if (periodicidad === 'semanal') return t('create_sale.installments_weeks');
+    if (periodicidad === 'mensual') return t('create_sale.installments_months');
+    return t('create_sale.installments_days');
+  }, [periodicidad, t]);
 
   return (
     <SafeAreaView style={styles.root}>
@@ -795,7 +797,7 @@ const CrearCliente = () => {
                 }}
               >
                 <Icon name="history" size={13} color="#EE272D" />
-                <Text style={styles.renewBtnText}>Renovar crédito saldado</Text>
+                <Text style={styles.renewBtnText}>{t('create_sale.renew_paid_credit')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -808,7 +810,7 @@ const CrearCliente = () => {
                   <Icon name="refresh" size={14} color="#EE272D" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.renewalBannerTitle}>Renovando crédito existente</Text>
+                  <Text style={styles.renewalBannerTitle}>{t('create_sale.renewing_credit')}</Text>
                   <Text style={styles.renewalBannerSub}>{renewalClientName} (Doc: {formData.documento})</Text>
                 </View>
                 <TouchableOpacity onPress={handleClearRenewal} style={styles.renewalClearBtn}>
@@ -817,7 +819,7 @@ const CrearCliente = () => {
               </View>
             )}
 
-            <Text style={styles.pageTitle}>{previousInvoiceId ? 'Renovación de Crédito' : 'Crear cliente y crédito'}</Text>
+            <Text style={styles.pageTitle}>{previousInvoiceId ? t('create_sale.renew_title') : t('create_sale.create_title')}</Text>
             <Text style={styles.pageSub}>
               {previousInvoiceId
                 ? 'Los datos personales fueron precargados del crédito anterior. Define el nuevo monto, plazo e interés.'
@@ -830,11 +832,11 @@ const CrearCliente = () => {
                 <View style={[styles.sectionIcon, { backgroundColor: '#FEF2F2' }]}>
                   <Icon name="user" size={14} color="#EE272D" />
                 </View>
-                <Text style={styles.sectionTitle}>Información personal</Text>
+                <Text style={styles.sectionTitle}>{t('create_sale.personal_info')}</Text>
               </View>
 
               <FormField
-                label="Nombre *"
+                label={t('create_sale.first_name_req')}
                 value={formData.nombre}
                 onChangeText={t => handleChange('nombre', t)}
                 placeholder="Ej. Carlos"
@@ -842,7 +844,7 @@ const CrearCliente = () => {
                 editable={!previousInvoiceId}
               />
               <FormField
-                label="Apellido *"
+                label={t('create_sale.last_name_req')}
                 value={formData.apellido}
                 onChangeText={t => handleChange('apellido', t)}
                 placeholder="Ej. Ramírez"
@@ -850,22 +852,22 @@ const CrearCliente = () => {
                 editable={!previousInvoiceId}
               />
               <FormField
-                label="Alias"
+                label={t('create_sale.alias')}
                 value={formData.alias}
                 onChangeText={t => handleChange('alias', t)}
                 placeholder="Ej. carlosr"
                 icon="star-o"
               />
 
-              <Text style={styles.fieldLabel}>Género *</Text>
-                <AnimatedSegmentedControl
-                  options={[
-                    { key: 'masculino', label: 'Masculino' },
-                    { key: 'femenino', label: 'Femenino' },
-                  ]}
-                  selectedKey={formData.genero || 'masculino'}
-                  onChange={handleGeneroChange}
-                />
+              <Text style={styles.fieldLabel}>{t('create_sale.gender')}</Text>
+              <AnimatedSegmentedControl
+                options={[
+                  { key: 'masculino', label: t('create_sale.male') },
+                  { key: 'femenino', label: t('create_sale.female') },
+                ]}
+                selectedKey={formData.genero || 'masculino'}
+                onChange={handleGeneroChange}
+              />
             </View>
 
             {/* Seccion 2: Contacto, Documento y Fotografía */}
@@ -874,18 +876,18 @@ const CrearCliente = () => {
                 <View style={[styles.sectionIcon, { backgroundColor: '#ECFDF5' }]}>
                   <Icon name="map-marker" size={14} color="#10B981" />
                 </View>
-                <Text style={styles.sectionTitle}>Contacto y Documento</Text>
+                <Text style={styles.sectionTitle}>{t('create_sale.contact_document')}</Text>
               </View>
 
               <FormField
-                label="Dirección *"
+                label={t('create_sale.address_req')}
                 value={formData.direccion}
                 onChangeText={t => handleChange('direccion', t)}
                 placeholder="Calle 123 #45-67"
                 icon="home"
               />
               <FormField
-                label="Teléfono * (10 a 12 dígitos)"
+                label={t('create_sale.phone_req')}
                 value={formData.telefono}
                 onChangeText={t => handleChange('telefono', t)}
                 placeholder="Ej. 3112345678"
@@ -896,7 +898,7 @@ const CrearCliente = () => {
                 error={telError}
               />
               <FormField
-                label="Documento * (6 a 12 caracteres)"
+                label={t('create_sale.document_req')}
                 value={formData.documento}
                 onChangeText={t => handleChange('documento', t)}
                 placeholder="CC / NIT"
@@ -909,7 +911,7 @@ const CrearCliente = () => {
               />
 
               {/* Fotografía del Documento de Identidad (Requisito 7) */}
-              <Text style={[styles.fieldLabel, { marginTop: 4 }]}>Fotografía del documento de identidad</Text>
+              <Text style={[styles.fieldLabel, { marginTop: 4 }]}>{t('create_sale.id_photo')}</Text>
               <View style={styles.photoContainer}>
                 {fotoDocumento?.uri ? (
                   <View style={styles.photoPreviewRow}>
@@ -932,14 +934,14 @@ const CrearCliente = () => {
                           onPress={handleTakeDocPhoto}
                         >
                           <Icon name="camera" size={12} color="#EE272D" />
-                          <Text style={styles.photoActionText}>Cambiar</Text>
+                          <Text style={styles.photoActionText}>{t('create_sale.change_photo')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.photoActionBtn, { borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
                           onPress={() => setFotoDocumento(null)}
                         >
                           <Icon name="trash" size={12} color="#EE272D" />
-                          <Text style={[styles.photoActionText, { color: '#EE272D' }]}>Quitar</Text>
+                          <Text style={[styles.photoActionText, { color: '#EE272D' }]}>{t('create_sale.remove_photo')}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -951,14 +953,14 @@ const CrearCliente = () => {
                       onPress={handleTakeDocPhoto}
                     >
                       <Icon name="camera" size={18} color="#EE272D" />
-                      <Text style={styles.photoPickerBtnText}>Tomar foto</Text>
+                      <Text style={styles.photoPickerBtnText}>{t('create_sale.take_photo')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.photoPickerBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
                       onPress={handlePickDocGallery}
                     >
                       <Icon name="image" size={18} color="#059669" />
-                      <Text style={[styles.photoPickerBtnText, { color: '#059669' }]}>Galería</Text>
+                      <Text style={[styles.photoPickerBtnText, { color: '#059669' }]}>{t('create_sale.gallery')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -971,11 +973,11 @@ const CrearCliente = () => {
                 <View style={[styles.sectionIcon, { backgroundColor: '#FFFBEB' }]}>
                   <Icon name="money" size={14} color="#F59E0B" />
                 </View>
-                <Text style={styles.sectionTitle}>Condiciones de la Venta</Text>
+                <Text style={styles.sectionTitle}>{t('create_sale.sale_conditions')}</Text>
               </View>
 
               <FormField
-                label="Capital a prestar *"
+                label={t('create_sale.capital_to_lend')}
                 value={formData.valor}
                 onChangeText={t => handleChange('valor', t)}
                 onBlur={() => {
@@ -988,16 +990,16 @@ const CrearCliente = () => {
               />
 
               {/* Selector de Periodicidad (Requisito 5.1: Diario por defecto) */}
-                <Text style={styles.fieldLabel}>Periodicidad del cobro *</Text>
-                <AnimatedSegmentedControl
-                  options={[
-                    { key: 'diario', label: 'Diario' },
-                    { key: 'semanal', label: 'Semanal' },
-                    { key: 'mensual', label: 'Mensual' },
-                  ]}
-                  selectedKey={periodicidad}
-                  onChange={(p) => setPeriodicidad(p)}
-                />
+              <Text style={styles.fieldLabel}>{t('create_sale.collection_periodicity')}</Text>
+              <AnimatedSegmentedControl
+                options={[
+                  { key: 'diario', label: t('create_sale.daily') },
+                  { key: 'semanal', label: t('create_sale.weekly') },
+                  { key: 'mensual', label: t('create_sale.monthly') },
+                ]}
+                selectedKey={periodicidad}
+                onChange={(p) => setPeriodicidad(p)}
+              />
 
               {/* Accesos rápidos para Plazo (Solo para modalidad diaria: 24, 30, 45) */}
               <View style={styles.quickLabelRow}>
@@ -1039,7 +1041,7 @@ const CrearCliente = () => {
 
               {/* Accesos rápidos para Interés (Requisito 4.1 y 6: 10%, 15%, 20%) */}
               <View style={[styles.quickLabelRow, { marginTop: 14 }]}>
-                <Text style={styles.fieldLabel}>Tasa de interés (%) *</Text>
+                <Text style={styles.fieldLabel}>{t('create_sale.interest_rate')}</Text>
                 <View style={styles.quickButtonsRow}>
                   {[10, 15, 20].map(intVal => {
                     const isSelected = String(formData.tasaInteres) === String(intVal);
@@ -1078,10 +1080,10 @@ const CrearCliente = () => {
                 <View style={{ flex: 1, paddingRight: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Icon name="check-square-o" size={15} color={pagoAdelantado ? '#EE272D' : '#98A2B3'} />
-                    <Text style={styles.advanceTitle}>Pago adelantado (Primera cuota)</Text>
+                    <Text style={styles.advanceTitle}>{t('create_sale.advance_payment')}</Text>
                   </View>
                   <Text style={styles.advanceSub}>
-                    Abona inmediatamente la 1ª cuota y la asocia al próximo día de recaudo.
+                    {t('create_sale.advance_payment_desc')}
                   </Text>
                 </View>
                 <Switch
@@ -1099,7 +1101,7 @@ const CrearCliente = () => {
                 <View style={styles.quoteHeader}>
                   <View style={styles.quoteTitleRow}>
                     <Icon name="calculator" size={15} color="#EE272D" />
-                    <Text style={styles.quoteTitle}>Vista previa de la cuota</Text>
+                    <Text style={styles.quoteTitle}>{t('create_sale.quote_preview')}</Text>
                   </View>
                   <View style={styles.estimateBadge}>
                     <Text style={styles.estimateBadgeText}>{periodicidad.toUpperCase()}</Text>
@@ -1109,19 +1111,19 @@ const CrearCliente = () => {
                 <View style={styles.quoteDivider} />
 
                 <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Capital solicitado:</Text>
+                  <Text style={styles.quoteLabel}>{t('create_sale.requested_capital')}</Text>
                   <Text style={styles.quoteValue}>{FormatMoneyDecimales(quoteSummary.capital, userCurrency)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Interés estimado ({quoteSummary.tasaPorcentaje}%):</Text>
+                  <Text style={styles.quoteLabel}>{t('create_sale.estimated_interest', { rate: quoteSummary.tasaPorcentaje })}</Text>
                   <Text style={styles.quoteValue}>+ {FormatMoneyDecimales(quoteSummary.montoInteres, userCurrency)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Total del crédito:</Text>
+                  <Text style={styles.quoteLabel}>{t('create_sale.total_credit')}</Text>
                   <Text style={[styles.quoteValue, { fontWeight: '700' }]}>{FormatMoneyDecimales(quoteSummary.totalFactura, userCurrency)}</Text>
                 </View>
                 <View style={styles.quoteRow}>
-                  <Text style={styles.quoteLabel}>Plazo y periodicidad:</Text>
+                  <Text style={styles.quoteLabel}>{t('create_sale.term_and_periodicity')}</Text>
                   <Text style={styles.quoteValue}>{quoteSummary.numCuotas} cuotas ({periodicidad})</Text>
                 </View>
 
@@ -1138,20 +1140,20 @@ const CrearCliente = () => {
                 )}
 
                 <View style={styles.quoteResultBox}>
-                  <Text style={styles.quoteResultLabel}>Cuota {periodicidad} a pagar:</Text>
+                  <Text style={styles.quoteResultLabel}>{t('create_sale.quote_to_pay', { periodicity: periodicidad })}</Text>
                   <Text style={styles.quoteResultAmount}>{FormatMoneyDecimales(quoteSummary.valorCuota, userCurrency)}</Text>
-                  <Text style={styles.quoteResultSub}>{quoteSummary.numCuotas} cuota(s) calculada(s)</Text>
+                  <Text style={styles.quoteResultSub}>{t('create_sale.calculated_quotas', { count: quoteSummary.numCuotas })}</Text>
                 </View>
 
                 <Text style={styles.quoteFootnote}>
-                  * Cálculo informativo. Se guardará con las mismas reglas contables oficiales.
+                  {t('create_sale.quote_footnote')}
                 </Text>
               </View>
             ) : null}
 
             {/* Boton Guardar */}
             <AppleButton
-              title={saving ? 'Guardando...' : previousInvoiceId ? 'Guardar renovación' : 'Guardar venta'}
+              title={saving ? t('create_sale.saving') : previousInvoiceId ? t('create_sale.save_renewal') : t('create_sale.save_sale')}
               onPress={handleSubmit}
               loading={saving}
               disabled={!isFormValid || saving}
@@ -1163,14 +1165,14 @@ const CrearCliente = () => {
                 {!cleanTel || cleanTel.length < 10
                   ? 'Ingresa un teléfono válido de 10 a 12 dígitos'
                   : !cleanDoc || cleanDoc.length < 6
-                  ? 'Ingresa un documento válido de 6 a 12 caracteres'
-                  : !parseMoneyToNumeric(formData.valor)
-                  ? 'Ingresa el capital a prestar'
-                  : cuotasError
-                  ? cuotasError
-                  : interesError
-                  ? interesError
-                  : 'Completa todos los campos obligatorios (*) para continuar'}
+                    ? 'Ingresa un documento válido de 6 a 12 caracteres'
+                    : !parseMoneyToNumeric(formData.valor)
+                      ? 'Ingresa el capital a prestar'
+                      : cuotasError
+                        ? cuotasError
+                        : interesError
+                          ? interesError
+                          : 'Completa todos los campos obligatorios (*) para continuar'}
               </Text>
             )}
           </Animated.View>
@@ -1196,7 +1198,7 @@ const CrearCliente = () => {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Seleccionar cliente para renovación</Text>
+              <Text style={styles.modalTitle}>{t('create_sale.select_client_for_renewal')}</Text>
               <TouchableOpacity onPress={() => setShowRenewModal(false)} style={styles.modalCloseBtn}>
                 <Icon name="times" size={16} color={apple.colors.secondaryLabel} />
               </TouchableOpacity>
@@ -1206,7 +1208,7 @@ const CrearCliente = () => {
               <Icon name="search" size={13} color={apple.colors.tertiaryLabel} />
               <TextInput
                 style={styles.searchInputModal}
-                placeholder="Buscar por nombre o documento..."
+                placeholder={t('create_sale.search_client_for_renewal')}
                 placeholderTextColor={apple.colors.tertiaryLabel}
                 value={searchRenewText}
                 onChangeText={setSearchRenewText}
@@ -1227,7 +1229,7 @@ const CrearCliente = () => {
                     {item.direccion ? <Text style={styles.paidClientDir}>{item.direccion}</Text> : null}
                   </View>
                   <View style={styles.paidClientAction}>
-                    <Text style={styles.paidClientActionText}>Renovar</Text>
+                    <Text style={styles.paidClientActionText}>{t('create_sale.renew')}</Text>
                     <Icon name="chevron-right" size={11} color={apple.colors.blue} />
                   </View>
                 </TouchableOpacity>
@@ -1235,8 +1237,8 @@ const CrearCliente = () => {
               ListEmptyComponent={
                 <View style={styles.emptyRenewWrap}>
                   <Icon name="check-circle" size={32} color={apple.colors.tertiaryLabel} />
-                  <Text style={styles.emptyRenewTitle}>Sin clientes saldados</Text>
-                  <Text style={styles.emptyRenewSub}>No hay clientes con saldo en cero disponibles para renovación.</Text>
+                  <Text style={styles.emptyRenewTitle}>{t('create_sale.no_paid_clients')}</Text>
+                  <Text style={styles.emptyRenewSub}>{t('create_sale.no_paid_clients_desc')}</Text>
                 </View>
               }
             />

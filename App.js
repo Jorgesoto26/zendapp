@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import Navigation from './src/screens/Navigation';
 import { AuthProvider } from './src/context/AuthContext';
+import { I18nProvider } from './src/i18n';
 import Toast from 'react-native-toast-message';
 import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -98,7 +99,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <I18nProvider>
+        <AppContent />
+      </I18nProvider>
     </AuthProvider>
   );
 } 

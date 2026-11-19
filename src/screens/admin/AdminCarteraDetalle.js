@@ -27,12 +27,14 @@ import {
   trasladarCartera,
 } from '../../services/adminService';
 import { formatCurrency } from '../../utils/currency';
+import { useTranslation } from '../../i18n';
 
 const formatMoney = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
 };
 
 export default function AdminCarteraDetalle() {
+  const { t } = useTranslation();
   const route = useRoute();
   const navigation = useNavigation();
   const { user } = route.params || {};
@@ -62,12 +64,12 @@ export default function AdminCarteraDetalle() {
       const data = await getCarteraDetail(currentUserId);
       setItems(data);
     } catch (err) {
-      appAlert('Error', err.message || 'No se pudo cargar el detalle');
+      appAlert(t('common.error'), err.message || 'No se pudo cargar el detalle');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, t]);
 
   useEffect(() => {
     loadData();
@@ -107,10 +109,10 @@ export default function AdminCarteraDetalle() {
       await castigarCartera(selectedCastigoInvoice.invoice_id);
       setCastigoModalVisible(false);
       setSelectedCastigoInvoice(null);
-      appAlert('xito', 'El crdito fue castigado correctamente.');
+      appAlert(t('common.success'), t('cartera.castigar_success'));
       loadData();
     } catch (err) {
-      appAlert('Error', err.message || 'No se pudo castigar la cartera');
+      appAlert(t('common.error'), err.message || 'No se pudo castigar la cartera');
     } finally {
       setCastigando(false);
     }
@@ -132,7 +134,7 @@ export default function AdminCarteraDetalle() {
         setSelectedDestinoId(validos[0].id);
       }
     } catch (err) {
-      appAlert('Error', err.message || 'No se pudo cargar la lista de vendedores destino');
+      appAlert(t('common.error'), err.message || 'No se pudo cargar la lista de vendedores destino');
     } finally {
       setLoadingDestinatarios(false);
     }
@@ -140,7 +142,7 @@ export default function AdminCarteraDetalle() {
 
   const confirmTraslado = async () => {
     if (!selectedDestinoId) {
-      appAlert('Atencin', 'Por favor selecciona el vendedor de destino');
+      appAlert(t('common.error'), 'Por favor selecciona el vendedor de destino');
       return;
     }
     setTrasladando(true);
@@ -149,12 +151,12 @@ export default function AdminCarteraDetalle() {
       setTrasladoModalVisible(false);
       const totalClientes = res?.clientes_trasladados ?? items.length;
       appAlert(
-        'Traslado exitoso',
-        `Se han trasladado ${totalClientes} clientes al nuevo vendedor correctamente.`
+        t('cartera.transfer_success'),
+        t('cartera.transfer_success_msg', { count: totalClientes })
       );
       loadData();
     } catch (err) {
-      appAlert('Error al trasladar', err.message || 'No se pudo completar el traslado');
+      appAlert(t('common.error'), err.message || 'No se pudo completar el traslado');
     } finally {
       setTrasladando(false);
     }
@@ -171,14 +173,14 @@ export default function AdminCarteraDetalle() {
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Icon name="chevron-left" size={15} color={zendapp.colors.primary} />
-          <Text style={styles.backText}>Cartera</Text>
+          <Text style={styles.backText}>{t('cartera.title')}</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {user?.nombre} {user?.apellido || ''}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {items.length} clientes activos
+            {items.length} {t('cartera.active_clients')}
           </Text>
         </View>
 
@@ -189,7 +191,7 @@ export default function AdminCarteraDetalle() {
           activeOpacity={0.8}
         >
           <Icon name="exchange" size={12} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={styles.btnTrasladarHeaderText}>Trasladar cartera</Text>
+          <Text style={styles.btnTrasladarHeaderText}>{t('cartera.transfer_portfolio')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -198,7 +200,7 @@ export default function AdminCarteraDetalle() {
         <Icon name="search" size={14} color={zendapp.colors.textMuted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar cliente o documento..."
+          placeholder={t('cartera.search_client_doc')}
           placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -239,7 +241,7 @@ export default function AdminCarteraDetalle() {
                   </View>
                   <View style={styles.saldoWrap}>
                     <Text style={styles.saldoVal}>{formatMoney(item.saldo)}</Text>
-                    <Text style={styles.saldoLabel}>Saldo Actual</Text>
+                    <Text style={styles.saldoLabel}>{t('cartera.current_balance')}</Text>
                   </View>
                 </View>
 
@@ -247,19 +249,19 @@ export default function AdminCarteraDetalle() {
 
                 <View style={styles.detailGrid}>
                   <View style={styles.gridCol}>
-                    <Text style={styles.gridLabel}>Monto Inicial</Text>
+                    <Text style={styles.gridLabel}>{t('cartera.initial_amount')}</Text>
                     <Text style={styles.gridVal}>{formatMoney(item.saldo_inicial)}</Text>
                   </View>
                   <View style={styles.gridCol}>
-                    <Text style={styles.gridLabel}>Saldo Vencido</Text>
+                    <Text style={styles.gridLabel}>{t('cartera.overdue_balance')}</Text>
                     <Text style={[styles.gridVal, hasVencido && { color: zendapp.colors.danger }]}>
                       {formatMoney(item.saldo_vencido)}
                     </Text>
                   </View>
                   <View style={styles.gridCol}>
-                    <Text style={styles.gridLabel}>Cuotas</Text>
+                    <Text style={styles.gridLabel}>{t('cartera.quotas')}</Text>
                     <Text style={styles.gridVal}>
-                      {item.cuota_actual}/{item.cuotas_totales} ({item.cuotas_restantes} rest.)
+                      {item.cuota_actual}/{item.cuotas_totales} ({item.cuotas_restantes} {t('cartera.remaining')})
                     </Text>
                   </View>
                 </View>
@@ -272,7 +274,7 @@ export default function AdminCarteraDetalle() {
                       onPress={() => openCastigarModal(item)}
                     >
                       <Icon name="ban" size={12} color={zendapp.colors.primary} />
-                      <Text style={styles.btnCastigarText}>Castigar Cartera</Text>
+                      <Text style={styles.btnCastigarText}>{t('cartera.castigar_cartera')}</Text>
                     </TouchableOpacity>
                   ) : <View />}
 
@@ -280,7 +282,7 @@ export default function AdminCarteraDetalle() {
                     style={styles.btnVer}
                     onPress={() => handleOpenCredit(item)}
                   >
-                    <Text style={styles.btnVerText}>Ver Detalle</Text>
+                    <Text style={styles.btnVerText}>{t('cartera.view_detail')}</Text>
                     <Icon name="arrow-right" size={12} color={zendapp.colors.primary} style={{ marginLeft: 6 }} />
                   </TouchableOpacity>
                 </View>
@@ -293,8 +295,8 @@ export default function AdminCarteraDetalle() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon name="inbox" size={44} color={zendapp.colors.border} />
-              <Text style={styles.emptyTitle}>Sin créditos</Text>
-              <Text style={styles.emptySubtitle}>Este usuario no tiene créditos con saldo pendiente</Text>
+              <Text style={styles.emptyTitle}>{t('cartera.no_credits')}</Text>
+              <Text style={styles.emptySubtitle}>{t('cartera.no_credits_sub')}</Text>
             </View>
           }
         />
@@ -312,13 +314,11 @@ export default function AdminCarteraDetalle() {
             <View style={styles.modalIconWrapDanger}>
               <Icon name="ban" size={22} color={zendapp.colors.primary} />
             </View>
-            <Text style={styles.modalTitle}>Castigar Cartera</Text>
+            <Text style={styles.modalTitle}>{t('cartera.castigar_cartera')}</Text>
             <Text style={styles.modalDesc}>
-              ¿Estás seguro de castigar el crédito de{' '}
-              <Text style={{ fontWeight: '700', color: zendapp.colors.carbon }}>
-                {selectedCastigoInvoice?.nombre_cliente} {selectedCastigoInvoice?.apellido_cliente || ''}
-              </Text>
-              ? Esta acción bloqueará futuros créditos a este cliente y saldrá de la ruta de cobro activa.
+              {t('cartera.castigar_confirm_msg', {
+                name: `${selectedCastigoInvoice?.nombre_cliente || ''} ${selectedCastigoInvoice?.apellido_cliente || ''}`.trim(),
+              })}
             </Text>
 
             <View style={styles.modalActions}>
@@ -327,7 +327,7 @@ export default function AdminCarteraDetalle() {
                 onPress={() => setCastigoModalVisible(false)}
                 disabled={castigando}
               >
-                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                <Text style={styles.modalBtnCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -338,7 +338,7 @@ export default function AdminCarteraDetalle() {
                 {castigando ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.modalBtnDangerText}>Castigar</Text>
+                  <Text style={styles.modalBtnDangerText}>{t('cartera.castigar_cartera')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -358,28 +358,28 @@ export default function AdminCarteraDetalle() {
             <View style={styles.modalIconWrapPrimary}>
               <Icon name="exchange" size={22} color={zendapp.colors.primary} />
             </View>
-            <Text style={styles.modalTitle}>Trasladar Cartera</Text>
+            <Text style={styles.modalTitle}>{t('cartera.transfer_portfolio')}</Text>
             <Text style={styles.modalDesc}>
-              Permite transferir los clientes de este vendedor a otro usuario para continuar con su cobro y gestión.
+              {t('cartera.transfer_desc')}
             </Text>
 
             {/* Vendedor Origen */}
-            <Text style={styles.fieldLabel}>Vendedor de origen:</Text>
+            <Text style={styles.fieldLabel}>{t('cartera.origin_vendor')}</Text>
             <View style={styles.readOnlyField}>
               <Icon name="user" size={14} color={zendapp.colors.textSecondary} style={{ marginRight: 8 }} />
               <Text style={styles.readOnlyText}>
-                {user?.nombre} {user?.apellido || ''} (Seleccionado)
+                {user?.nombre} {user?.apellido || ''} {t('cartera.selected')}
               </Text>
             </View>
 
             {/* Vendedor Destino */}
-            <Text style={styles.fieldLabel}>Vendedor de destino:</Text>
+            <Text style={styles.fieldLabel}>{t('cartera.destination_vendor')}</Text>
             {loadingDestinatarios ? (
               <ActivityIndicator size="small" color={zendapp.colors.primary} style={{ marginVertical: 12 }} />
             ) : destinatarios.length === 0 ? (
               <View style={styles.emptyDestinoBox}>
                 <Text style={styles.emptyDestinoText}>
-                  No hay otros usuarios activos disponibles en tu jerarquía.
+                  {t('cartera.no_other_vendors')}
                 </Text>
               </View>
             ) : (
@@ -414,7 +414,7 @@ export default function AdminCarteraDetalle() {
                 onPress={() => setTrasladoModalVisible(false)}
                 disabled={trasladando}
               >
-                <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                <Text style={styles.modalBtnCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -429,7 +429,7 @@ export default function AdminCarteraDetalle() {
                 {trasladando ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.modalBtnPrimaryText}>Confirmar traslado</Text>
+                  <Text style={styles.modalBtnPrimaryText}>{t('cartera.confirm_transfer')}</Text>
                 )}
               </TouchableOpacity>
             </View>

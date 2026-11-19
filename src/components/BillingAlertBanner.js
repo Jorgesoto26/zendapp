@@ -5,10 +5,12 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { FormatMoneyDecimales } from '../utils/utilities';
+import { useTranslation } from '../i18n';
 
 export default function BillingAlertBanner({ style, onPress }) {
   const navigation = useNavigation();
   const { billingStatus, rol } = useAuth() || {};
+  const { t } = useTranslation();
 
   if (!billingStatus) return null;
 
@@ -17,7 +19,8 @@ export default function BillingAlertBanner({ style, onPress }) {
 
   const diasPago = billingStatus.dias_para_pago ?? 0;
   const diasBloqueo = billingStatus.dias_para_bloqueo ?? 0;
-  const total = billingStatus.factura_actual?.total || 0;
+  const total = billingStatus.factura_actual?.total ?? billingStatus.total_estimado ?? 0;
+  const diaCorte = billingStatus.config?.dia_facturacion || 28;
   const isAdmin = rol === 'admin' || rol === 'superadmin';
 
   const handlePress = () => {
@@ -41,10 +44,16 @@ export default function BillingAlertBanner({ style, onPress }) {
       textColor: '#92400E',
       icon: 'exclamation-triangle',
       iconColor: '#D97706',
-      title: 'Próximo vencimiento de suscripción',
+      title: t('billing.banner_upcoming_title'),
       message: isAdmin
-        ? `Quedan ${Math.max(1, diasPago)} día${diasPago === 1 ? '' : 's'} para el corte del 28 (${FormatMoneyDecimales(total, 'COP')}). Toca aquí para ver los datos de pago.`
-        : `Recordatorio: La suscripción de la organización vence en ${Math.max(1, diasPago)} día${diasPago === 1 ? '' : 's'}.`,
+        ? t('billing.banner_upcoming_msg_admin', {
+            days: Math.max(1, diasPago),
+            day: diaCorte,
+            amount: FormatMoneyDecimales(total, 'COP'),
+          })
+        : t('billing.banner_upcoming_msg_vendor', {
+            days: Math.max(1, diasPago),
+          }),
     };
   } else if (status === 'gracia_lectura') {
     bannerConfig = {
@@ -53,10 +62,10 @@ export default function BillingAlertBanner({ style, onPress }) {
       textColor: '#B91C1C',
       icon: 'clock-o',
       iconColor: '#EE272D',
-      title: 'Pago vencido — Modo solo lectura',
+      title: t('billing.banner_overdue_title'),
       message: isAdmin
-        ? `El pago de suscripción está vencido. La app se encuentra en modo solo lectura. Quedan ${diasBloqueo} días antes de suspensión total. Toca para reportar el pago.`
-        : `Atención: La suscripción se encuentra vencida. Operaciones de registro deshabilitadas temporalmente.`,
+        ? t('billing.banner_grace_msg_admin', { days: diasBloqueo })
+        : t('billing.banner_grace_msg_vendor'),
     };
   } else if (status === 'mora_critica') {
     bannerConfig = {
@@ -65,10 +74,10 @@ export default function BillingAlertBanner({ style, onPress }) {
       textColor: '#7F1D1D',
       icon: 'exclamation-circle',
       iconColor: '#DC2626',
-      title: '🚨 Suspensión inminente',
+      title: t('billing.banner_critical_title'),
       message: isAdmin
-        ? `¡Atención! Quedan solo ${diasBloqueo} día${diasBloqueo === 1 ? '' : 's'} antes del bloqueo total de la aplicación. Realiza la transferencia ahora.`
-        : `Alerta: La cuenta de la organización está próxima a ser suspendida por falta de pago.`,
+        ? t('billing.banner_critical_msg_admin', { days: diasBloqueo })
+        : t('billing.banner_critical_msg_vendor'),
     };
   } else if (status === 'en_revision') {
     bannerConfig = {
@@ -77,8 +86,8 @@ export default function BillingAlertBanner({ style, onPress }) {
       textColor: '#92400E',
       icon: 'hourglass-half',
       iconColor: '#D97706',
-      title: 'Pago en verificación',
-      message: 'Tu reporte de transferencia está siendo validado por Zenda Manager. Tu servicio continúa activo.',
+      title: t('billing.banner_verification_title'),
+      message: t('billing.banner_verification_msg'),
     };
   }
 
