@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
 import LoginScreen from './LoginScreen';
+import PinLockScreen from '../components/PinLockScreen';
 import SuspendedAccountScreen from './billing/SuspendedAccountScreen';
 import Payments from './payments/Payments';
 import CrearCliente from './createClient/CrearCliente';
@@ -139,7 +140,7 @@ function MainTabs() {
 }
 
 function RootNavigator() {
-  const { session, loading, isSuspended } = useAuth();
+  const { session, loading, isSuspended, isPinLocked, hasPin } = useAuth();
 
   if (loading) {
     return (
@@ -147,6 +148,12 @@ function RootNavigator() {
         <ActivityIndicator size="large" color={zendapp.colors.primary} />
       </View>
     );
+  }
+
+  // La pantalla de acceso visible por defecto es SIEMPRE PinLockScreen (con teclado numérico de 5 dígitos).
+  // Solo se accede al interior de la app si está explícitamente desbloqueada con sesión activa.
+  if (isPinLocked || !session) {
+    return <PinLockScreen />;
   }
 
   return (

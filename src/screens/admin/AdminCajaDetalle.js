@@ -32,14 +32,19 @@ import EvidencePreviewModal from '../../components/EvidencePreviewModal';
 import { formatCurrency, getCurrencySymbol, getCurrencyDecimals } from '../../utils/currency';
 import { useTranslation } from '../../i18n';
 
-const formatMoney = (val, currencyCode = 'COP') => {
+const formatMoneyDefault = (val, currencyCode = 'COP') => {
   return formatCurrency(val, currencyCode);
 };
 
 const formatDate = (isoStr) => {
   if (!isoStr) return '';
-  const d = new Date(isoStr);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
 };
 
 export default function AdminCajaDetalle() {
@@ -50,6 +55,10 @@ export default function AdminCajaDetalle() {
   const [cajaState, setCajaState] = useState(caja || {});
   const cajaCurrency = cajaState?.currency_code || caja?.currency_code || 'COP';
   const [reopening, setReopening] = useState(false);
+
+  const formatMoney = useCallback((val) => {
+    return formatCurrency(val, cajaCurrency);
+  }, [cajaCurrency]);
 
   const [movements, setMovements] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -409,38 +418,72 @@ export default function AdminCajaDetalle() {
       <AppBackground />
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={15} color={zendapp.colors.primary} />
-          <Text style={styles.backText}>{t('cajas.title')}</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {cajaState?.nombre_usuario}
-          </Text>
-          <Text style={styles.headerSubtitle}>
-            {isOpen ? t('cajas.open_pill') : t('cajas.closed_pill')} · {cajaState?.rol_usuario?.toUpperCase()}
-          </Text>
+        {/* Fila superior: Volver y Acciones */}
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="chevron-left" size={15} color={zendapp.colors.primary} />
+            <Text style={styles.backText}>{t('cajas.title')}</Text>
+          </TouchableOpacity>
+
+          {isOpen && (
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.btnCloseCaja}
+                onPress={handleCerrarCaja}
+                disabled={closing || checkingSubs}
+                activeOpacity={0.8}
+              >
+                <Icon name="power-off" size={12} color="#FFFFFF" />
+                <Text style={styles.btnCloseCajaText}>
+                  {closing || checkingSubs ? '...' : t('cajas.btn_close')}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnNewMov}
+                onPress={() => setModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Icon name="plus" size={12} color="#FFFFFF" />
+                <Text style={styles.btnNewMovText}>{t('cajas.btn_movimiento')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
-        {isOpen && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <TouchableOpacity
-              style={styles.btnCloseCaja}
-              onPress={handleCerrarCaja}
-              disabled={closing || checkingSubs}
-            >
-              <Icon name="power-off" size={12} color="#FFFFFF" />
-              <Text style={styles.btnCloseCajaText}>
-                {closing ? '...' : checkingSubs ? '...' : t('cajas.btn_close')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.btnNewMov} onPress={() => setModalVisible(true)}>
-              <Icon name="plus" size={12} color="#FFFFFF" />
-              <Text style={styles.btnNewMovText}>{t('cajas.btn_movimiento')}</Text>
-            </TouchableOpacity>
+        {/* Fila de Usuario y Estado */}
+        <View style={styles.headerInfoRow}>
+          <View style={[styles.avatarCircle, isAdmin ? styles.avatarAdmin : styles.avatarVendedor]}>
+            <Icon name={isAdmin ? 'user-secret' : 'user'} size={16} color="#FFFFFF" />
           </View>
-        )}
+          <View style={styles.headerUserMeta}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {cajaState?.nombre_usuario || 'Detalle de Caja'}
+            </Text>
+            <View style={styles.badgesRow}>
+              <View style={[styles.statusBadge, isOpen ? styles.statusBadgeOpen : styles.statusBadgeClosed]}>
+                <View style={[styles.statusDot, isOpen ? styles.statusDotOpen : styles.statusDotClosed]} />
+                <Text style={[styles.statusBadgeText, isOpen ? styles.statusBadgeTextOpen : styles.statusBadgeTextClosed]}>
+                  {isOpen ? (t('cajas.open_drawer') || 'Caja Abierta') : (t('cajas.closed_drawer') || 'Caja Cerrada')}
+                </Text>
+              </View>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>
+                  {(cajaState?.rol_usuario || 'usuario').toUpperCase()}
+                </Text>
+              </View>
+              {cajaState?.fecha_apertura && (
+                <Text style={styles.headerDateText} numberOfLines={1}>
+                  {formatDate(cajaState.fecha_apertura)}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
       </View>
 
       {/* Resumen Superior Adaptado al Rol (Requisito 6) */}
@@ -502,10 +545,6 @@ export default function AdminCajaDetalle() {
         <TextInput
           style={styles.searchInput}
           placeholder={t('cajas.search_movement')}
-          placeholderTextColor={zendapp.colors.textMuted}
-          value={search}
-          onChangeText={setSearch}
-        />
           placeholderTextColor={zendapp.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -855,14 +894,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.90)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(234, 236, 240, 0.8)',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 38,
   },
   backBtn: {
     flexDirection: 'row',
@@ -876,15 +919,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontWeight: '700',
   },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: zendapp.colors.carbon,
-  },
-  headerSubtitle: {
-    fontSize: 11,
-    color: zendapp.colors.textSecondary,
-    marginTop: 2,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   btnCloseCaja: {
     flexDirection: 'row',
@@ -913,6 +951,98 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  headerInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  avatarAdmin: {
+    backgroundColor: zendapp.colors.primary,
+  },
+  avatarVendedor: {
+    backgroundColor: zendapp.colors.carbon,
+  },
+  headerUserMeta: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: zendapp.colors.carbon,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
+    flexWrap: 'wrap',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statusBadgeOpen: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  statusBadgeClosed: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusDotOpen: {
+    backgroundColor: '#10B981',
+  },
+  statusDotClosed: {
+    backgroundColor: '#EF4444',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statusBadgeTextOpen: {
+    color: '#059669',
+  },
+  statusBadgeTextClosed: {
+    color: '#DC2626',
+  },
+  roleBadge: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#4B5563',
+    letterSpacing: 0.3,
+  },
+  headerDateText: {
+    fontSize: 11,
+    color: zendapp.colors.textSecondary,
+    marginLeft: 2,
   },
   summaryBar: {
     flexDirection: 'row',

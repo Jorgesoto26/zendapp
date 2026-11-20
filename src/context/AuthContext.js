@@ -1,10 +1,17 @@
 import { appAlert } from '../components/AppAlert';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { AppState } from 'react-native';
 import { supabase, ensureAuthenticatedSession } from '../lib/supabase';
 import { SUPABASE_URL } from '../config/env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDbConnection, getData } from '../database/db';
 import { getBillingStatus } from '../services/billingService';
+import {
+  hasConfiguredPin,
+  recordBackgroundTimestamp,
+  shouldLockOnForeground,
+  clearPin,
+} from '../services/pinService';
 
 let isAuthServiceRunning = false;
 export const setAuthServiceRunning = (val) => {
@@ -19,6 +26,8 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [billingStatus, setBillingStatus] = useState(null);
+  const [isPinLocked, setIsPinLocked] = useState(true);
+  const [hasPin, setHasPin] = useState(false);
 
   const fetchUserData = useCallback(async (userId, accessToken) => {
     try {
@@ -206,6 +215,14 @@ export function AuthProvider({ children }) {
 
     const initSession = async () => {
       try {
+        const pinExists = await hasConfiguredPin();
+        if (mounted) {
+          setHasPin(pinExists);
+          setIsPinLocked(pinExists);
+        }
+      } catch {}
+
+      try {
         const isLoggedOut = await AsyncStorage.getItem('app_logged_out');
         if (isLoggedOut === 'true') {
           if (mounted) {
@@ -247,6 +264,35 @@ export function AuthProvider({ children }) {
     };
   }, [fetchUserData]);
 
+  // Listener del ciclo de vida de la aplicación para bloqueo por inactividad
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        await recordBackgroundTimestamp();
+      } else if (nextState === 'active') {
+        const mustLock = await shouldLockOnForeground();
+        if (mustLock) {
+          setIsPinLocked(true);
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const unlockApp = useCallback(() => {
+    setIsPinLocked(false);
+  }, []);
+
+  const lockApp = useCallback(() => {
+    setIsPinLocked(true);
+  }, []);
+
+  const refreshPinStatus = useCallback(async () => {
+    const configured = await hasConfiguredPin();
+    setHasPin(configured);
+    return configured;
+  }, []);
+
   const setAuthSession = useCallback((sess, p) => {
     AsyncStorage.removeItem('app_logged_out').catch(() => {});
     setProfile(p || null);
@@ -255,6 +301,10 @@ export function AuthProvider({ children }) {
     if (p) {
       AsyncStorage.setItem('cached_profile', JSON.stringify(p)).catch(() => {});
     }
+    hasConfiguredPin().then((has) => {
+      setHasPin(has);
+      if (has) setIsPinLocked(false);
+    }).catch(() => {});
   }, []);
 
   const signOut = useCallback(async () => {
@@ -272,14 +322,21 @@ export function AuthProvider({ children }) {
       console.log('Error verificando pendientes en signOut:', e);
     }
 
-    // 1. Marcar cierre de sesion persistente para evitar restauracion en offline
+    // 1. Limpiar PIN configurado
+    try {
+      await clearPin();
+      setHasPin(false);
+      setIsPinLocked(false);
+    } catch {}
+
+    // 2. Marcar cierre de sesion persistente para evitar restauracion en offline
     try { await AsyncStorage.setItem('app_logged_out', 'true'); } catch {}
 
-    // 2. Cerrar sesion en cliente Supabase tanto local como remoto
+    // 3. Cerrar sesion en cliente Supabase tanto local como remoto
     try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
     try { await supabase.auth.signOut(); } catch (e) { console.log("offline signOut:", e); }
 
-    // 3. Limpiar tokens de sesion en AsyncStorage
+    // 4. Limpiar tokens de sesion en AsyncStorage
     try {
       const allKeys = await AsyncStorage.getAllKeys();
       const authKeys = allKeys.filter(k => k.startsWith('sb-') || k.includes('auth-token') || k === 'cached_profile');
@@ -288,7 +345,7 @@ export function AuthProvider({ children }) {
       }
     } catch {}
 
-    // 4. Limpiar token activo en parametrizacion (fila 2), preservando datos contables locales
+    // 5. Limpiar token activo en parametrizacion (fila 2), preservando datos contables locales
     try {
       const db = await getDbConnection();
       await db.executeSql(`UPDATE parametrizacion SET valor = NULL WHERE id = 2`);
@@ -325,6 +382,11 @@ export function AuthProvider({ children }) {
     isReadOnly: billingStatus?.is_read_only === true,
     isSuspended: billingStatus?.is_suspended === true,
     refreshBillingStatus,
+    isPinLocked,
+    hasPin,
+    unlockApp,
+    lockApp,
+    refreshPinStatus,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

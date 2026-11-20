@@ -27,15 +27,19 @@ import { zendapp } from '../theme/zendappTheme';
 import { AppleButton } from '../components/AppleButton';
 import { appAlert } from '../components/AppAlert';
 import { getAppVersion } from '../utils/utilities';
+import { hasConfiguredPin, savePin } from '../services/pinService';
 
 export default function LoginScreen() {
-  const { setAuthSession } = useAuth();
+  const { setAuthSession, refreshPinStatus } = useAuth();
   const { t, language, changeLanguage, currentLanguage } = useTranslation();
   const dbRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [langModalVisible, setLangModalVisible] = useState(false);
+  const [pinSetupModalVisible, setPinSetupModalVisible] = useState(false);
+  const [initialPin, setInitialPin] = useState('');
+  const [pendingAuth, setPendingAuth] = useState(null);
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -114,25 +118,60 @@ export default function LoginScreen() {
               : 'Error de acceso';
         appAlert(title, result.message);
       } else if (result.session) {
-        if (result.isOffline) {
-          appAlert(
-            'Modo sin conexión',
-            'Has ingresado sin conexión a internet. Tu ruta y cobros registrados se sincronizarán cuando recuperes la señal.',
-            [
-              {
-                text: 'Continuar',
-                onPress: () => {
-                  setAuthSession(result.session, result.profile);
-                },
-              },
-            ]
-          );
+        const pinExists = await hasConfiguredPin();
+        if (!pinExists) {
+          setPendingAuth({
+            session: result.session,
+            profile: result.profile,
+            isOffline: result.isOffline,
+          });
+          setPinSetupModalVisible(true);
         } else {
-          setAuthSession(result.session, result.profile);
+          completeLogin(result.session, result.profile, result.isOffline);
         }
       }
     } catch (e) {
       appAlert('Error', e.message || 'No fue posible iniciar sesión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeLogin = (sess, prof, isOffline) => {
+    if (isOffline) {
+      appAlert(
+        'Modo sin conexión',
+        'Has ingresado sin conexión a internet. Tu ruta y cobros registrados se sincronizarán cuando recuperes la señal.',
+        [
+          {
+            text: 'Continuar',
+            onPress: () => {
+              setAuthSession(sess, prof);
+            },
+          },
+        ]
+      );
+    } else {
+      setAuthSession(sess, prof);
+    }
+  };
+
+  const handleConfirmPinSetup = async () => {
+    const cleanPin = initialPin.trim();
+    if (!cleanPin || cleanPin.length !== 5 || isNaN(Number(cleanPin))) {
+      return appAlert('PIN incompleto', 'Debes ingresar exactamente 5 dígitos numéricos.');
+    }
+    setLoading(true);
+    try {
+      await savePin(cleanPin);
+      await refreshPinStatus();
+      setPinSetupModalVisible(false);
+      setInitialPin('');
+      if (pendingAuth) {
+        completeLogin(pendingAuth.session, pendingAuth.profile, pendingAuth.isOffline);
+      }
+    } catch (e) {
+      appAlert('Error', e.message || 'No se pudo guardar el PIN');
     } finally {
       setLoading(false);
     }
@@ -222,117 +261,117 @@ export default function LoginScreen() {
 
               {/* Tarjeta Principal de Inicio de Sesión */}
               <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{t('auth.welcome')}</Text>
-              </View>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardTitle}>{t('auth.welcome')}</Text>
+                </View>
 
-              {/* Input Correo */}
-              <Text style={styles.inputLabel}>{t('auth.email')}</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  emailFocused && styles.inputContainerFocused,
-                ]}
-              >
-                <Icon
-                  name="envelope"
-                  size={15}
-                  color={emailFocused ? zendapp.colors.primary : zendapp.colors.textTertiary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="tucorreo@ejemplo.com"
-                  placeholderTextColor={zendapp.colors.textPlaceholder}
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(false)}
-                  style={styles.textInputField}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              {/* Input Contraseña */}
-              <Text style={styles.inputLabel}>{t('auth.password')}</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  passwordFocused && styles.inputContainerFocused,
-                ]}
-              >
-                <Icon
-                  name="lock"
-                  size={17}
-                  color={passwordFocused ? zendapp.colors.primary : zendapp.colors.textTertiary}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  placeholder="Ingresa tu contraseña"
-                  placeholderTextColor={zendapp.colors.textPlaceholder}
-                  value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setPasswordFocused(true)}
-                  onBlur={() => setPasswordFocused(false)}
-                  secureTextEntry={!showPassword}
-                  style={styles.textInputField}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={styles.eyeBtn}
+                {/* Input Correo */}
+                <Text style={styles.inputLabel}>{t('auth.email')}</Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    emailFocused && styles.inputContainerFocused,
+                  ]}
                 >
                   <Icon
-                    name={showPassword ? 'eye' : 'eye-slash'}
-                    size={17}
-                    color={showPassword ? zendapp.colors.primary : zendapp.colors.textTertiary}
+                    name="envelope"
+                    size={15}
+                    color={emailFocused ? zendapp.colors.primary : zendapp.colors.textTertiary}
+                    style={styles.inputIcon}
                   />
+                  <TextInput
+                    placeholder="tucorreo@ejemplo.com"
+                    placeholderTextColor={zendapp.colors.textPlaceholder}
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
+                    style={styles.textInputField}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+
+                {/* Input Contraseña */}
+                <Text style={styles.inputLabel}>{t('auth.password')}</Text>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    passwordFocused && styles.inputContainerFocused,
+                  ]}
+                >
+                  <Icon
+                    name="lock"
+                    size={17}
+                    color={passwordFocused ? zendapp.colors.primary : zendapp.colors.textTertiary}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    placeholder="Ingresa tu contraseña"
+                    placeholderTextColor={zendapp.colors.textPlaceholder}
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                    secureTextEntry={!showPassword}
+                    style={styles.textInputField}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={styles.eyeBtn}
+                  >
+                    <Icon
+                      name={showPassword ? 'eye' : 'eye-slash'}
+                      size={17}
+                      color={showPassword ? zendapp.colors.primary : zendapp.colors.textTertiary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Botón de Ingreso Oficial */}
+                <TouchableOpacity
+                  style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+                  onPress={handleLogin}
+                  activeOpacity={0.85}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <View style={styles.btnContentRow}>
+                      <Text style={styles.primaryBtnText}>{t('auth.login_btn')}</Text>
+                      <Icon name="arrow-right" size={14} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {/* Enlace de Registro */}
+                <TouchableOpacity
+                  onPress={() => setModalVisible(true)}
+                  style={styles.registerLink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.registerLinkText}>
+                    ¿No tienes una cuenta aún?{' '}
+                    <Text style={styles.registerLinkHighlight}>Crear cuenta</Text>
+                  </Text>
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {/* Botón de Ingreso Oficial */}
-              <TouchableOpacity
-                style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
-                onPress={handleLogin}
-                activeOpacity={0.85}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <View style={styles.btnContentRow}>
-                    <Text style={styles.primaryBtnText}>{t('auth.login_btn')}</Text>
-                    <Icon name="arrow-right" size={14} color="#FFFFFF" style={{ marginLeft: 8 }} />
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* Enlace de Registro */}
-              <TouchableOpacity
-                onPress={() => setModalVisible(true)}
-                style={styles.registerLink}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.registerLinkText}>
-                  ¿No tienes una cuenta aún?{' '}
-                  <Text style={styles.registerLinkHighlight}>Crear cuenta</Text>
+            {/* Footer de Seguridad y Versión */}
+            <View style={styles.footerWrap}>
+              <View style={styles.securityRow}>
+                <Icon name="shield" size={12} color={zendapp.colors.textTertiary} />
+                <Text style={styles.securityText}>
+                  Conexión segura y cifrada de extremo a extremo
                 </Text>
-              </TouchableOpacity>
+              </View>
+              <Text style={styles.versionText}>Versión {getAppVersion()}</Text>
             </View>
-          </View>
-
-          {/* Footer de Seguridad y Versión */}
-          <View style={styles.footerWrap}>
-            <View style={styles.securityRow}>
-              <Icon name="shield" size={12} color={zendapp.colors.textTertiary} />
-              <Text style={styles.securityText}>
-                Conexión segura y cifrada de extremo a extremo
-              </Text>
-            </View>
-            <Text style={styles.versionText}>Versión {getAppVersion()}</Text>
-          </View>
-        </Animated.View>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -478,6 +517,57 @@ export default function LoginScreen() {
             ))}
           </View>
         </Pressable>
+      </Modal>
+
+      {/* Modal Creación de PIN Inicial al registrar o iniciar por primera vez */}
+      <Modal
+        visible={pinSetupModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={{ alignItems: 'center', marginBottom: 14 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#FEECEC', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                <Icon name="key" size={20} color={zendapp.colors.primary} />
+              </View>
+              <Text style={styles.sheetTitle}>Crea tu PIN de Seguridad</Text>
+              <Text style={styles.sheetSub}>
+                Define un código de 5 dígitos para acceder rápidamente a Zendapp y proteger la información de tus clientes en este dispositivo.
+              </Text>
+            </View>
+
+            <Text style={styles.inputLabel}>PIN de 5 dígitos</Text>
+            <View style={styles.inputContainer}>
+              <Icon name="lock" size={17} color={zendapp.colors.primary} style={styles.inputIcon} />
+              <TextInput
+                placeholder="Ingresa 5 números (ej. 12345)"
+                placeholderTextColor={zendapp.colors.textPlaceholder}
+                value={initialPin}
+                onChangeText={(t) => setInitialPin(t.replace(/[^0-9]/g, '').slice(0, 5))}
+                style={styles.textInputField}
+                keyboardType="numeric"
+                maxLength={5}
+                secureTextEntry
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, (!initialPin || initialPin.length !== 5 || loading) && styles.primaryBtnDisabled]}
+              onPress={handleConfirmPinSetup}
+              disabled={!initialPin || initialPin.length !== 5 || loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.primaryBtnText}>Establecer PIN y Continuar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </View>
   );
